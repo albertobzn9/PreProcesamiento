@@ -1,0 +1,171 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LightEventDetector.MainWindow"
+        Title="LightEventDetector"
+        Width="1100" Height="720"
+        MinWidth="860" MinHeight="580">
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top" Padding="10,6"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button x:Name="BtnOpenVideo" Click="OpenVideo_Click">Abrir video…</Button>
+        <TextBlock x:Name="TxtVideoPath" VerticalAlignment="Center"
+                   Text="(ningún video abierto)" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+      </StackPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Height="110" Padding="4,2">
+      <TextBox x:Name="TxtLog"
+               IsReadOnly="True"
+               TextWrapping="NoWrap"
+               FontFamily="Cascadia Code, Menlo, Consolas, Monospace"
+               FontSize="11"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               ScrollViewer.VerticalScrollBarVisibility="Auto" />
+    </Border>
+
+    <Grid ColumnDefinitions="*, 290">
+
+      <DockPanel Grid.Column="0" Margin="6,4,3,4">
+
+        <Border DockPanel.Dock="Top" Padding="0,0,0,6">
+          <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Center">
+            <TextBlock Text="Dibujar con mouse:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <RadioButton x:Name="RadLeft" Content="Izquierda" IsChecked="True" Foreground="#2EA043" />
+            <RadioButton x:Name="RadCenter" Content="Centro" Foreground="#E07020" />
+            <RadioButton x:Name="RadRight" Content="Derecha" Foreground="#E04040" />
+          </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="0,4,0,0">
+          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+            <Button x:Name="BtnPrevBig" Click="PrevBig_Click" Width="36" ToolTip.Tip="Retroceder 1 segundo">◄◄</Button>
+            <Button x:Name="BtnPrev"    Click="Prev_Click"    Width="36" ToolTip.Tip="Frame anterior">◄</Button>
+            <TextBlock x:Name="TxtFrame" MinWidth="220" TextAlignment="Center"
+                       VerticalAlignment="Center" Text="—" />
+            <Button x:Name="BtnNext"    Click="Next_Click"    Width="36" ToolTip.Tip="Frame siguiente">►</Button>
+            <Button x:Name="BtnNextBig" Click="NextBig_Click" Width="36" ToolTip.Tip="Avanzar 1 segundo">►►</Button>
+          </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="0,4,0,2">
+          <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <Border x:Name="IndLeft"   Width="18" Height="18" CornerRadius="9" Background="Gray" />
+              <TextBlock Text="Izquierda" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <Border x:Name="IndCenter" Width="18" Height="18" CornerRadius="9" Background="Gray" />
+              <TextBlock Text="Centro" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <Border x:Name="IndRight"  Width="18" Height="18" CornerRadius="9" Background="Gray" />
+              <TextBlock Text="Derecha" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="TxtEvent" VerticalAlignment="Center"
+                       FontWeight="Bold" Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                       Text="—" />
+          </StackPanel>
+        </Border>
+
+        <Border BorderThickness="1" Background="Black"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <Image x:Name="ImgFrame" Stretch="Uniform" 
+                 PointerPressed="ImgFrame_PointerPressed"
+                 PointerMoved="ImgFrame_PointerMoved"
+                 PointerReleased="ImgFrame_PointerReleased" />
+        </Border>
+      </DockPanel>
+
+      <ScrollViewer Grid.Column="1" Margin="3,4,6,4"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="8" Margin="2">
+
+          <TextBlock Text="Configuración de ROIs" FontWeight="Bold" FontSize="13" />
+
+          <Border BorderThickness="1" CornerRadius="5" Padding="8"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <StackPanel Spacing="5">
+              <TextBlock Text="▪ Izquierda" Foreground="#2EA043" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="20,*,20,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="X" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiLX" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="9999" Value="100" Increment="1" Margin="0,0,6,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Y" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiLY" Grid.Row="0" Grid.Column="3" Minimum="0" Maximum="9999" Value="80"  Increment="1" Margin="0,0,0,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="W" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiLW" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="9999" Value="30"  Increment="1" Margin="0,0,6,0" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="H" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiLH" Grid.Row="1" Grid.Column="3" Minimum="1" Maximum="9999" Value="30"  Increment="1" Margin="0,0,0,0" ValueChanged="RoiChanged"/>
+              </Grid>
+              <Grid ColumnDefinitions="60,*">
+                <TextBlock Grid.Column="0" Text="Umbral:" VerticalAlignment="Center"/>
+                <NumericUpDown x:Name="RoiLT" Grid.Column="1" Minimum="0" Maximum="255" Value="180" Increment="5" ValueChanged="RoiChanged"/>
+              </Grid>
+              <TextBlock x:Name="TxtLBright" Text="Brillo: —" FontSize="11"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            </StackPanel>
+          </Border>
+
+          <Border BorderThickness="1" CornerRadius="5" Padding="8"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <StackPanel Spacing="5">
+              <TextBlock Text="▪ Centro" Foreground="#E07020" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="20,*,20,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="X" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiCX" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="9999" Value="250" Increment="1" Margin="0,0,6,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Y" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiCY" Grid.Row="0" Grid.Column="3" Minimum="0" Maximum="9999" Value="80"  Increment="1" Margin="0,0,0,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="W" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiCW" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="9999" Value="30"  Increment="1" Margin="0,0,6,0" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="H" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiCH" Grid.Row="1" Grid.Column="3" Minimum="1" Maximum="9999" Value="30"  Increment="1" ValueChanged="RoiChanged"/>
+              </Grid>
+              <Grid ColumnDefinitions="60,*">
+                <TextBlock Grid.Column="0" Text="Umbral:" VerticalAlignment="Center"/>
+                <NumericUpDown x:Name="RoiCT" Grid.Column="1" Minimum="0" Maximum="255" Value="180" Increment="5" ValueChanged="RoiChanged"/>
+              </Grid>
+              <TextBlock x:Name="TxtCBright" Text="Brillo: —" FontSize="11"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            </StackPanel>
+          </Border>
+
+          <Border BorderThickness="1" CornerRadius="5" Padding="8"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <StackPanel Spacing="5">
+              <TextBlock Text="▪ Derecha" Foreground="#E04040" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="20,*,20,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="X" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiRX" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="9999" Value="400" Increment="1" Margin="0,0,6,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Y" VerticalAlignment="Center" Margin="0,0,3,3"/>
+                <NumericUpDown x:Name="RoiRY" Grid.Row="0" Grid.Column="3" Minimum="0" Maximum="9999" Value="80"  Increment="1" Margin="0,0,0,3" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="W" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiRW" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="9999" Value="30"  Increment="1" Margin="0,0,6,0" ValueChanged="RoiChanged"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="H" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <NumericUpDown x:Name="RoiRH" Grid.Row="1" Grid.Column="3" Minimum="1" Maximum="9999" Value="30"  Increment="1" ValueChanged="RoiChanged"/>
+              </Grid>
+              <Grid ColumnDefinitions="60,*">
+                <TextBlock Grid.Column="0" Text="Umbral:" VerticalAlignment="Center"/>
+                <NumericUpDown x:Name="RoiRT" Grid.Column="1" Minimum="0" Maximum="255" Value="180" Increment="5" ValueChanged="RoiChanged"/>
+              </Grid>
+              <TextBlock x:Name="TxtRBright" Text="Brillo: —" FontSize="11"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            </StackPanel>
+          </Border>
+
+          <Separator Margin="0,4"/>
+          <Button x:Name="BtnProcess" Click="Process_Click"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Content="▶  Procesar video completo" />
+          <ProgressBar x:Name="PrgProcess" Minimum="0" Maximum="100" Value="0" Height="10" />
+          <TextBlock x:Name="TxtStatus" FontSize="11" Text=""
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+
+        </StackPanel>
+      </ScrollViewer>
+
+    </Grid>
+  </DockPanel>
+</Window>
