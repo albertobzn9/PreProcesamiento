@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Keep local builds independent from NuGet vulnerability-audit network calls. -->
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+</Project>
