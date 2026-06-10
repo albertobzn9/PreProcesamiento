@@ -28,6 +28,10 @@
 
 - [June Light Detection Workplan](planning/june-light-detection-workplan.md): cronograma de junio para cerrar el módulo `LightDetection` y alinear el prototipo con la arquitectura.
 
+## Development
+
+- [LightDetection Backend Guide](development/light-detection-backend-guide.md): explicación de backend sin GUI, uso del módulo `LightDetection` y forma de invocar `LightDetector.Analyze`.
+
 ## Código
 
 - [LightEventDetector](../src/LightEventDetector): prototipo actual en C# / Avalonia.
