@@ -24,6 +24,10 @@
 
 - [Technical Proposal](architecture/technical-proposal.md): propuesta técnica de módulos, flujo de uso, configuración y dependencias.
 
+## Planning
+
+- [June Light Detection Workplan](planning/june-light-detection-workplan.md): cronograma de junio para cerrar el módulo `LightDetection` y alinear el prototipo con la arquitectura.
+
 ## Código
 
 - [LightEventDetector](../src/LightEventDetector): prototipo actual en C# / Avalonia.
