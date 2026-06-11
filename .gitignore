@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+
+# .NET build outputs
+bin/
+obj/
+artifacts/
+TestResults/
+
+# IDE/editor state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.cache
+
+# Video processing outputs
+*_events.csv
+*_timeline.png
+videos_procesados/
+outputs/
+04_outputs/
+
+# Large local media/data inputs
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.m4v
+*.szv
+*.mat
