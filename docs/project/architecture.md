@@ -5,7 +5,7 @@
 | Capa | Tecnología |
 |------|-----------|
 | UI | Avalonia UI (cross-platform: Windows + macOS) |
-| Backend | C# (.NET 8+) |
+| Backend | C# (.NET 10, target actual del repo) |
 | Video | FFmpeg (via FFmpeg.AutoGen o proceso externo) |
 | Imágenes | SkiaSharp (via Avalonia) |
 | Archivos .mat | Librería para leer MATLAB .mat (CSV export o librería .NET) |
@@ -38,7 +38,7 @@
 │  └──────────┘ └──────────┘ └─────────────────┘  │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────────┐  │
 │  │Frame     │ │Light     │ │ LightTimeline   │  │
-│  │Analyzer  │ │Detector  │ │ Builder         │  │
+│  │Analysis  │ │Detection │ │ Builder         │  │
 │  └──────────┘ └──────────┘ └─────────────────┘  │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────────┐  │
 │  │MatParser │ │Segment   │ │ ClipExporter    │  │
@@ -59,16 +59,30 @@ Antes de programar módulos concretos conviene separar los datos principales. Es
 
 | Modelo | Qué representa | Campos clave |
 |--------|----------------|--------------|
-| `SessionMetadata` | Identidad de una sesión completa. | `scheme`, `iniciales`, `fecha`, `fase`, `dia`, `rata`, `sexo`, `tratamiento`, `sourceVideoPath`, `sourceMatPath`. |
-| `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadata_defaults`, overrides por archivo, ruta de `.mat`, tratamiento, sexo, iniciales. |
-| `LightSample` | Estado de luces en un frame o tiempo específico. | `frameIndex`, `timeSeconds`, `luzIzquierda`, `luzDerecha`, `ledRuido`, brillo por ROI. |
+| `SessionMetadata` | Identidad de una sesión completa. | `scheme`, `initials`, `dateCode`, `phaseCode`, `day`, `rat`, `sex`, `treatment`, `sourceVideoPath`, `sourceMatPath`. |
+| `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadataDefaults`, overrides por archivo, ruta de `.mat`, treatment, sex, initials. |
+| `LightSample` | Estado de luces en un frame o tiempo específico. | `frameIndex`, `timeSeconds`, `foodLeft`, `foodRight`, `noiseLed`, brillo por ROI. |
 | `LightTransition` | Cambio estable de una luz entre OFF/ON. | `lightId`, `from`, `to`, `frameIndex`, `timeSeconds`, confianza. |
-| `MatEvent` | Fila/evento del `.mat`. | `eventIndex`, `lado`, `estim`, `latenciaPalanca`, `tiempoAbs`, `palancasIzq`, `palancasDer`, `latenciaCruceDesplaz`, `resultado`. |
-| `VideoSegment` | Pedazo lógico que se puede revisar o exportar. | `segmento`, `startFrame`, `endFrame`, `warningStart`, `foodLightStart`, `matEventIndex`, `tipo`, `resultado`. |
+| `MatEvent` | Fila/evento del `.mat`. | `eventIndex`, `side`, `stim`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`, `result`. |
+| `VideoSegment` | Pedazo lógico que se puede revisar o exportar. | `segmentCode`, `startFrame`, `endFrame`, `warningStart`, `foodLightStart`, `matEventIndex`, `trialType`, `result`. |
 | `ExportClip` | Instrucción final para generar un archivo de video. | `inputVideoPath`, `outputPath`, `segment`, `transformConfig`, `namingMetadata`. |
 | `BatchReport` | Evidencia de lo procesado. | clips exportados, warnings, discrepancias `.mat` vs video, errores, configuración usada. |
 
 La distinción importante es esta: `MatEvent` describe lo que MATLAB registró; `VideoSegment` describe lo que se va a cortar del video; `ExportClip` describe el archivo final que se escribirá en disco.
+
+## Convención De Nombres Técnicos
+
+Las explicaciones del proyecto pueden estar en español, pero los nombres de módulos, clases, métodos y campos internos se mantienen principalmente en inglés para que el código sea consistente.
+
+| Concepto | Nombre técnico | Uso |
+|----------|----------------|-----|
+| Módulo de detección de luces | `LightDetection` | Carpeta/módulo dentro de `VideoBatchProcessor.Core`. |
+| Clase que decide ON/OFF | `LightDetector` | Clase principal del módulo `LightDetection`. |
+| Método principal del detector | `Analyze(...)` | Analiza una muestra/frame y regresa un `LightSample`. |
+| Luz de comida izquierda | `FoodLeft` | ROI/lectura de la luz de comida izquierda. |
+| Luz de comida derecha | `FoodRight` | ROI/lectura de la luz de comida derecha. |
+| LED de ruido blanco | `NoiseLed` | ROI/lectura del LED asociado al ruido blanco/conflicto. |
+| Adaptador de brillo por ROI | `IFrameBrightnessSource` | Contrato para obtener brillo promedio sin acoplar el detector a OpenCV o UI. |
 
 ---
 
@@ -79,21 +93,21 @@ La distinción importante es esta: `MatEvent` describe lo que MATLAB registró; 
 
 ```
 Input legacy:  "exp_0126_dis_d9r4.mp4"
-Output:        { Scheme="LegacySession", Fecha="0126", Fase="dis",
-                 Dia=9, Rata=4 }
+Output:        { Scheme="LegacySession", DateCode="0126", PhaseCode="dis",
+                 Day=9, Rat=4 }
 ```
 
 También parsea la nomenclatura estándar del lab y la nomenclatura de output del Video Batch Processor:
 
 ```
 Input lab:     "abs_2601_f5_d9r4_m_e1_p_stx.mp4"
-Output:        { Scheme="LabStandard", Iniciales="abs", Fecha="2601",
-                 Fase="f5", Dia=9, Rata=4, Sexo="m",
-                 Segmento="e1", Tipo="p", Tratamiento="stx" }
+Output:        { Scheme="LabStandard", Initials="abs", DateCode="2601",
+                 PhaseCode="f5", Day=9, Rat=4, Sex="m",
+                 SegmentCode="e1", TrialTypeCode="p", Treatment="stx" }
 
 Input output:  "abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4"
-Output:        { Scheme="VideoBatchOutput", ..., Segmento="e1",
-                 Tipo="p", Resultado="cr", Tratamiento="stx" }
+Output:        { Scheme="VideoBatchOutput", ..., SegmentCode="e1",
+                 TrialTypeCode="p", ResultCode="cr", Treatment="stx" }
 ```
 
 **Independiente:** Sí — solo trabaja con strings, sin dependencias de video.
@@ -130,40 +144,45 @@ GetTotalFrames() → int
 
 ---
 
-### 4. FrameAnalyzer
+### 4. FrameAnalysis
 **Responsabilidad:** Operaciones sobre frames individuales.
 
 ```
 ExtractROI(frame, Rect) → Bitmap          // Recorta región de interés
 Rotate(frame, degrees) → Bitmap           // 0, 90, 180, 270
 Flip(frame, axis) → Bitmap                // Horizontal o vertical
+GetMeanBrightness(frame, LightRoi) → double
 ```
 
-**Independiente:** Sí — opera sobre cualquier imagen, no requiere video.
+Este módulo/adaptador es el que sabe trabajar con píxeles reales. Por eso puede depender de OpenCV, FFmpeg o SkiaSharp según la implementación concreta.
+
+**Independiente:** Sí — opera sobre cualquier imagen, no requiere video completo.
 
 ---
 
-### 5. LightDetector
-**Responsabilidad:** Detectar qué luces están encendidas en un frame dado.
+### 5. LightDetection
+**Responsabilidad:** Decidir el estado ON/OFF de las tres luces de interés usando brillo promedio y umbral.
 
 ```
-// El usuario marcó 3 círculos en el primer frame:
-Configure(circleIzq, circleDer, circleLED)
+LightDetectionConfig = {
+  FoodLeft:  LightRoi,
+  FoodRight: LightRoi,
+  NoiseLed:  LightRoi,
+}
 
-// Por cada frame:
-Analyze(frame, frameIndex, timeSeconds) → LightSample
+LightDetector.Analyze(frameBrightnessSource, frameIndex, timeSeconds) → LightSample
   LightSample = {
     FrameIndex:    int,
     TimeSeconds:   float,
-    LuzIzquierda: bool,  // true si el brillo en circleIzq supera un umbral
-    LuzDerecha:   bool,  // igual para circleDer
-    LEDRuido:     bool,  // igual para circleLED
+    FoodLeft:      LightReading,
+    FoodRight:     LightReading,
+    NoiseLed:      LightReading,
   }
 ```
 
-**Detección:** Se calcula el brillo promedio dentro del área del círculo. Si supera un umbral (configurable), la luz está encendida. El umbral se puede calibrar automáticamente con los primeros frames (donde todo está apagado).
+`LightReading` conserva el brillo medido, el umbral usado y el estado booleano (`IsOn`). El brillo puede venir de un adaptador como `IFrameBrightnessSource`, que permite probar el detector con datos sintéticos o conectarlo después a OpenCV.
 
-**Independiente:** Sí — con frames sintéticos que tengan píxeles brillantes en posiciones conocidas se prueba.
+**Independiente:** Sí — con fuentes sintéticas de brillo se prueba sin abrir video ni UI.
 
 ---
 
@@ -176,8 +195,8 @@ Build(samples[], detectionConfig) → LightTimeline
 LightTimeline = {
   Samples:     LightSample[],
   Transitions: LightTransition[],
-  Warnings:    LightTransition[]   // LED/ruido
-  FoodLights:  LightTransition[]   // luces izquierda/derecha
+  Warnings:    LightTransition[]   // NoiseLed
+  FoodLights:  LightTransition[]   // FoodLeft/FoodRight
 }
 ```
 
@@ -195,18 +214,18 @@ Input:  LightTimeline + MatEvent[]? + SessionMetadata + SegmentConfig
 Output: VideoSegment[]
 
 VideoSegment = {
-  StartFrame:      int,
-  EndFrame:        int,
-  Lado:            enum { Izquierda, Derecha, Ninguno },
-  Segmento:        string,     // e1, e2, iti1, hab, habini, habfin
-  Tipo:            enum { Seguro, Conflicto, ITI, Habituacion },
-  Resultado:       enum { Cruce, NoCruce, Timeout, NoAplica },
-  MatEventIndex:   int?,       // evento/fila correspondiente del .mat
-  LatenciaPalancaMat: float?,  // columna Latencia del .mat
-  LatenciaCruceMat:   float?,  // columna Desplaz del .mat
-  WarningStart:    int?,       // frame donde prende LED/ruido, si aplica
-  FoodLightStart:  int?,       // frame donde prende luz de comida
-  Duracion:        float,      // segundos
+  StartFrame:         int,
+  EndFrame:           int,
+  Side:               enum { Left, Right, None },
+  SegmentCode:        string,  // e1, e2, iti1, hab, habini, habfin
+  TrialType:          enum { Safe, Conflict, ITI, Habituation },
+  Result:             enum { Crossing, NoCrossing, Timeout, NotApplicable },
+  MatEventIndex:      int?,    // evento/fila correspondiente del .mat
+  LeverLatencyMat:    float?,  // columna Latencia del .mat
+  CrossingLatencyMat: float?,  // columna Desplaz del .mat
+  WarningStart:       int?,    // frame donde prende NoiseLed, si aplica
+  FoodLightStart:     int?,    // frame donde prende FoodLeft/FoodRight
+  DurationSeconds:    float,
 }
 ```
 
@@ -237,12 +256,12 @@ Read(matPath) → SessionData
 SessionData = {
   Eventos: MatEvent[] donde
     MatEvent = {
-      EventIndex:             int,    // columna Ensayo del .mat
-      LatenciaPalanca:        float,  // columna Latencia: palanqueo desde luz de comida
-      LatenciaCruceDesplaz:   float,  // columna Desplaz: cruce/desplazamiento
-      Resultado:              enum,   // cruce, no cruce o timeout
-      Lado:                   int,    // 0=izq, 1=der, -2=timeout
-      Estim:                  int,    // 1=descarga activa/conflicto
+      EventIndex:         int,    // columna Ensayo del .mat
+      LeverLatency:       float,  // columna Latencia: palanqueo desde luz de comida
+      CrossingLatency:    float,  // columna Desplaz: cruce/desplazamiento
+      Result:             enum,   // cruce, no cruce o timeout
+      Side:               int,    // columna Lado: 0=izq, 1=der, -2=timeout
+      Stim:               int,    // columna Estim: 1=descarga activa/conflicto
     }
 }
 ```
@@ -322,7 +341,7 @@ Flujo:
 2. Parsea nombres con `NomenclatureParser`
 3. Completa metadata con `SessionMetadataResolver` y `BatchManifest`
 4. Lee metadata del video con `VideoReader`
-5. Detecta luces por frame con `FrameAnalyzer` + `LightDetector`
+5. Obtiene brillo por ROI con `FrameAnalysis` y detecta luces con `LightDetection`
 6. Construye transiciones estables con `LightTimelineBuilder`
 7. Si hay `.mat`, lo lee con `MatParser`
 8. Planea segmentos con `SegmentPlanner`
@@ -338,7 +357,7 @@ Flujo:
 |-------|-----------|
 | `VideoLoadView` | Seleccionar carpeta de entrada. Muestra lista de videos detectados con su metadata (fase, día, rata). |
 | `CropView` | Muestra el primer frame. Usuario dibuja un rectángulo con el mouse sobre la caja conductual. Preview del resultado. |
-| `LightMarkerView` | Misma imagen. Usuario coloca 3 círculos sobre las luces (izquierda, derecha, LED ruido). Se puede ajustar el umbral de brillo. |
+| `LightMarkerView` | Misma imagen. Usuario marca las ROIs `FoodLeft`, `FoodRight` y `NoiseLed`. Se puede ajustar el umbral de brillo. |
 | `SegmentTimelineView` | Línea de tiempo con barras por tipo: seguro, conflicto, ITI y habituación. Permite revisar luces, corregir inicios/finales, confirmar habituación/ITIs y validar el emparejamiento con `.mat` antes de exportar. |
 | `HabituationView` | Muestra duración de habituación inicial y final. Input del usuario: "recortar a X minutos". Alerta si dura menos de lo esperado. |
 | `ExportView` | Barra de progreso, logs en tiempo real, resumen final: "35 clips exportados de 4 videos". Botón para abrir la carpeta de salida. |
@@ -364,26 +383,26 @@ Flujo:
 
 ---
 
-## Dependencia entre módulos (para Eric)
+## Orden Lógico De Implementación
 
 ```
-Semana 1:  NomenclatureParser  →  independiente
-           SessionMetadataResolver → independiente
-           FrameAnalyzer       →  independiente
-           VideoReader         →  independiente
+Paso 1:  NomenclatureParser      → independiente
+         SessionMetadataResolver → independiente
+         FrameAnalysis           → independiente
+         VideoReader             → independiente
 
-Semana 2:  LightDetector       →  depende de FrameAnalyzer + VideoReader
-           LightTimelineBuilder →  depende de LightDetector
-           MatParser           →  independiente
+Paso 2:  LightDetection          → depende de FrameAnalysis solo cuando se conecta a frames reales
+         LightTimelineBuilder    → depende de LightDetection
+         MatParser               → independiente
 
-Semana 3:  SegmentPlanner      →  depende de LightTimelineBuilder + opcional MatParser
-           VideoTransformConfig →  depende de FrameAnalyzer para preview
+Paso 3:  SegmentPlanner          → depende de LightTimelineBuilder + opcional MatParser
+         VideoTransformConfig    → depende de FrameAnalysis para preview
 
-Semana 4:  ClipExporter        →  depende de SegmentPlanner + VideoTransformConfig
-           BatchOrchestrator   →  depende de todo lo anterior
+Paso 4:  ClipExporter            → depende de SegmentPlanner + VideoTransformConfig
+         BatchOrchestrator       → depende de todo lo anterior
 
-Semana 5:  UI (todas las vistas)  →  depende de BatchOrchestrator
-           Pruebas con datos reales
+Paso 5:  UI (todas las vistas)   → depende de BatchOrchestrator
+         Pruebas con datos reales
 ```
 
 Cada módulo tiene pruebas unitarias y se puede entregar funcional antes de continuar con el siguiente.
@@ -400,9 +419,9 @@ input_dir: "/videos/exp_0126_dis/"
 output_dir: "/videos/procesados/"
 manifest_path: "/videos/exp_0126_dis/batch_manifest.yaml"
 metadata_defaults:
-  iniciales: "abs"
-  sexo: "m"
-  tratamiento: "stx"
+  initials: "abs"
+  sex: "m"
+  treatment: "stx"
 crop:
   x: 50
   y: 30
@@ -411,9 +430,9 @@ crop:
 rotation: 0
 flip: none
 lights:
-  izquierda: { x: 120, y: 80, radius: 10 }
-  derecha:   { x: 780, y: 80, radius: 10 }
-  led_ruido: { x: 450, y: 120, radius: 8 }
+  food_left:  { x: 120, y: 80, radius: 10 }
+  food_right: { x: 780, y: 80, radius: 10 }
+  noise_led:  { x: 450, y: 120, radius: 8 }
 detection:
   threshold_mode: auto
   min_on_frames: 3

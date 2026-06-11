@@ -244,6 +244,6 @@ La diferencia conceptual es:
 
 - `NomenclatureParser` debe detectar nombres legacy y nombres con estándar del lab.
 - `MatParser` debe leer el `.mat` fuente sin asumir cambios de nombre.
-- `TrialSegmenter` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
+- `SegmentPlanner` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
 - `ClipExporter` debe construir nombres usando la nomenclatura de output del Video Batch Processor.
 - La correspondencia entre video completo y `.mat` se mantiene por el nombre legacy de sesión cuando se trabaja con datos históricos.
