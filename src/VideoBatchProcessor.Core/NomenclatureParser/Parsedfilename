@@ -1,0 +1,96 @@
+namespace VideoBatchProcessor.Core.Nomenclature;
+
+/// <summary>
+/// Esquema de nomenclatura detectado en el nombre del archivo.
+/// </summary>
+public enum NamingScheme
+{
+    Unknown,
+    LegacySession,    // exp_0126_dis_d9r4
+    LabStandard,      // abs_2601_f5_d9r4_m_e1_p_stx
+    VideoBatchOutput  // abs_2601_f5_d9r4_m_e1_p_cr_stx
+}
+
+/// <summary>
+/// Tipo de segmento dentro de una sesión CMC.
+/// </summary>
+public enum TipoSegmento
+{
+    Evento,             // eN  — evento/ensayo registrado en el .mat
+    ITI,                // itiN — intervalo entre ensayos
+    Habituacion,        // hab  — habituación como bloque único
+    HabituacionInicial, // habini
+    HabituacionFinal    // habfin
+}
+
+/// <summary>
+/// Tipo de ensayo: seguro (solo luz de comida) o peligroso/riesgo (luz + LED de ruido).
+/// </summary>
+public enum TipoEnsayo
+{
+    Seguro,    // s
+    Peligroso, // p — riesgo / conflicto
+    NoAplica   // na — ITI, habituación
+}
+
+/// <summary>
+/// Resultado conductual del ensayo, tal como lo registra el .mat o se infiere del video.
+/// </summary>
+public enum ResultadoConductual
+{
+    Cruce,   // cr
+    NoCruce, // nc
+    Timeout, // to
+    NoAplica // na — ITI, habituación
+}
+
+/// <summary>
+/// Metadata extraída del nombre de un archivo CMC.
+/// Los campos que no existen en el esquema detectado quedan en null o en 0.
+/// Este record es inmutable; el parser nunca lanza excepciones.
+/// </summary>
+public sealed record ParsedFileName
+{
+    public NamingScheme Scheme       { get; init; } = NamingScheme.Unknown;
+    public string       OriginalPath { get; init; } = string.Empty;
+    public string       Extension    { get; init; } = string.Empty;
+
+    // ── Presentes en los tres esquemas ───────────────────────────────────
+    /// <summary>
+    /// Fecha de inicio de experimento.
+    /// Legacy: MMYY (ej. "0126" = enero 2026).
+    /// Lab/VBP: YYMM (ej. "2601" = enero 2026).
+    /// </summary>
+    public string? Fecha { get; init; }
+
+    /// <summary>
+    /// Fase del protocolo.
+    /// Legacy: "cs" | "cm" | "cp" | "dis" | "pb".
+    /// Lab/VBP: "f1" … "f5".
+    /// </summary>
+    public string? Fase { get; init; }
+
+    public int Dia  { get; init; }
+    public int Rata { get; init; }
+
+    // ── LabStandard y VideoBatchOutput ────────────────────────────────────
+    /// <summary>Iniciales del experimentador (ej. "abs").</summary>
+    public string? Iniciales { get; init; }
+
+    /// <summary>"m" = macho, "h" = hembra.</summary>
+    public string? Sexo { get; init; }
+
+    /// <summary>Segmento en bruto: "e1", "iti3", "hab", "habini", "habfin".</summary>
+    public string? Segmento { get; init; }
+
+    public TipoSegmento? SegmentoTipo   { get; init; }
+
+    /// <summary>N en "eN" o "itiN". Null para hab / habini / habfin.</summary>
+    public int? SegmentoNumero { get; init; }
+
+    public TipoEnsayo? Tipo        { get; init; }
+    public string?     Tratamiento { get; init; }
+
+    // ── Solo en VideoBatchOutput ──────────────────────────────────────────
+    public ResultadoConductual? Resultado { get; init; }
+}

@@ -1,0 +1,208 @@
+using System.Text.RegularExpressions;
+
+namespace VideoBatchProcessor.Core.Nomenclature;
+
+/// <summary>
+/// Parsea nombres de archivos CMC reconociendo tres esquemas:
+/// LegacySession, LabStandard y VideoBatchOutput.
+///
+/// Solo opera sobre strings; sin dependencias de video ni de IO.
+/// Thread-safe: los Regex se compilan una sola vez como campos estáticos.
+/// </summary>
+public sealed class NomenclatureParser
+{
+    // ── Patrones compilados (orden de declaración = orden de prueba) ──────
+
+    /// <summary>
+    /// VBP Output — 9 tokens separados por '_'.
+    /// ini_YYMM_fN_dNrN_sexo_seg_tipo_resultado_trat
+    /// Ejemplo: abs_2601_f5_d9r4_m_e1_p_cr_stx
+    /// Se prueba ANTES que LabStandard porque tiene un campo extra.
+    /// </summary>
+    private static readonly Regex s_vbpOutput = new(
+        @"^(?<ini>[a-z]{2,5})_(?<fecha>\d{4})_(?<fase>f\d+)_d(?<dia>\d+)r(?<rata>\d+)" +
+        @"_(?<sexo>m|h)" +
+        @"_(?<seg>habini|habfin|hab|iti\d+|e\d+)" +
+        @"_(?<tipo>s|p|na)" +
+        @"_(?<res>cr|nc|to|na)" +
+        @"_(?<trat>[a-z0-9]+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Lab Standard — 8 tokens separados por '_'.
+    /// ini_YYMM_fN_dNrN_sexo_seg_tipo_trat
+    /// Ejemplo: abs_2601_f5_d9r4_m_e1_p_stx
+    /// </summary>
+    private static readonly Regex s_labStandard = new(
+        @"^(?<ini>[a-z]{2,5})_(?<fecha>\d{4})_(?<fase>f\d+)_d(?<dia>\d+)r(?<rata>\d+)" +
+        @"_(?<sexo>m|h)" +
+        @"_(?<seg>habini|habfin|hab|iti\d+|e\d+)" +
+        @"_(?<tipo>s|p|na)" +
+        @"_(?<trat>[a-z0-9]+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Legacy — formato histórico del laboratorio.
+    /// exp_MMYY_fase_dNrN
+    /// Ejemplo: exp_0126_dis_d9r4
+    /// </summary>
+    private static readonly Regex s_legacy = new(
+        @"^exp_(?<fecha>\d{4})_(?<fase>[a-z]+)_d(?<dia>\d+)r(?<rata>\d+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // ── API pública ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Intenta parsear el nombre de un archivo (o ruta completa).
+    /// Devuelve true si reconoció el esquema y pobló <paramref name="result"/>.
+    /// Devuelve false si no encaja en ningún patrón; result.Scheme queda Unknown.
+    /// Nunca lanza excepciones.
+    /// </summary>
+    public bool TryParse(string filePath, out ParsedFileName result)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath ?? string.Empty)
+                    .ToLowerInvariant();
+        var ext  = Path.GetExtension(filePath ?? string.Empty);
+
+        var seed = new ParsedFileName
+        {
+            OriginalPath = filePath ?? string.Empty,
+            Extension    = ext
+        };
+
+        Match m;
+
+        // 1. VBP Output — más específico, probar primero
+        m = s_vbpOutput.Match(name);
+        if (m.Success) { result = ApplyVbpOutput(seed, m);    return true; }
+
+        // 2. Lab Standard
+        m = s_labStandard.Match(name);
+        if (m.Success) { result = ApplyLabStandard(seed, m);  return true; }
+
+        // 3. Legacy
+        m = s_legacy.Match(name);
+        if (m.Success) { result = ApplyLegacy(seed, m);       return true; }
+
+        result = seed;
+        return false;
+    }
+
+    /// <summary>
+    /// Construye el nombre de archivo de salida según la nomenclatura VBP Output.
+    /// Útil desde ClipExporter cuando ya se tiene la metadata completa.
+    /// Ejemplo: BuildVbpOutputName("abs","2601","f5",9,4,"m","e1","p","cr","stx")
+    ///          → "abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4"
+    /// </summary>
+    public static string BuildVbpOutputName(
+        string iniciales,
+        string fecha,
+        string fase,
+        int    dia,
+        int    rata,
+        string sexo,
+        string segmento,
+        string tipo,
+        string resultado,
+        string tratamiento,
+        string extension = ".mp4")
+    {
+        return string
+            .Join("_", iniciales, fecha, fase, $"d{dia}r{rata}",
+                  sexo, segmento, tipo, resultado, tratamiento)
+            .ToLowerInvariant()
+            + extension.ToLowerInvariant();
+    }
+
+    // ── Builders privados ─────────────────────────────────────────────────
+
+    private static ParsedFileName ApplyVbpOutput(ParsedFileName seed, Match m) =>
+        seed with
+        {
+            Scheme         = NamingScheme.VideoBatchOutput,
+            Iniciales      = m.Groups["ini"].Value,
+            Fecha          = m.Groups["fecha"].Value,
+            Fase           = m.Groups["fase"].Value,
+            Dia            = int.Parse(m.Groups["dia"].Value),
+            Rata           = int.Parse(m.Groups["rata"].Value),
+            Sexo           = m.Groups["sexo"].Value,
+            Segmento       = m.Groups["seg"].Value,
+            SegmentoTipo   = ResolveSegmentoTipo(m.Groups["seg"].Value),
+            SegmentoNumero = ResolveSegmentoNumero(m.Groups["seg"].Value),
+            Tipo           = ResolveTipoEnsayo(m.Groups["tipo"].Value),
+            Resultado      = ResolveResultado(m.Groups["res"].Value),
+            Tratamiento    = m.Groups["trat"].Value,
+        };
+
+    private static ParsedFileName ApplyLabStandard(ParsedFileName seed, Match m) =>
+        seed with
+        {
+            Scheme         = NamingScheme.LabStandard,
+            Iniciales      = m.Groups["ini"].Value,
+            Fecha          = m.Groups["fecha"].Value,
+            Fase           = m.Groups["fase"].Value,
+            Dia            = int.Parse(m.Groups["dia"].Value),
+            Rata           = int.Parse(m.Groups["rata"].Value),
+            Sexo           = m.Groups["sexo"].Value,
+            Segmento       = m.Groups["seg"].Value,
+            SegmentoTipo   = ResolveSegmentoTipo(m.Groups["seg"].Value),
+            SegmentoNumero = ResolveSegmentoNumero(m.Groups["seg"].Value),
+            Tipo           = ResolveTipoEnsayo(m.Groups["tipo"].Value),
+            Tratamiento    = m.Groups["trat"].Value,
+        };
+
+    private static ParsedFileName ApplyLegacy(ParsedFileName seed, Match m) =>
+        seed with
+        {
+            Scheme = NamingScheme.LegacySession,
+            Fecha  = m.Groups["fecha"].Value,
+            Fase   = m.Groups["fase"].Value,
+            Dia    = int.Parse(m.Groups["dia"].Value),
+            Rata   = int.Parse(m.Groups["rata"].Value),
+        };
+
+    // ── Helpers de mapeo ─────────────────────────────────────────────────
+
+    private static TipoSegmento? ResolveSegmentoTipo(string seg) => seg switch
+    {
+        "habini" => TipoSegmento.HabituacionInicial,
+        "habfin" => TipoSegmento.HabituacionFinal,
+        "hab"    => TipoSegmento.Habituacion,
+        _ when seg.StartsWith("iti", StringComparison.Ordinal) => TipoSegmento.ITI,
+        _ when seg.StartsWith("e",   StringComparison.Ordinal) => TipoSegmento.Evento,
+        _ => null
+    };
+
+    private static int? ResolveSegmentoNumero(string seg)
+    {
+        // "e12"  → 12
+        if (seg.StartsWith("e", StringComparison.Ordinal) &&
+            int.TryParse(seg.AsSpan(1), out var ne))
+            return ne;
+
+        // "iti3" → 3
+        if (seg.StartsWith("iti", StringComparison.Ordinal) &&
+            int.TryParse(seg.AsSpan(3), out var ni))
+            return ni;
+
+        // hab / habini / habfin → sin número
+        return null;
+    }
+
+    private static TipoEnsayo? ResolveTipoEnsayo(string tipo) => tipo switch
+    {
+        "s"  => TipoEnsayo.Seguro,
+        "p"  => TipoEnsayo.Peligroso,
+        "na" => TipoEnsayo.NoAplica,
+        _    => null
+    };
+
+    private static ResultadoConductual? ResolveResultado(string res) => res switch
+    {
+        "cr" => ResultadoConductual.Cruce,
+        "nc" => ResultadoConductual.NoCruce,
+        "to" => ResultadoConductual.Timeout,
+        "na" => ResultadoConductual.NoAplica,
+        _    => null
+    };
+}
