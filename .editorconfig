@@ -6,7 +6,15 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+<<<<<<< HEAD
 [*.{cs,axaml,xml,csproj,sln}]
+=======
+[*.cs]
+indent_style = space
+indent_size = 4
+
+[*.{axaml,xml,csproj,sln}]
+>>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
 indent_style = space
 indent_size = 2
 
