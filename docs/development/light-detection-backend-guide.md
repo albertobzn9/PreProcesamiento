@@ -120,11 +120,7 @@ Más adelante, puede existir una clase como:
 OpenCvFrameBrightnessSource
 ```
 
-<<<<<<< HEAD
-que use OpenCV para leer pixeles reales. Pero `LightDetector` no tiene que saber eso.
-=======
 que use OpenCV para leer píxeles reales. Pero `LightDetector` no tiene que saber eso.
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
 
 ### `LightReading.cs`
 
@@ -279,11 +275,7 @@ OpenCV frame
 
 Así se mantiene separada la responsabilidad:
 
-<<<<<<< HEAD
-- OpenCV sabe leer pixeles.
-=======
 - OpenCV sabe leer píxeles.
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
 - `LightDetector` sabe decidir ON/OFF.
 - La UI sabe mostrar resultados.
 
@@ -345,8 +337,5 @@ LightDetection = brillo + umbral + ON/OFF
 ```
 
 Nada más.
-<<<<<<< HEAD
-=======
 
 Para validar este módulo sin GUI, ver también [Guía De Pruebas - LightDetection](light-detection-testing-guide.md).
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2

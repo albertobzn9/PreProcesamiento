@@ -58,7 +58,7 @@ Representa una **sesión completa**: un día, una rata y una fase. No representa
 Es la nomenclatura acordada por el laboratorio para archivos futuros.
 
 ```text
-[iniciales]_[fecha]_[fase]_[dia][rata]_[sexo]_[ensayo]_[tipoensayo]_[tratamiento].[extension]
+[iniciales]_[fecha_de_inicio]_[fase]_[dia][rata]_[sexo]_[ensayo]_[tipoensayo]_[tratamiento].[extension]
 ```
 
 Ejemplo:
@@ -244,10 +244,6 @@ La diferencia conceptual es:
 
 - `NomenclatureParser` debe detectar nombres legacy y nombres con estándar del lab.
 - `MatParser` debe leer el `.mat` fuente sin asumir cambios de nombre.
-<<<<<<< HEAD
-- `TrialSegmenter` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
-=======
 - `SegmentPlanner` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
 - `ClipExporter` debe construir nombres usando la nomenclatura de output del Video Batch Processor.
 - La correspondencia entre video completo y `.mat` se mantiene por el nombre legacy de sesión cuando se trabaja con datos históricos.

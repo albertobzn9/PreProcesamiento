@@ -25,11 +25,7 @@ Para las fases **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) y **DIS** (Di
 | 0 | **Ensayo** | 1, 2, 3... | Contador de eventos/ensayos donde la rata presionó la palanca durante la sesión (NO es el número de ensayo de cruce) |
 | 1 | **Lado** | `0`, `1`, `-2` | **0** = lado izquierdo registrado para el evento · **1** = lado derecho registrado para el evento · **-2** = la rata no cruzó (timeout) |
 | 2 | **Estim** | `0`, `1` | **0** = sin descarga (ensayo seguro) · **1** = descarga activa (ensayo conflicto) |
-<<<<<<< HEAD
-| 3 | **Latencia** | float (s) | Latencia de palanqueo. Tiempo desde que MATLAB inicia el evento hasta que la rata presiona la palanca. En riesgo/conflicto, ese inicio ocurre con la luz de comida, no con el LED de ruido. Es la latencia reportada en el paper como crossing latency. Si es ~**180s** → no cruzó (timeout) |
-=======
 | 3 | **Latencia** | float (s) | Latencia de palanqueo. Tiempo desde que MATLAB inicia el evento hasta que la rata presiona la palanca. En riesgo/conflicto, ese inicio ocurre con la luz de comida, no con el LED de ruido. Operativamente, para este programa se trata como latencia de palanqueo; no confundir con `Desplaz`, que registra cruce/desplazamiento. Si es ~**180s** → no cruzó (timeout) |
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
 | 4 | **TiempoAbs** | float (s) | Tiempo absoluto desde que inició la sesión (timestamp UNIX-like). Útil para ubicar el evento en el video. |
 | 5 | **PalancasIzq** | int (acumulado) | Presiones acumuladas en la palanca izquierda hasta este evento |
 | 6 | **PalancasDer** | int (acumulado) | Presiones acumuladas en la palanca derecha hasta este evento |
@@ -140,8 +136,4 @@ La relación completa entre nomenclatura legacy, estándar del lab y output del 
 
 ## Para el Video Batch Processor
 
-<<<<<<< HEAD
-El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El `LightDetector` del programa detecta cuándo se encienden las luces, y el `MatParser` lee el `.mat` para saber la latencia de palanqueo, la latencia de cruce/desplazamiento y si hubo cruce. Combinando ambas fuentes se obtiene trazabilidad entre tiempos visuales del video y etiquetas conductuales del `.mat`.
-=======
-El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection` detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para saber la latencia de palanqueo, la latencia de cruce/desplazamiento y si hubo cruce. Combinando ambas fuentes se obtiene trazabilidad entre tiempos visuales del video y etiquetas conductuales del `.mat`.
->>>>>>> 906fb64bcc4507d01341306ee4fe0c9f547ee5e2
+El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection`, en particular `LightDetector`, detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para saber la latencia de palanqueo, la latencia de cruce/desplazamiento y si hubo cruce. Combinando ambas fuentes se obtiene trazabilidad entre tiempos visuales del video y etiquetas conductuales del `.mat`.
