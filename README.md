@@ -6,20 +6,20 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 
 ## Estado
 
-Proyecto en fase de definición técnica y prototipo.
+Proyecto en fase de backend base + prototipo visual.
 
 - Producto completo: Video Batch Processor.
 - Prototipo actual: `LightEventDetector`, una app Avalonia que permite abrir un video, marcar ROIs de luces, detectar eventos ON/OFF y exportar una línea de tiempo con CSV.
 - Backend actual: `VideoBatchProcessor.Core`, librería donde vive la lógica reusable del producto.
-- Módulo en desarrollo: `LightDetection`, responsable de decidir si `FoodLeft`, `FoodRight` y `NoiseLed` están prendidos o apagados a partir de brillo por ROI.
-- Próximo objetivo técnico: cerrar `LightDetection` con pruebas automáticas y después conectarlo al prototipo visual mediante un adaptador de frames.
+- Módulos backend ya implementados: `NomenclatureParser`, `LightDetection`, `SessionMetadataResolver` y `VideoReader`.
+- Validación actual: `NomenclatureParser` y `SessionMetadataResolver` tienen pruebas pasando; `VideoReader` compila y sus pruebas dependen de resolver el runtime nativo de OpenCV en macOS ARM.
 
 ## Stack
 
 - C# / .NET
 - Avalonia UI
-- OpenCvSharp
-- FFmpeg como dependencia prevista para procesamiento/exportación de video
+- OpenCvSharp para lectura de video y análisis de frames
+- FFmpeg como dependencia prevista para exportación de clips
 
 ## Estructura
 
@@ -54,6 +54,20 @@ Proyecto en fase de definición técnica y prototipo.
 ```bash
 dotnet build VideoBatchProcessor.sln
 ```
+
+## Tests
+
+```bash
+dotnet test VideoBatchProcessor.sln
+```
+
+En macOS, usar este wrapper para pruebas con OpenCV:
+
+```bash
+./scripts/test-macos.sh
+```
+
+Ese script detecta si la Mac es Apple Silicon o Intel y resuelve la ruta nativa que OpenCvSharp necesita. El estado y contexto de ese punto están documentados en [VideoReader Runtime Notes](docs/development/video-reader-runtime-notes.md).
 
 El prototipo visual se puede ejecutar con:
 
