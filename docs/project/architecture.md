@@ -6,14 +6,16 @@
 |------|-----------|
 | UI | Avalonia UI (cross-platform: Windows + macOS) |
 | Backend | C# (.NET 10, target actual del repo) |
-| Video | FFmpeg (via FFmpeg.AutoGen o proceso externo) |
-| Imágenes | SkiaSharp (via Avalonia) |
+| Video I/O actual | OpenCvSharp |
+| Exportación de video prevista | FFmpeg (via FFmpeg.AutoGen o proceso externo) |
+| Imágenes | OpenCvSharp / SkiaSharp según el adaptador |
 | Archivos .mat | Librería para leer MATLAB .mat (CSV export o librería .NET) |
 
 **¿Por qué este stack?**
 - C#/Avalonia es cross-platform nativo (no electron)
-- FFmpeg es el estándar de la industria para procesamiento de video
-- SkiaSharp ya viene con Avalonia para análisis de píxeles en frames
+- OpenCvSharp ya se está usando para lectura de video y acceso a frames
+- FFmpeg sigue siendo el candidato natural para exportación/corte de clips
+- SkiaSharp sigue siendo útil del lado UI cuando convenga
 
 ---
 
@@ -138,7 +140,9 @@ GetFrameAtTime(seconds) → Bitmap
 GetTotalFrames() → int
 ```
 
-**Nota:** No hace procesamiento, solo lectura. Internamente usa FFmpeg para decodificar.
+**Nota:** No hace procesamiento, solo lectura. La implementación actual usa OpenCvSharp. FFmpeg sigue planteado para la etapa de exportación.
+
+**Estado actual:** ya existe una primera implementación en `src/VideoBatchProcessor.Core/VideoReader`. En macOS ARM todavía hay una validación pendiente del runtime nativo de OpenCV; ver `docs/development/video-reader-runtime-notes.md`.
 
 **Independiente:** Sí — con un solo video de prueba se puede validar.
 
