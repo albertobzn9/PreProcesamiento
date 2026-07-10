@@ -5,7 +5,7 @@
 Este documento define las tres nomenclaturas que conviven en el proyecto:
 
 1. **Legacy / sesión completa**: nombres actuales de los datos históricos que ya existen.
-2. **Estándar del lab**: nomenclatura acordada por el laboratorio para archivos futuros, pensada principalmente para ensayos de cruce.
+2. **Estándar del lab**: nomenclatura acordada por el laboratorio para las sesiones fuente futuras.
 3. **Output del Video Batch Processor**: extensión usada por este programa para exportar clips pequeños sin perder ensayos sin cruce, ITIs ni habituación.
 
 La regla principal es simple: los archivos fuente, especialmente los `.mat`, **no se renombran ni se modifican**. El programa los lee, interpreta sus eventos y genera clips de video con la nomenclatura de output.
@@ -53,18 +53,18 @@ Representa una **sesión completa**: un día, una rata y una fase. No representa
 
 ---
 
-## 2. Nomenclatura Estándar Del Lab / Ensayos De Cruce
+## 2. Nomenclatura Estándar Del Lab / Sesión Fuente
 
 Es la nomenclatura acordada por el laboratorio para archivos futuros.
 
 ```text
-[iniciales]_[fecha_de_inicio]_[fase]_[dia][rata]_[sexo]_[ensayo]_[tipoensayo]_[tratamiento].[extension]
+[iniciales]_[fecha_de_inicio]_[fase]_[dia][rata]_[sexo]_[tratamiento].[extension]
 ```
 
 Ejemplo:
 
 ```text
-abs_2601_f5_d1r3_m_e1_p_stx.mp4
+abs_2601_f5_d1r3_m_stx.mp4
 ```
 
 | Parte | Significado | Ejemplo |
@@ -74,8 +74,6 @@ abs_2601_f5_d1r3_m_e1_p_stx.mp4
 | `f5` | Fase del protocolo | `f1` a `f5` |
 | `d1r3` | Día + rata, sin separador | día 1, rata 3 |
 | `m` | Sexo | `m` = macho, `h` = hembra |
-| `e1` | Número de ensayo | `e1`, `e2`, `e30` |
-| `p` | Tipo de ensayo | `s` = seguro, `p` = peligroso/riesgo |
 | `stx` | Tratamiento | sin tratamiento |
 | `.mp4`, `.mat`, `.szv` | Extensión | según el archivo |
 
@@ -91,7 +89,10 @@ abs_2601_f5_d1r3_m_e1_p_stx.mp4
 
 ### Contexto
 
-Esta nomenclatura es el estándar general del laboratorio. Para el Video Batch Processor funciona como base, pero no alcanza por sí sola para describir todo lo que queremos exportar, porque está pensada principalmente para ensayos de cruce.
+Esta nomenclatura identifica una **sesión fuente completa**: una rata, día y fase.
+No identifica todavía un ensayo individual, su tipo ni su resultado. Esos datos no
+pueden conocerse desde el nombre del video antes de que Video Batch Processor lea
+el video y, cuando exista, el `.mat`.
 
 Aunque el estándar del lab contempla extensiones como `.mat`, `.mp4` y `.szv`, en este proyecto los `.mat` existentes se tratan como archivos de entrada. El Video Batch Processor no genera `.mat` nuevos; genera clips de video.
 
@@ -120,7 +121,10 @@ Ejemplo:
 abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4
 ```
 
-Esta convención extiende el estándar del lab con un campo adicional: `resultado`. Ese campo permite saber si el evento fue cruce, no cruce o timeout.
+Esta convención parte de los datos de sesión del estándar del lab y agrega los
+campos que Video Batch Processor puede obtener solo después de analizar el
+video: `segmento`, `tipoensayo` y `resultado`. Así permite saber qué parte del
+video representa el clip y si el evento fue cruce, no cruce o timeout.
 
 En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia donde se prende el LED de ruido blanco antes de la luz de comida. Aun así, el identificador `eN` conserva la trazabilidad con el evento del `.mat`, cuya latencia empieza cuando se prende la luz de comida.
 
@@ -155,6 +159,16 @@ En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia 
 | `s` | Seguro |
 | `p` | Peligroso/riesgo |
 | `na` | No aplica |
+
+### Evento De Solo Ruido
+
+CajaValentia registra este nuevo tipo experimental como `TipoEvento = 2`: tiene
+LED y ruido aversivo, pero no luz de comida ni recompensa. Video Batch Processor
+debe conservarlo como un evento distinto al segmentar y exportar.
+
+El código corto que ocupará dentro del campo `tipoensayo` de la nomenclatura de
+output todavía está pendiente de acuerdo. No se debe reutilizar `s`, `p` ni `na`
+para ocultar esa diferencia experimental.
 
 ### Resultado
 
@@ -206,8 +220,9 @@ Input legacy:
   exp_0126_dis_d1r3.mp4
   exp_0126_dis_d1r3.mat
 
-Estándar del lab:
-  abs_2601_f5_d1r3_m_e1_p_stx.mp4
+Entrada con estándar del lab:
+  abs_2601_f5_d1r3_m_stx.mp4
+  abs_2601_f5_d1r3_m_stx.mat
 
 Output del Video Batch Processor:
   abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4
@@ -221,7 +236,7 @@ La diferencia conceptual es:
 | Nomenclatura | Qué representa | Para qué sirve |
 |--------------|----------------|----------------|
 | Legacy | Sesión completa existente | Leer datos actuales sin alterar fuentes |
-| Estándar del lab | Ensayo de cruce nombrado de forma común en el laboratorio | Mantener compatibilidad conceptual con el acuerdo del lab |
+| Estándar del lab | Sesión fuente nombrada con el acuerdo actual del laboratorio | Identificar la sesión antes de segmentar |
 | Output del programa | Clip exportado, incluyendo cruce, no cruce, timeout, ITI o habituación | Recortar todo el video sin perder segmentos relevantes |
 
 ---
@@ -233,7 +248,7 @@ La diferencia conceptual es:
 3. Día y rata van juntos: `d1r3`, no `d1_r3`.
 4. No usar espacios en nombres de archivo.
 5. No renombrar ni modificar los `.mat` fuente.
-6. El programa debe poder leer la nomenclatura legacy y la nomenclatura estándar del lab.
+6. El programa debe poder leer la nomenclatura legacy y la nomenclatura estándar del lab para sesiones fuente completas.
 7. El programa debe exportar clips usando la nomenclatura de output del Video Batch Processor.
 8. Para eventos del `.mat`, conservar `eN` aunque no haya cruce.
 9. Usar `na` cuando un campo no aplique, como en ITI o habituación.
@@ -242,7 +257,7 @@ La diferencia conceptual es:
 
 ## Para Implementación Futura
 
-- `NomenclatureParser` debe detectar nombres legacy y nombres con estándar del lab.
+- `NomenclatureParser` debe detectar nombres legacy y nombres con estándar del lab de sesión fuente.
 - `MatParser` debe leer el `.mat` fuente sin asumir cambios de nombre.
 - `SegmentPlanner` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
 - `ClipExporter` debe construir nombres usando la nomenclatura de output del Video Batch Processor.

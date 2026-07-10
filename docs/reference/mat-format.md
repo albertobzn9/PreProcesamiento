@@ -1,4 +1,4 @@
-# Formato .mat — Las 8 columnas
+# Formato .mat — 8 Columnas Históricas Y Extensión `TipoEvento`
 
 > 🔗 Volver a [visión general](../protocol/cmc-protocol.md)
 
@@ -6,11 +6,13 @@ Para distinguir evento, ensayo, cruce, no cruce, timeout y tipos de latencia, ve
 
 ## ¿Qué es un .mat?
 
-Es un archivo de MATLAB que contiene una tabla numérica de **N filas × 8 columnas**. En muchos archivos la variable se llama `Resultados`, pero algunos `.mat` usan como nombre de variable el identificador de la sesión (por ejemplo `exp_0126_cs_d1r1`). Por eso, el parser debe buscar la primera variable no interna que sea una matriz numérica con 8 columnas, no depender únicamente del nombre `Resultados`.
+Los archivos históricos contienen una tabla numérica de **N filas × 8 columnas**. Las sesiones nuevas que usen el evento de solo ruido contienen **N filas × 9 columnas**: la novena columna se llama `TipoEvento`.
+
+En muchos archivos la variable se llama `Resultados`, pero algunos `.mat` usan como nombre de variable el identificador de la sesión (por ejemplo `exp_0126_cs_d1r1`). El parser debe buscar una matriz numérica no interna con 8 o 9 columnas; no depender únicamente del nombre `Resultados`.
 
 Cada fila NO es un ensayo de cruce exitoso — es un **evento de palanqueo o timeout**. Como la rata puede presionar varias veces en un mismo lado (hasta 3 veces del mismo lado, en CS, CP y DIS), hay más filas/eventos que cruces. Por lo tanto tenemos eventos con cruce, eventos del mismo lado sin cruce y timeouts.
 
-Para las fases **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) y **DIS** (Discriminación), la estructura es idéntica. Lo que cambia es el significado de algunos valores.
+Las sesiones históricas de **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) y **DIS** (Discriminación) usan las ocho columnas base. Las versiones nuevas de CP o DIS con evento de solo ruido agregan `TipoEvento` como novena columna.
 
 > Nota operativa: los Excel son vistas auxiliares útiles para revisar los datos, pero el formato que debe analizar el programa es el `.mat`. El parser no debe depender de hojas, fechas o bloques visuales del Excel.
 
@@ -18,18 +20,23 @@ Para las fases **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) y **DIS** (Di
 
 ---
 
-## Las columnas
+## Las Columnas
+
+Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Por eso la novena columna física de MATLAB aparece como índice `8`.
 
 | # | Nombre | Valores | Qué significa |
 |---|--------|---------|---------------|
 | 0 | **Ensayo** | 1, 2, 3... | Contador de eventos/ensayos donde la rata presionó la palanca durante la sesión (NO es el número de ensayo de cruce) |
 | 1 | **Lado** | `0`, `1`, `-2` | **0** = lado izquierdo registrado para el evento · **1** = lado derecho registrado para el evento · **-2** = la rata no cruzó (timeout) |
-| 2 | **Estim** | `0`, `1` | **0** = sin descarga (ensayo seguro) · **1** = descarga activa (ensayo conflicto) |
+| 2 | **Estim** | `0`, `1` | **0** = sin descarga · **1** = descarga activa. No distingue por sí sola un evento de riesgo con comida de un evento de solo ruido. |
 | 3 | **Latencia** | float (s) | Latencia de palanqueo. Tiempo desde que MATLAB inicia el evento hasta que la rata presiona la palanca. En riesgo/conflicto, ese inicio ocurre con la luz de comida, no con el LED de ruido. Operativamente, para este programa se trata como latencia de palanqueo; no confundir con `Desplaz`, que registra cruce/desplazamiento. Si es ~**180s** → no cruzó (timeout) |
 | 4 | **TiempoAbs** | float (s) | Tiempo absoluto desde que inició la sesión (timestamp UNIX-like). Útil para ubicar el evento en el video. |
 | 5 | **PalancasIzq** | int (acumulado) | Presiones acumuladas en la palanca izquierda hasta este evento |
 | 6 | **PalancasDer** | int (acumulado) | Presiones acumuladas en la palanca derecha hasta este evento |
 | 7 | **Desplaz** | float | Latencia de cruce/desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. **>1** = cruce válido (la rata realmente se desplazó). **≤1** = solo presionó palanca sin cruce significativo. **~180** = timeout. |
+| 8 | **TipoEvento** | `0`, `1`, `2` | Solo existe en archivos `N×9`. **0** = seguro con comida · **1** = riesgo/conflicto con comida · **2** = solo ruido, LED y parrilla, sin luz de comida ni recompensa. |
+
+Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la interpretación existente: `Estim=0` representa seguro y `Estim=1` representa conflicto con comida, porque esos datos fueron producidos antes de que existiera el evento de solo ruido.
 
 ---
 
@@ -137,3 +144,5 @@ La relación completa entre nomenclatura legacy, estándar del lab y output del 
 ## Para el Video Batch Processor
 
 El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection`, en particular `LightDetector`, detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para saber la latencia de palanqueo, la latencia de cruce/desplazamiento y si hubo cruce. Combinando ambas fuentes se obtiene trazabilidad entre tiempos visuales del video y etiquetas conductuales del `.mat`.
+
+Cuando exista `TipoEvento`, el `MatParser` debe conservarlo en cada `MatEvent` y usarlo antes que `Estim` para clasificar el evento. Para `TipoEvento=2`, `SegmentPlanner` debe buscar el LED/ruido sin exigir una luz de comida y crear un segmento de solo ruido. El resultado de cruce/no cruce/timeout no debe inferirse automáticamente con las reglas de un ensayo con comida.

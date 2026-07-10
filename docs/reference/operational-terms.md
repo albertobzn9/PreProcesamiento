@@ -25,6 +25,7 @@ Este documento define cómo usaremos los términos principales del protocolo CMC
 | **Habituación final** | Periodo al final de la sesión, sin luces, ruido ni descarga. En videos reales puede variar por corte manual y no debe asumirse como exactamente 5 min. |
 | **Seguro / no conflicto** | Ensayo con luz de comida sin LED de ruido blanco. |
 | **Conflicto / peligroso** | Ensayo con luz de comida y LED de ruido blanco. En DIS, el LED puede encender antes que la luz de comida. |
+| **Evento de solo ruido** | Evento con LED, ruido aversivo y parrilla activa, pero sin luz de comida ni recompensa. En `.mat` nuevo se identifica con `TipoEvento = 2`; no debe clasificarse como seguro ni como conflicto con comida. |
 | **Periodo de advertencia** | Delay intencional en ensayos de riesgo/conflicto: primero se enciende el LED de ruido blanco y suena el ruido; unos segundos después se prende la luz de comida. El clip de video puede conservar este periodo. |
 | **Inicio MATLAB del evento** | Momento desde el que MATLAB empieza a contar la latencia del evento. En ensayos de riesgo/conflicto ocurre cuando se prende la luz de comida, no cuando se prende el LED de ruido. |
 
@@ -40,3 +41,5 @@ Este documento define cómo usaremos los términos principales del protocolo CMC
 8. En nombres de clips, `eN` conserva el número del evento/ensayo del `.mat`; no significa necesariamente cruce exitoso.
 9. En clips de ITI o habituación, usar `na` para campos de tipo de ensayo o resultado que no apliquen.
 10. En ensayos de riesgo/conflicto, distinguir entre inicio visual del clip (LED/ruido) e inicio de latencia en MATLAB (luz de comida).
+11. Si el `.mat` tiene nueve columnas, usar `TipoEvento` para clasificar el evento. Si tiene ocho, conservar la interpretación histórica basada en `Estim`.
+12. Para `TipoEvento = 2`, segmentar por el LED de ruido aunque no exista luz de comida y no aplicar automáticamente las etiquetas conductuales de un ensayo con comida.

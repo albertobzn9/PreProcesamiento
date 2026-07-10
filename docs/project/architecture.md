@@ -24,33 +24,33 @@
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                        UI (Avalonia)                     │
-│  ┌─────────────────┐ ┌──────────┐ ┌───────────────────┐ │
-│  │ VideoLoadView   │ │ CropView │ │ LightMarkerView   │ │
-│  └─────────────────┘ └──────────┘ └───────────────────┘ │
-│  ┌─────────────────┐ ┌────────────────┐ ┌─────────────┐ │
-│  │ SegmentTimeline │ │ HabituationView│ │ ExportView  │ │
-│  │ View            │ │                │ │             │ │
-│  └─────────────────┘ └────────────────┘ └─────────────┘ │
+│  ┌─────────────────┐ ┌──────────┐ ┌───────────────────┐  │
+│  │ VideoLoadView   │ │ CropView │ │ LightMarkerView   │  │
+│  └─────────────────┘ └──────────┘ └───────────────────┘  │
+│  ┌─────────────────┐ ┌────────────────┐ ┌─────────────┐  │
+│  │ SegmentTimeline │ │ HabituationView│ │ ExportView  │  │
+│  │ View            │ │                │ │             │  │
+│  └─────────────────┘ └────────────────┘ └─────────────┘  │
 └───────────────────────────┬──────────────────────────────┘
                             │ llama a
 ┌───────────────────────────▼──────────────────────────────┐
 │                  Core Library (Backend)                  │
-│  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐ │
-│  │Nomenclature  │ │SessionMetadata     │ │VideoReader │ │
-│  │Parser        │ │Resolver            │ │            │ │
-│  └──────────────┘ └────────────────────┘ └────────────┘ │
-│  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐ │
+│  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐  │
+│  │Nomenclature  │ │SessionMetadata     │ │VideoReader │  │
+│  │Parser        │ │Resolver            │ │            │  │
+│  └──────────────┘ └────────────────────┘ └────────────┘  │
+│  ┌──────────────┐ ┌────────────────────┐ ┌─────────────┐ │
 │  │FrameAnalysis │ │LightDetection      │ │LightTimeline│ │
 │  │              │ │                    │ │Builder      │ │
-│  └──────────────┘ └────────────────────┘ └────────────┘ │
-│  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐ │
-│  │MatParser     │ │SegmentPlanner      │ │ClipExporter│ │
-│  │              │ │                    │ │+ FFmpeg    │ │
-│  └──────────────┘ └────────────────────┘ └────────────┘ │
-│  ┌────────────────────┐ ┌─────────────────────────────┐ │
-│  │VideoTransformConfig│ │BatchOrchestrator            │ │
-│  │                    │ │                             │ │
-│  └────────────────────┘ └─────────────────────────────┘ │
+│  └──────────────┘ └────────────────────┘ └─────────────┘ │
+│  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐  │
+│  │MatParser     │ │SegmentPlanner      │ │ClipExporter│  │
+│  │              │ │                    │ │+ FFmpeg    │  │
+│  └──────────────┘ └────────────────────┘ └────────────┘  │
+│  ┌────────────────────┐ ┌─────────────────────────────┐  │
+│  │VideoTransformConfig│ │BatchOrchestrator            │  │
+│  │                    │ │                             │  │
+│  └────────────────────┘ └─────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -63,9 +63,6 @@
 ---
 
 ## Modelo De Datos Conceptual
-
-(Nota: mucho ojo aqui porque estos modelos de datos no son iguales a los modelos que acabas de poner, no entiendo para que sirve bien esta sección, yo me confundí. Cuando leas esto platiquemos cual es la idea detrás de esta sección)
-(Abordaje: aclaré que aquí no se describen módulos, sino datos que pasan entre módulos.)
 
 Esta sección **no describe módulos ejecutables**. Describe las piezas de información que el sistema necesita compartir entre la UI, el parser, la detección, el segmentado y la exportación.
 
@@ -81,8 +78,8 @@ Piensa en esta sección como un inventario de preguntas que el sistema debe pode
 | `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadataDefaults`, overrides por archivo, ruta del `.mat`, treatment, sex, initials. |
 | `LightSample` | Estado de las tres luces en un frame o tiempo específico. | `frameIndex`, `timeSeconds`, `foodLeft`, `foodRight`, `noiseLed`, brillo por ROI. |
 | `LightTransition` | Cambio estable de una luz entre OFF y ON o entre ON y OFF. | `lightId`, `from`, `to`, `frameIndex`, `timeSeconds`, confianza. |
-| `MatEvent` | Un evento/fila leído desde el `.mat`. | `eventIndex`, `side`, `stim`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`, `result`. |
-| `VideoSegment` | Pedazo lógico de video que se puede revisar o exportar. | `segmentCode`, `startFrame`, `endFrame`, `warningStart`, `foodLightStart`, `matEventIndex`, `trialType`, `result`. |
+| `MatEvent` | Un evento/fila leído desde el `.mat`. | `eventIndex`, `side`, `stim`, `eventType`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`, `result`. |
+| `VideoSegment` | Parte lógica de una sesión que el programa propone revisar o exportar como clip. | `segmentCode`, `startFrame`, `endFrame`, `warningStart`, `foodLightStart`, `matEventIndex`, `trialType`, `result`. |
 | `ExportClip` | Instrucción final para generar un archivo de salida. | `inputVideoPath`, `outputPath`, `segment`, `transformConfig`, `namingMetadata`. |
 | `BatchReport` | Evidencia de lo procesado. | clips exportados, warnings, discrepancias `.mat` vs video, errores, configuración usada. |
 
@@ -95,10 +92,7 @@ La distinción importante es esta:
 
 ## Convención De Nombres Técnicos
 
-(Nota: mismo rollo que la sección anterior porque no son los nombres los modelos, ademas veo que pones LightDetection y LightDetection, eso suena super confuso, aqui quieno que me exliqes la idea detrás de estas dos secciones that make no sense.)
-(Abordaje: separé módulo, clase, método y dato para que no se mezclen como si fueran lo mismo.)
-
-La idea de esta sección es separar **qué tipo de cosa es cada nombre**. No todo nombre técnico significa lo mismo.
+Esta sección aclara qué representa cada nombre técnico: un módulo organiza una responsabilidad del backend, una clase implementa parte de esa responsabilidad, un método ejecuta una acción y un modelo de datos transporta información.
 
 | Tipo de cosa | Ejemplo | Qué significa |
 |--------------|---------|---------------|
@@ -120,7 +114,7 @@ Las explicaciones del proyecto pueden estar en español, pero los nombres de mó
 | Luz de comida izquierda | `FoodLeft` | ROI/lectura de la luz de comida izquierda. |
 | Luz de comida derecha | `FoodRight` | ROI/lectura de la luz de comida derecha. |
 | LED de ruido blanco | `NoiseLed` | ROI/lectura del LED asociado al ruido blanco/conflicto. |
-| Adaptador de brillo por ROI | `IFrameBrightnessSource` | Contrato para obtener brillo promedio sin acoplar el detector a OpenCV o UI. |
+| Adaptador de brillo por ROI | `IFrameBrightnessSource` | Interfaz que define cómo obtener brillo promedio sin unir el detector a OpenCV o a la UI. |
 
 ---
 
@@ -128,10 +122,10 @@ Las explicaciones del proyecto pueden estar en español, pero los nombres de mó
 
 Para que todas las secciones se lean igual, cada módulo se describe con este formato:
 - **Función en simple:** qué hace en lenguaje directo
-- **Recibe:** qué información necesita para trabajar
-- **Entrega:** qué resultado produce
-- **Depende de:** de qué otro módulo o dato necesita apoyarse
-- **Prueba aislada:** cómo se puede validar sin correr todo el programa
+- **Input:** qué información necesita para trabajar
+- **Output:** qué resultado produce
+- **Dependencias:** de qué otro módulo o dato necesita apoyarse
+- **Validación/Pruebas:** cómo se puede validar sin correr todo el programa
 
 ### Árbol simple de dependencias
 
@@ -142,7 +136,6 @@ MatParser --------------------------------------------------------------^
 VideoTransformConfig -----------------------------------------------> ClipExporter
 BatchOrchestrator -> coordina todo
 ```
-
 ### 1. NomenclatureParser
 
 **Función en simple:** Lee el nombre de un archivo y saca de ahí la información que ya viene escrita.
@@ -162,10 +155,10 @@ Output:        { Scheme="LegacySession", DateCode="0126", PhaseCode="dis",
 También parsea la nomenclatura estándar del lab y la nomenclatura de output del Video Batch Processor:
 
 ```
-Input lab:     "abs_2601_f5_d9r4_m_e1_p_stx.mp4"
+Input lab:     "abs_2601_f5_d9r4_m_stx.mp4"
 Output:        { Scheme="LabStandard", Initials="abs", DateCode="2601",
                  PhaseCode="f5", Day=9, Rat=4, Sex="m",
-                 SegmentCode="e1", TrialTypeCode="p", Treatment="stx" }
+                 Treatment="stx" }
 
 Input output:  "abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4"
 Output:        { Scheme="VideoBatchOutput", Initials="abs", DateCode="2601",
@@ -174,9 +167,6 @@ Output:        { Scheme="VideoBatchOutput", Initials="abs", DateCode="2601",
                  ResultCode="cr", Treatment="stx" }
 ```
 
-(Nota: aqui sería mejor si pusiera que significa cada output y cuales son los que existen, por ejemplo veo que hay scheme, day, rat, etc. vale la pena desglosar esto aqui aunque ya este también en el doc de nomenclatura)
-(Abordaje: agregué el significado de los campos principales para que se entienda sin salir de este doc.)
-
 Campos principales:
 - `Scheme`: qué nomenclatura se detectó (`LegacySession`, `LabStandard`, `VideoBatchOutput`)
 - `DateCode`: código de fecha del experimento
@@ -184,8 +174,8 @@ Campos principales:
 - `Day`: día de entrenamiento o prueba
 - `Rat`: identificador de la rata
 - `Sex`: sexo del animal si la nomenclatura lo incluye
-- `SegmentCode`: parte del video (`e1`, `e2`, `iti1`, `hab`, etc.)
-- `TrialTypeCode`: tipo de evento (`s`, `p`, etc.)
+- `SegmentCode`: parte del video (`e1`, `e2`, `iti1`, `hab`, etc.), asignada por el programa al crear un clip de output
+- `TrialTypeCode`: tipo de evento del clip de output (`s`, `p`, etc.)
 - `ResultCode`: resultado del evento (`cr`, `nc`, `to`, `na`)
 - `Treatment`: tratamiento (`stx`, `dzp`, etc.)
 
@@ -196,9 +186,6 @@ Campos principales:
 ### 2. SessionMetadataResolver
 
 **Función en simple:** Toma lo que el parser entendió del nombre y completa los datos faltantes de la sesión.
-
-(Nota: aqui la definición del modulo en responsabilidad debería ser mas simple y claro, este modulo lo que hace es primero que nada reconocer si se esta trabajando con la versión, y una vez eso completar con los datos que proporciona el usuario en el frontend, también debe tener un excepción en caso de que el usuario no quiero poner o no tenga los datos. Ahi tenemos que platicar para ver )
-(Abordaje: simplifiqué la responsabilidad y dejé explícito el caso donde faltan datos del usuario.)
 
 **Recibe:** salida de `NomenclatureParser`, configuración del lote (`BatchManifest`), ruta del video y, cuando exista, información capturada en frontend.
 
@@ -232,7 +219,7 @@ Si el usuario no quiere o no puede proporcionar ciertos datos, este módulo debe
 
 **Entrega:** acceso a FPS, resolución, duración y frames específicos.
 
-**Depende de:** la implementación concreta de lectura de video. Actualmente OpenCvSharp.
+**Depende de:** la biblioteca que realiza la lectura de video. Actualmente OpenCvSharp.
 
 ```
 Open(path) -> VideoHandle
@@ -242,7 +229,7 @@ GetFrameAtTime(seconds) -> Bitmap
 GetTotalFrames() -> int
 ```
 
-**Nota:** No hace procesamiento, solo lectura. La implementación actual usa OpenCvSharp. FFmpeg sigue planteado para la etapa de exportación.
+**Alcance:** No hace procesamiento, solo lectura. La implementación actual usa OpenCvSharp. FFmpeg sigue planteado para la etapa de exportación.
 
 **Estado actual:** ya existe una primera implementación en `src/VideoBatchProcessor.Core/VideoReader`. En macOS ARM todavía hay una validación pendiente del runtime nativo de OpenCV; ver `docs/development/video-reader-runtime-notes.md`.
 
@@ -253,9 +240,6 @@ GetTotalFrames() -> int
 ### 4. FrameAnalysis
 
 **Función en simple:** Hace operaciones visuales básicas sobre un frame: recortar, rotar, espejear y medir brillo en regiones concretas.
-
-(Nota: aqui en responsabilidad hay que ser un poco mas simple y especifico al mismo tiempo. Es decir que es lo que hace en esencia este modulo. Es la parte fundamental de la automatización porque rota, se espejea si es necesario. No se si ya este en otro modulo pero idealmente aqui también va se debe recortar los excesos de video donde no esta la caja conductual. También debe reconocer el area de las luces que el usuario selecciono en la gui)
-(Abordaje: lo reescribí como operaciones visuales base y aclaré cómo se relaciona con crop y ROIs de la GUI.)
 
 **Recibe:** un frame y una instrucción concreta, por ejemplo una región de recorte, una rotación o una ROI de luz.
 
@@ -269,7 +253,6 @@ Rotate(frame, degrees) -> Bitmap           // 0, 90, 180, 270
 Flip(frame, axis) -> Bitmap                // Horizontal o vertical
 GetMeanBrightness(frame, LightRoi) -> double
 ```
-
 La selección de crop y de luces viene de la UI. Este módulo no decide esas regiones; este módulo las aplica sobre los píxeles reales.
 
 Aquí vive la lógica base para:
@@ -284,9 +267,6 @@ Aquí vive la lógica base para:
 ### 5. LightDetection
 
 **Función en simple:** Decide si cada una de las tres luces está prendida o apagada en un momento dado.
-
-(Nota: aqui también tienes que ser mas simple porque no entiendo el codigo de abajo aunque creo que Eric si le entendió, platiquemos bien la parte técnica, porque hasta ahora solo entiendo la parte conceptual)
-(Abordaje: dejé primero la idea conceptual y luego el bloque técnico como apoyo, no al revés.)
 
 **Recibe:** brillo medido en las ROIs de `FoodLeft`, `FoodRight` y `NoiseLed`, junto con umbrales y referencia de frame/tiempo.
 
@@ -328,9 +308,6 @@ El brillo puede venir de un adaptador como `IFrameBrightnessSource`, que permite
 
 **Función en simple:** Convierte muchas lecturas frame por frame en una historia más estable de encendidos y apagados reales.
 
-(Nota: aqui tambien necesito un poco de mas claridad porque no entiendo como se hará lo que conceptualmente describes de buena manera)
-(Abordaje: lo bajé a una secuencia de pasos simples para pasar de lecturas ruidosas a eventos estables.)
-
 **Recibe:** una secuencia de `LightSample`.
 
 **Entrega:** un `LightTimeline`, que es un resumen ordenado de transiciones relevantes.
@@ -361,10 +338,7 @@ Eso evita que un frame brillante aislado se interprete como un evento real.
 
 ### 7. SegmentPlanner
 
-**Función en simple:** Decide dónde empieza y dónde termina cada clip, y con qué etiqueta debe salir.
-
-(Nota: observo que este modulo ya es uno bastante complejo, creo que seria buena idea describirlo mejor. Ahora que lo pienso hay que hacer un standar de info debe llevar cada sección/modulo en este doc, de tal manera que sea muy claro que se quiere por un lado en la parte conceptual y los parámetros y io). Creo que seria buena idea hacer un arbolito o otra herramienta para que se puedan ver las dependencias entre parámetros y módulos.
-(Abordaje: apliqué un formato fijo por módulo y agregué un árbol simple de dependencias.)
+**Función en simple:** Decide dónde empieza y dónde termina cada clip, y con qué etiqueta debe salir. Los archivos `.mat` se sincronizan con el video de forma aproximada y revisable.
 
 **Recibe:** `LightTimeline` + `MatEvent[]` opcional + `SessionMetadata` + reglas de segmentación.
 
@@ -385,7 +359,7 @@ VideoSegment = {
   EndFrame:           int,
   Side:               enum { Left, Right, None },
   SegmentCode:        string,  // e1, e2, iti1, hab, habini, habfin
-  TrialType:          enum { Safe, Conflict, ITI, Habituation },
+  TrialType:          enum { Safe, Conflict, SoundOnly, ITI, Habituation },
   Result:             enum { Crossing, NoCrossing, Timeout, NotApplicable },
   MatEventIndex:      int?,    // evento/fila correspondiente del .mat
   LeverLatencyMat:    float?,  // columna Latencia del .mat
@@ -396,32 +370,27 @@ VideoSegment = {
 }
 ```
 
-(Nota: ya vi que tampoco debe ser tan larga, lo mas importante es que sea super claro para que alguien como yo (sin conocimientos técnicos) puede entender la arquitectura)
-(Abordaje: conservé el detalle útil, pero lo organicé con función, entradas, salidas y decisiones concretas.)
-
-(Nota2: creo que lo mejor seria hacerlo como si fuera un docstring, el que conozco es el de deeplabcut, platiquemos para que nos pongamos de acuerdo sobre el estándar de cada sección/modulo)
-(Abordaje: usé un mini estándar repetible por sección para que luego podamos seguir refinándolo.)
-
 Decisiones principales que toma este módulo:
 1. usa las transiciones de luces para ubicar los límites de cada evento
-2. detecta si el evento es seguro o conflicto
+2. determina si el evento es seguro, conflicto con comida o solo ruido
 3. detecta huecos entre eventos para marcar `ITI`
 4. detecta zonas sin eventos al inicio o final para marcar habituación
 5. si hay `.mat`, empareja el evento visual con el evento conductual correspondiente
-6. produce una lista lista para revisión y luego exportación
+6. produce una lista para revisión y luego exportación
 
 **Lógica de segmentación:**
 1. Cuando una luz de comida pasa de OFF a ON -> inicio MATLAB del evento
 2. Cuando se apaga la luz de comida -> fin del evento
 3. Si el LED de ruido se enciende antes de la luz de comida -> periodo de advertencia de riesgo/conflicto
-4. LED de ruido asociado al evento -> tipo `Conflict`
-5. Sin LED de ruido asociado al evento -> tipo `Safe`
-6. Entre ensayos/eventos sin luces relevantes -> `ITI`
-7. Al inicio/fin del video sin luces -> `Habituation`
-8. El primer ensayo de la sesión siempre es seguro/de comida; usarlo como referencia contextual, no como sustituto de la detección
-9. Para determinar cruce/no cruce/timeout: primero puede usar heurística visual, y si hay `.mat` disponible, prioriza la información real del `.mat`
+4. Si un `MatEvent` tiene `EventType=SoundOnly` (`TipoEvento=2`), LED sin luz de comida -> tipo `SoundOnly`
+5. LED de ruido asociado a un evento con comida -> tipo `Conflict`
+6. Luz de comida sin LED de ruido asociado -> tipo `Safe`
+7. Entre ensayos/eventos sin luces relevantes -> `ITI`
+8. Al inicio/fin del video sin luces -> `Habituation`
+9. El primer ensayo de la sesión siempre es seguro/de comida; usarlo como referencia contextual, no como sustituto de la detección
+10. Para determinar cruce/no cruce/timeout: primero puede usar heurística visual, y si hay `.mat` disponible, prioriza la información real del `.mat`
 
-**Nota de timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. La latencia del `.mat` empieza en `FoodLightStart`.
+**Timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. La latencia del `.mat` empieza en `FoodLightStart`. En un evento `SoundOnly`, `WarningStart` es el inicio relevante y `FoodLightStart` queda vacío.
 
 **Prueba aislada:** Sí. Con `LightTimeline` y `MatEvent` sintéticos se prueba sin necesidad de video.
 
@@ -450,30 +419,29 @@ SessionData = {
       CrossingLatency:  float,  // columna Desplaz: cruce/desplazamiento
       Result:           enum,   // cruce, no cruce o timeout
       Side:             int,    // columna Lado: 0=izq, 1=der, -2=timeout
-      StimElect:        int,    // columna Estim: 1=descarga activa/conflicto
+      StimElect:        int,    // columna Estim: 1=descarga activa
+      EventType:        enum?,  // columna TipoEvento si existe: SafeFood, ConflictWithFood, SoundOnly
     }
 }
 ```
 
-El `.mat` normalmente tiene una variable `Resultados` (array N×8), pero algunos archivos pueden usar como nombre de variable el identificador de la sesión. El `MatParser` debe buscar la primera variable no interna que sea una matriz numérica con 8 columnas. Las columnas son:
+El `.mat` normalmente tiene una variable `Resultados` (array N×8 histórico o N×9 con evento de solo ruido), pero algunos archivos pueden usar como nombre de variable el identificador de la sesión. El `MatParser` debe buscar la primera variable no interna que sea una matriz numérica con 8 o 9 columnas. Las columnas son:
 
 | Col | Nombre | Significado |
 |-----|--------|-------------|
 | 0 | Ensayo | Número de evento |
 | 1 | Lado | 0=izq, 1=der, -2=no cruzó/timeout |
-| 2 | EstimElectrico | 1=descarga (conflicto) |
+| 2 | EstimElectrico | 1=descarga activa |
 | 3 | Latencia | Latencia de palanqueo desde luz de comida (~límite de fase=timeout) |
 | 4 | TiempoAbs | Timestamp desde inicio de sesión |
 | 5 | PalancasIzq | Presiones acumuladas palanca izquierda |
 | 6 | PalancasDer | Presiones acumuladas palanca derecha |
 | 7 | Desplazamiento | >1 = cruce válido, <=1 = palanqueo sin cruce, ~límite de fase = timeout |
+| 8 | TipoEvento | Solo en N×9: 0=seguro con comida, 1=conflicto con comida, 2=solo ruido |
 
 **Estrategia de parseo:** Los `.mat` pueden exportarse a CSV con scripts existentes en Python, o leerse directamente en C# con una librería como `MathNet.Numerics` o `MATLAB File Format` (solo lectura). Alternativa: pre-procesar los `.mat` a JSON/CSV y que este módulo lea el formato intermedio.
 
 **Prueba aislada:** Sí. Con un `.mat` de prueba se valida.
-
-(Nota: hasta aqui nos quedamos por ahora. Lo mas importante es que nos pongamos de acuerdo para que yo entienda este doc de architecture)
-(Abordaje: unifiqué el formato de lectura para que el resto del refinado siga el mismo patrón.)
 
 ---
 
@@ -567,9 +535,6 @@ Flujo:
 ---
 
 ## Módulos de la UI (Avalonia)
-
-(Nota: aqui también tenemos que asegurarnos que los nombres de los modelos tanto backend como frontend sean iguales en todo el doc)
-(Abordaje: alineé los nombres visibles de vistas y mantuve el mismo vocabulario del backend en todo el documento.)
 
 | Vista | Propósito |
 |-------|-----------|

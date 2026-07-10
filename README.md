@@ -45,6 +45,7 @@ Proyecto en fase de backend base + prototipo visual.
 - [Nomenclatura](docs/reference/naming-convention.md)
 - [Convención operativa de términos](docs/reference/operational-terms.md)
 - [Arquitectura](docs/project/architecture.md)
+- [Contexto de integración futura](docs/project/future-integration-context.md)
 - [Guía backend de LightDetection](docs/development/light-detection-backend-guide.md)
 - [Guía de pruebas de LightDetection](docs/development/light-detection-testing-guide.md)
 - [Plan histórico de junio para LightDetection](docs/development/june-light-detection-workplan.md)

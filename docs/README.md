@@ -6,6 +6,8 @@
 
 - [Product Requirements](project/product-requirements.md): requisitos de producto, decisiones actuales y especificación de usuario fusionadas sin resumir.
 - [Architecture](project/architecture.md): arquitectura de módulos, flujo de uso, configuración y dependencias.
+- [Architecture Review Log](project/architecture-review-log.md): decisiones aplicadas y pendientes de diseño retirados del documento principal.
+- [Future Integration Context](project/future-integration-context.md): horizonte compartido con CajaValentia y reglas de sesión que este proyecto debe respetar desde ahora.
 
 ## Protocol
 

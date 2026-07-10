@@ -112,7 +112,7 @@ public interface IFrameBrightnessSource
 }
 ```
 
-Una interfaz es un contrato. Dice qué operación debe existir, pero no dice cómo implementarla.
+Una interfaz define qué operación debe existir, pero no dice cómo implementarla.
 
 Más adelante, puede existir una clase como:
 
@@ -261,7 +261,7 @@ Esto es backend puro: no hay GUI, no hay video real, no hay OpenCV. Solo se prue
 
 Para video real se necesita un adaptador.
 
-El adaptador toma un frame real y cumple el contrato `IFrameBrightnessSource`.
+El adaptador toma un frame real e implementa la interfaz `IFrameBrightnessSource`.
 
 Conceptualmente:
 
