@@ -23,7 +23,7 @@
 - [Eric Status And Handoff](development/eric-status-and-handoff.md): resumen consolidado del trabajo de Eric, estado validado de los modulos y pendientes actuales.
 - [LightDetection Backend Guide](development/light-detection-backend-guide.md): explicación de backend sin GUI, uso del módulo `LightDetection` y forma de invocar `LightDetector.Analyze`.
 - [LightDetection Testing Guide](development/light-detection-testing-guide.md): explicación de pruebas automáticas para validar `LightDetection` sin GUI ni video real.
-- [June Light Detection Workplan](development/june-light-detection-workplan.md): cronograma de junio para cerrar el módulo `LightDetection` y alinear el prototipo con la arquitectura.
+- [June Light Detection Workplan](development/june-light-detection-workplan.md): plan histórico de junio; conserva el contexto con el que se cerró `LightDetection`, no el siguiente bloque activo.
 - [VideoReader Runtime Notes](development/video-reader-runtime-notes.md): estado del módulo `VideoReader`, qué se ajustó en la solución y qué sigue pendiente en macOS ARM.
 
 ## Código

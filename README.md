@@ -47,7 +47,7 @@ Proyecto en fase de backend base + prototipo visual.
 - [Arquitectura](docs/project/architecture.md)
 - [Guía backend de LightDetection](docs/development/light-detection-backend-guide.md)
 - [Guía de pruebas de LightDetection](docs/development/light-detection-testing-guide.md)
-- [Cronograma de junio para LightDetection](docs/development/june-light-detection-workplan.md)
+- [Plan histórico de junio para LightDetection](docs/development/june-light-detection-workplan.md)
 
 ## Archivo Paralelo En Drive
 

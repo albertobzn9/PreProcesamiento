@@ -1,5 +1,10 @@
 # Cronograma De Junio - Light Detection
 
+> Estado: **histórico**. Este plan cubre junio de 2026 y documenta cómo se
+> cerró el trabajo de `LightDetection`. Para el estado y los siguientes módulos,
+> consultar [Eric Status And Handoff](eric-status-and-handoff.md) y la
+> [arquitectura actual](../project/architecture.md).
+
 Este documento define el trabajo de junio para cerrar el módulo de detección de luces del Video Batch Processor.
 
 El objetivo no es rehacer todo el programa. El objetivo es convertir el prototipo actual en un módulo pequeño, claro y verificable, siguiendo la arquitectura definida en [architecture.md](../project/architecture.md).
