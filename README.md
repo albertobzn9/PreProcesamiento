@@ -49,6 +49,18 @@ Proyecto en fase de backend base + prototipo visual.
 - [Guía de pruebas de LightDetection](docs/development/light-detection-testing-guide.md)
 - [Cronograma de junio para LightDetection](docs/development/june-light-detection-workplan.md)
 
+## Archivo Paralelo En Drive
+
+La fuente histórica de requisitos, guías y ejemplos del producto permanece en:
+
+```text
+/Users/ab/Library/CloudStorage/GoogleDrive-jasjabs19@gmail.com/My Drive/workspace/03_lab/01_Proyecto_Grande_App/02_video-batch-processor
+```
+
+Esa carpeta es de referencia y archivo; la documentación y el código activos
+viven en este repositorio. No copiar árboles completos ni datos de sesión: si
+aparece una corrección útil, incorporarla aquí con un cambio pequeño y probado.
+
 ## Build
 
 ```bash
