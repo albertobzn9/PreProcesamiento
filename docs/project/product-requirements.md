@@ -4,7 +4,7 @@
 
 ## Propósito del Documento
 
-Este documento reúne las notas de producto originales del Video Batch Processor sin resumir contenido. Su objetivo es describir qué problema resuelve la aplicación, qué debe hacer, qué queda fuera de alcance y cómo se propone entregar el proyecto por módulos.
+Este documento reúne las notas de producto (Nota: que es eso de notas de producto, recuerda términos simples donde se pueda) originales del Video Batch Processor sin resumir contenido. Su objetivo es describir qué problema resuelve la aplicación, qué debe hacer, qué queda fuera de alcance y cómo se propone entregar el proyecto por módulos.
 
 ## Identificación Del Proyecto
 
@@ -12,53 +12,50 @@ Este documento reúne las notas de producto originales del Video Batch Processor
 
 **Tipo:** Aplicación de escritorio (C# / Avalonia UI) para preprocesamiento masivo de videos de la tarea de conflicto mediado por cruces.
 
-**Objetivo:** Normalizar videos (crop, rotación, detección de luces, segmentación y exportación de clips) antes de DeepLabCut.
+**Objetivo:** Normalizar videos (crop, rotación, detección de luces, segmentación y exportación de clips) antes de DeepLabCut (DLC).
 
 **Desarrolladores:** Eric (backend, junio 2026) + AB (post-integración)
 
 **Fecha Inicial:** 01-05-2026
 
-**Update:** 31-05-26
+**Update:** 05-07-26
 
-**Estado:** Definición Técnica
+**Estado:** Desarollo del backend
 
 **Stack:** C# / Avalonia UI
 
-**Referencia original:** Guia Estándar de Desarrollo de Apps (documento interno no incluido en este repositorio)
 
 ## Resumen Del Proyecto
 
-Un programa de escritorio para Windows y Mac que prepara automáticamente los videos del laboratorio antes de analizarlos con DeepLabCut. Básicamente, toma los videos crudos de las sesiones con ratas y los convierte en videos pequeños y ordenados, cada uno con un ensayo/evento, ITI o habituación, listos para procesar.
-
-Desarrollar una aplicación de escritorio nativa (Windows/macOS) para automatizar el pre-procesamiento masivo de videos de laboratorio.
+Desarrollar una aplicación de escritorio nativa (Windows/macOS) para automatizar el pre-procesamiento masivo de videos de laboratorio. Básicamente, toma los videos crudos de las sesiones con ratas y los convierte en videos pequeños y ordenados listos para la inferencia en DLC.
 
 - **Meta:** Normalizar videos (recorte, rotación y cropping) en un solo paso antes de ingresarlos a **DeepLabCut**.
 - **Prioridad:** Mantener la integridad de los frames (sin pérdida visual) y ofrecer una UX sencilla para usuarios no técnicos.
 
 ## Contexto Y Problema
 
-En el laboratorio grabamos sesiones de comportamiento de ratas en la tarea CMC (Conflicto Mediado por Cruces). Una sesión dura ~50 minutos y tiene unos 30 ensayos, donde la rata decide si cruzar o no una rejilla para obtener comida. También hay eventos donde la luz se enciende del mismo lado. Entre ensayo y ensayo hay ITIs: en algunas fases son cortos, pero en CP pueden ser largos y vale la pena conservarlos si se quiere segmentar todo el video sin perder contexto.
+En el laboratorio grabamos sesiones de comportamiento de ratas en la tarea CMC (Conflicto Mediado por Cruces). Una sesión dura ~35-45 minutos y tiene unos 30 ensayos, donde la rata decide si cruzar o no una rejilla electrificada para obtener comida. También hay eventos donde la luz se enciende del mismo lado. Entre ensayo y ensayo hay ITIs: en algunas fases son cortos, pero en el entrenamiento de cruces peligrosos pueden ser largos y vale la pena conservarlos si se quiere segmentar todo el video sin perder contexto.
 
 Actualmente:
 
-- Tenemos videos larguísimos de los que solo usamos pedazos
+- Tenemos videos larguísimos de los que no todos los momentos son relevantes
+- El tiempo de inferencia en DLC es de tres veces el tiempo del video, por lo que es mejor tener videos cortos y enfocados
 - Las cámaras a veces quedan rotadas o al revés
-- La caja de comportamiento no siempre está en la misma posición entre protocolos
-- No hay una forma estándar de cortar cada ensayo por separado
-- Dado el tiempo de inferencia de DeepLabCut es mejor tener videos cortos y enfocados
+- La cámara de la caja no siempre está en la misma posición entre protocolos
+- No hay una forma automática de cortar cada ensayo por separado
 
-Necesitamos una herramienta que haga todo esto en un solo paso, sin tener que editar video manualmente.
+Necesitamos una herramienta que haga todo esto en un solo paso, sin tener que editar videos manualmente.
 
 ## Características Generales Previstas
 
 La idea general de este proyecto es que se puedan normalizar/estandarizar todos los videos. La idea es que cumpla las siguientes características:
 
-1. Batch processing: que el usuario pueda subir diferentes videos con una nomenclatura estándar y el programa en automático reconozca qué etapa, día y rata es el video.
-2. Cropping del video: que a través de una interfaz el usuario pueda seleccionar qué partes del video desea recortar y eso se aplique a todo el batch. Se asume que durante todo el protocolo la cámara quedó fija. Se asume que entre protocolo y protocolo la cámara se mueve debido al moldeamiento (la cámara pasa del centro al lateral y al terminar el moldeamiento se mueve de regreso al centro).
-3. Rotación/reflejo del video: que el usuario pueda seleccionar si se rota 180° o se refleja en espejo con un botón, y que eso se aplique a todo el batch. También dar la opción para que no se haga en caso de que el video esté bien.
-4. Identificación de ensayos: utilizar algoritmos de visión artificial para reconocer cuándo se prende cada una de las tres luces. Para que sea más fácil identificar las luces, el usuario puede marcar con círculos dónde se encuentran.
-5. Recorte por segmento: una vez que el programa identifica los eventos de luz, que recorte en automático la habituación, los ensayos/eventos y los ITIs.
-6. Recorte de habituación: mostrar al usuario cuánto tiempo dura la habituación inicial y final y permitir recortar al tiempo deseado. Si en 10 videos de 50 se observa que la habituación final dura más de 7 minutos pero solo se ocupan 5 min, el programa debe permitir recortarla. También debe mostrar cuando las habituaciones duren menos de un tiempo establecido por el usuario.
+1. **Batch processing:** que se puedan subir muchos videos y que el programa en automático reconozca qué etapa, día y rata es el video.
+2. **Cropping del video:** que a través de una interfaz sencilla el usuario pueda seleccionar secciones del video no utiles (los laterales del video que no muestran la caja conductual) y eso se aplique a todo el batch. Se asume que durante todo el protocolo la cámara quedó fija. Se asume que entre protocolo y protocolo la cámara se mueve debido al moldeamiento (la cámara pasa del centro al lateral y al terminar el moldeamiento se mueve de regreso al centro).
+4. **Rotación/reflejo del video:** que el usuario pueda seleccionar si se rota 180° o se refleja en espejo con un botón, y que eso se aplique a todo el batch. También dar la opción para que no se haga en caso de que el video esté bien.
+5. **Identificación de ensayos:** utilizar algoritmos de visión artificial para reconocer cuándo se prende cada una de las tres luces. Para que sea más fácil identificar las luces, el usuario, a través de la gui, selecciona con círculos dónde se encuentran.
+6. **Recorte por segmento:** una vez que el programa identifica los eventos de luz, que recorte en automático la habituación, los ensayos/eventos y los ITIs.
+7. **Recorte de habituación:** mostrar al usuario cuánto tiempo dura la habituación inicial y final y permitir recortar al tiempo deseado. Si en 10 videos de 50 se observa que la habituación final dura más de 7 minutos pero solo se ocupan 5 min, el programa debe permitir recortarla. También debe mostrar cuando las habituaciones duren menos de un tiempo establecido por el usuario.
 
 ## Requisitos Funcionales
 
