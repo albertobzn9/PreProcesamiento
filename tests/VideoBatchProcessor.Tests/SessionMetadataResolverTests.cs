@@ -69,7 +69,7 @@ public class SessionMetadataResolverTests
     [Fact]
     public void LabStandard_SinManifest_EsCompleto()
     {
-        var meta = Resolve("/s/abs_2201_f5_d22r1_m_e1_s_stx.mp4");
+        var meta = Resolve("/s/abs_2201_f5_d22r1_m_stx.mp4");
         Assert.True(meta.IsComplete);
     }
 

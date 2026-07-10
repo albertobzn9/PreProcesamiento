@@ -33,7 +33,7 @@ public sealed class SessionMetadataResolver
         "El nombre del archivo no corresponde a ningún esquema conocido.\n\n" +
         "Formatos aceptados:\n" +
         "  Legacy        →  exp_0126_dis_d1r3.mp4\n" +
-        "  Lab standard  →  abs_2601_f5_d1r3_m_e1_p_stx.mp4\n\n" +
+        "  Lab standard  →  abs_2601_f5_d1r3_m_stx.mp4\n\n" +
         "Por favor ingresa los datos faltantes manualmente.";
 
     // ── Resolve ───────────────────────────────────────────────────────────

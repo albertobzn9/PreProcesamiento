@@ -21,6 +21,7 @@ Status meanings:
 | Terminology | Use `Input`, `Output`, `Dependencies`, and `Validation/Tests` as the section vocabulary. | Applied |
 | Interface wording | Use “interface” for code such as `IFrameBrightnessSource`; use direct wording for data formats and rules instead of “contract”. | Applied |
 | Lab source names | The current lab-standard source name identifies a complete session and does not contain `eN` or `s/p`. | Applied |
+| Lab source parser | `NomenclatureParser` accepts the six-part lab source name and rejects the former intermediate name with segment/type fields. | Applied |
 | Output names | `SegmentCode` and `TrialTypeCode` are assigned only when the program creates output clips. | Applied |
 | Metadata fields | The main nomenclature fields are explained in the architecture document. | Applied |
 | Frame analysis | Crop, rotation, flip, and light ROIs are selected in the UI and applied by `FrameAnalysis`. | Applied |
@@ -43,7 +44,6 @@ Status meanings:
 
 - For a legacy name, the UI must request missing session metadata and allow the user to leave unavailable fields incomplete with a warning.
 - Define the expected behavior for a malformed file name: clear validation message, no silent guess, and no crash.
-- Update `NomenclatureParser` and its tests: they still require the former lab-standard format with `eN` and `s/p`, while the documentation now defines the session-source format without those fields.
 
 ### Segmentation And Synchronization
 

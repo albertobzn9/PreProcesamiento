@@ -46,9 +46,7 @@ Proyecto en fase de backend base + prototipo visual.
 - [Convención operativa de términos](docs/reference/operational-terms.md)
 - [Arquitectura](docs/project/architecture.md)
 - [Contexto de integración futura](docs/project/future-integration-context.md)
-- [Guía backend de LightDetection](docs/development/light-detection-backend-guide.md)
-- [Guía de pruebas de LightDetection](docs/development/light-detection-testing-guide.md)
-- [Plan histórico de junio para LightDetection](docs/development/june-light-detection-workplan.md)
+- [Plan de trabajo activo de Eric](docs/development/eric-workplan.md)
 
 ## Archivo Paralelo En Drive
 
@@ -80,7 +78,7 @@ En macOS, usar este wrapper para pruebas con OpenCV:
 ./scripts/test-macos.sh
 ```
 
-Ese script detecta si la Mac es Apple Silicon o Intel y resuelve la ruta nativa que OpenCvSharp necesita. El estado y contexto de ese punto están documentados en [VideoReader Runtime Notes](docs/development/video-reader-runtime-notes.md).
+Ese script detecta si la Mac es Apple Silicon o Intel y resuelve la ruta nativa que OpenCvSharp necesita.
 
 El prototipo visual se puede ejecutar con:
 

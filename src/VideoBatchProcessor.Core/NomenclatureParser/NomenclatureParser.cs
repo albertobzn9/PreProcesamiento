@@ -6,7 +6,7 @@ namespace VideoBatchProcessor.Core.Nomenclature;
 /// Parsea nombres de archivos CMC reconociendo dos formatos de entrada:
 /// <list type="bullet">
 ///   <item><b>LegacySession</b>  — exp_MMYY_fase_dNrN  (datos históricos del lab)</item>
-///   <item><b>LabStandard</b>    — ini_YYMM_fN_dNrN_sexo_seg_tipo_trat</item>
+///   <item><b>LabStandard</b>    — ini_YYMM_fN_dNrN_sexo_trat</item>
 /// </list>
 /// El formato de salida (<b>VideoBatchOutput</b>) lo genera <see cref="BuildVbpOutputName"/>.
 ///
@@ -15,7 +15,7 @@ namespace VideoBatchProcessor.Core.Nomenclature;
 public sealed class NomenclatureParser
 {
     // ── Patrones compilados ───────────────────────────────────────────────
-    // El orden de prueba importa: VBP Output (9 tokens) ANTES que LabStandard (8),
+    // El orden de prueba importa: VBP Output (9 tokens) ANTES que LabStandard (6),
     // para evitar que LabStandard absorba un VBP Output válido.
 
     /// <summary>
@@ -32,14 +32,12 @@ public sealed class NomenclatureParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
-    /// Lab Standard — 8 tokens: ini_YYMM_fN_dNrN_sexo_seg_tipo_trat
-    /// Ejemplo: abs_2601_f5_d1r3_m_e1_p_stx
+    /// Lab Standard — 6 tokens: ini_YYMM_fN_dNrN_sexo_trat
+    /// Ejemplo: abs_2601_f5_d1r3_m_stx
     /// </summary>
     private static readonly Regex s_labStandard = new(
         @"^(?<ini>[a-z]{2,5})_(?<fecha>\d{4})_(?<fase>f\d+)_d(?<dia>\d+)r(?<rata>\d+)" +
         @"_(?<sexo>m|h)" +
-        @"_(?<seg>habini|habfin|hab|iti\d+|e\d+)" +
-        @"_(?<tipo>s|p|na)" +
         @"_(?<trat>[a-z0-9]+)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -167,10 +165,6 @@ public sealed class NomenclatureParser
             Dia            = int.Parse(m.Groups["dia"].Value),
             Rata           = int.Parse(m.Groups["rata"].Value),
             Sexo           = m.Groups["sexo"].Value,
-            Segmento       = m.Groups["seg"].Value,
-            SegmentoTipo   = ResolveSegmentoTipo(m.Groups["seg"].Value),
-            SegmentoNumero = ResolveSegmentoNumero(m.Groups["seg"].Value),
-            Tipo           = ResolveTipoEnsayo(m.Groups["tipo"].Value),
             Tratamiento    = m.Groups["trat"].Value,
         };
 

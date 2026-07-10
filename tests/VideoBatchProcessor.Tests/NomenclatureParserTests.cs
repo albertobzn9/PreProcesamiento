@@ -17,8 +17,13 @@ public class NomenclatureParserTests
 
     [Fact] public void LabStandard_DetectaScheme()
     {
-        Assert.True(_parser.TryParse("abs_2201_f2_d7r1_m_e1_s_stx.mp4", out var r));
+        Assert.True(_parser.TryParse("abs_2201_f2_d7r1_m_stx.mp4", out var r));
         Assert.Equal(NamingScheme.LabStandard, r.Scheme);
+    }
+
+    [Fact] public void LabStandard_ConSegmentoYTipo_NoSeAceptaComoFuente()
+    {
+        Assert.False(_parser.TryParse("abs_2201_f2_d7r1_m_e1_s_stx.mp4", out _));
     }
 
     [Fact] public void VbpOutput_DetectaScheme()
@@ -43,7 +48,7 @@ public class NomenclatureParserTests
 
     [Fact] public void LabStandard_FechaFormato_EsYYMM()
     {
-        _parser.TryParse("abs_2201_f2_d7r1_m_e1_s_stx.mp4", out var r);
+        _parser.TryParse("abs_2201_f2_d7r1_m_stx.mp4", out var r);
         Assert.Equal(FechaFormato.YYMM, r.FechaFormato);
         Assert.Equal("2201", r.Fecha);  // YYMM: 22=2022, 01=enero
     }
@@ -91,7 +96,7 @@ public class NomenclatureParserTests
     [Fact] public void FaseEstandar_LabStandard_PasaDirecto()
     {
         // Lab/VBP ya vienen con f-code, FaseEstandar los devuelve sin cambio
-        _parser.TryParse("abs_2201_f5_d22r1_m_e1_s_stx.mp4", out var r);
+        _parser.TryParse("abs_2201_f5_d22r1_m_stx.mp4", out var r);
         Assert.Equal("f5", r.Fase);
         Assert.Equal("f5", r.FaseEstandar);
     }
@@ -153,7 +158,7 @@ public class NomenclatureParserTests
 
     [Fact] public void LabStandard_Metadata_abs2201_f2_d7r1()
     {
-        _parser.TryParse("abs_2201_f2_d7r1_m_e1_s_stx.mp4", out var r);
+        _parser.TryParse("abs_2201_f2_d7r1_m_stx.mp4", out var r);
         Assert.Equal("abs",  r.Iniciales);
         Assert.Equal("2201", r.Fecha);
         Assert.Equal("f2",   r.Fase);
@@ -161,18 +166,18 @@ public class NomenclatureParserTests
         Assert.Equal(7,      r.Dia);
         Assert.Equal(1,      r.Rata);
         Assert.Equal("m",    r.Sexo);
-        Assert.Equal("e1",   r.Segmento);
-        Assert.Equal(TipoEnsayo.Seguro, r.Tipo);
+        Assert.Null(r.Segmento);
+        Assert.Null(r.Tipo);
         Assert.Equal("stx",  r.Tratamiento);
         Assert.Null(r.Resultado);  // LabStandard no tiene resultado
     }
 
     [Fact] public void LabStandard_Metadata_abs2605_f4_d17r1_dzp()
     {
-        _parser.TryParse("abs_2605_f4_d17r1_m_e1_p_dzp.mp4", out var r);
+        _parser.TryParse("abs_2605_f4_d17r1_m_dzp.mp4", out var r);
         Assert.Equal("f4",   r.Fase);
         Assert.Equal("f4",   r.FaseEstandar);
-        Assert.Equal(TipoEnsayo.Peligroso, r.Tipo);
+        Assert.Null(r.Tipo);
         Assert.Equal("dzp",  r.Tratamiento);
     }
 

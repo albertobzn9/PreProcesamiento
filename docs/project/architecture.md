@@ -231,7 +231,7 @@ GetTotalFrames() -> int
 
 **Alcance:** No hace procesamiento, solo lectura. La implementación actual usa OpenCvSharp. FFmpeg sigue planteado para la etapa de exportación.
 
-**Estado actual:** ya existe una primera implementación en `src/VideoBatchProcessor.Core/VideoReader`. En macOS ARM todavía hay una validación pendiente del runtime nativo de OpenCV; ver `docs/development/video-reader-runtime-notes.md`.
+**Estado actual:** ya existe una primera implementación en `src/VideoBatchProcessor.Core/VideoReader`. Sus pruebas pasan en macOS con `./scripts/test-macos.sh`.
 
 **Prueba aislada:** Sí. Con un solo video de prueba se valida.
 

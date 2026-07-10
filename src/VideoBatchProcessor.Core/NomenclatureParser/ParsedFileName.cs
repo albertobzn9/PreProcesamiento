@@ -7,7 +7,7 @@ public enum NamingScheme
 {
     Unknown,
     LegacySession,    // exp_MMYY_fase_dNrN
-    LabStandard,      // ini_YYMM_fN_dNrN_sexo_seg_tipo_trat
+    LabStandard,      // ini_YYMM_fN_dNrN_sexo_trat
     VideoBatchOutput  // ini_YYMM_fN_dNrN_sexo_seg_tipo_res_trat
 }
 
@@ -106,7 +106,7 @@ public sealed record ParsedFileName
     public string? Sexo { get; init; }
 
     /// <summary>
-    /// Segmento en bruto tal como aparece en el nombre:
+    /// Segmento en bruto tal como aparece en un nombre de output:
     /// "e1", "e12", "iti1", "hab", "habini", "habfin".
     /// </summary>
     public string? Segmento { get; init; }
@@ -116,6 +116,7 @@ public sealed record ParsedFileName
     /// <summary>N en "eN" o "itiN". Null para hab / habini / habfin.</summary>
     public int? SegmentoNumero { get; init; }
 
+    /// <summary>Tipo de ensayo presente solo en nombres de output.</summary>
     public TipoEnsayo? Tipo        { get; init; }
     public string?     Tratamiento { get; init; }
 
