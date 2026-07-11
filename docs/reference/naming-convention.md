@@ -124,7 +124,8 @@ abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4
 Esta convención parte de los datos de sesión del estándar del lab y agrega los
 campos que Video Batch Processor puede obtener solo después de analizar el
 video: `segmento`, `tipoensayo` y `resultado`. Así permite saber qué parte del
-video representa el clip y si el evento fue cruce, no cruce o timeout.
+video representa el clip y si el evento fue cruce, no cruce, timeout o requiere
+revisión antes de una decisión final.
 
 En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia donde se prende el LED de ruido blanco antes de la luz de comida. Aun así, el identificador `eN` conserva la trazabilidad con el evento del `.mat`, cuya latencia empieza cuando se prende la luz de comida.
 
@@ -177,6 +178,7 @@ para ocultar esa diferencia experimental.
 | `cr` | Cruce |
 | `nc` | No cruce |
 | `to` | Timeout |
+| `rv` | Requires review: excepción conductual pendiente de decisión del investigador |
 | `na` | No aplica |
 
 ### Ejemplos DIS, Día 1, Rata 3
@@ -187,6 +189,7 @@ abs_2601_f5_d1r3_m_e2_s_cr_stx.mp4     # evento seguro con cruce
 abs_2601_f5_d1r3_m_e3_p_nc_stx.mp4     # evento peligroso/riesgo sin cruce
 abs_2601_f5_d1r3_m_e4_s_nc_stx.mp4     # evento seguro sin cruce
 abs_2601_f5_d1r3_m_e5_p_to_stx.mp4     # evento peligroso/riesgo con timeout
+abs_2601_f5_d1r3_m_e6_s_rv_stx.mp4     # evento con excepción pendiente de revisión
 abs_2601_f5_d1r3_m_iti1_na_na_stx.mp4  # ITI posterior al evento 1
 abs_2601_f5_d1r3_m_hab_na_na_stx.mp4   # habituación
 ```
@@ -207,7 +210,12 @@ El resultado conductual se codifica aparte:
 e12_p_cr  -> evento 12, peligroso, con cruce
 e13_s_nc  -> evento 13, seguro, sin cruce
 e14_p_to  -> evento 14, peligroso, timeout
+e15_s_rv  -> evento 15, requiere decisión del investigador
 ```
+
+`rv` se usa cuando el programa detecta `InterEventCrossing` o
+`ShortSideChange`. Conserva el clip y su trazabilidad sin decidir por el
+investigador si debe contarse como cruce (`cr`) o no cruce (`nc`).
 
 ---
 

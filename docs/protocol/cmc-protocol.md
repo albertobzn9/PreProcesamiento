@@ -74,7 +74,7 @@ Un video de una sesión se ve así en el tiempo:
 ```
 
 - **Habituación:** en el protocolo original las sesiones inician y terminan con 5 min de exposición al contexto sin luces, ruido ni descarga. En los videos reales del laboratorio, sobre todo al final, esta habituación puede variar porque el corte es manual (por ejemplo ~3–8 min); el programa debe mostrar la duración real y no asumir que siempre son 5 min exactos.
-- **Ensayo/evento:** desde que se enciende la señal relevante hasta que se apaga la luz. En ensayos seguros, la señal relevante es la luz de comida. En ensayos de riesgo/conflicto, el LED/ruido puede prenderse unos segundos antes que la luz de comida; MATLAB empieza a contar desde la luz de comida.
+- **Ensayo/evento:** desde que se enciende la señal relevante hasta que se apaga la luz. En ensayos seguros, la señal relevante es la luz de comida. En ensayos de riesgo/conflicto, el LED/ruido puede prenderse unos segundos antes que la luz de comida; MATLAB inicia su medición en la lógica asociada a la luz de comida. El video puede mostrar un desfase respecto a ese inicio MATLAB, que el programa debe medir.
 - **ITI:** intervalo entre ensayos/eventos, sin luces relevantes. En CS y DIS puede ser corto en los videos reales; en CP puede ser largo y por eso también es importante conservarlo si se quiere segmentar todo el video.
 
 Para el **Video Batch Processor**, la clave está en detectar cuándo se enciende y apaga cada luz para saber dónde cortar.

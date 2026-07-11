@@ -4,7 +4,7 @@
 
 ## Propósito del Documento
 
-Este documento reúne las notas de producto (Nota: que es eso de notas de producto, recuerda términos simples donde se pueda) originales del Video Batch Processor sin resumir contenido. Su objetivo es describir qué problema resuelve la aplicación, qué debe hacer, qué queda fuera de alcance y cómo se propone entregar el proyecto por módulos.
+Este documento reúne los requisitos y decisiones de uso del Video Batch Processor. Describe qué problema resuelve la aplicación, qué debe hacer, qué queda fuera de alcance y cómo se propone entregarla por módulos.
 
 ## Identificación Del Proyecto
 
@@ -14,13 +14,13 @@ Este documento reúne las notas de producto (Nota: que es eso de notas de produc
 
 **Objetivo:** Normalizar videos (crop, rotación, detección de luces, segmentación y exportación de clips) antes de DeepLabCut (DLC).
 
-**Desarrolladores:** Eric (backend, junio 2026) + AB (post-integración)
+**Desarrolladores:** Eric (backend por módulos) + AB (documentación, revisión, integración y frontend)
 
 **Fecha Inicial:** 01-05-2026
 
-**Update:** 05-07-26
+**Update:** 10-07-26
 
-**Estado:** Desarollo del backend
+**Estado:** Backend base en desarrollo; diseño del frontend en refinamiento.
 
 **Stack:** C# / Avalonia UI
 
@@ -29,12 +29,12 @@ Este documento reúne las notas de producto (Nota: que es eso de notas de produc
 
 Desarrollar una aplicación de escritorio nativa (Windows/macOS) para automatizar el pre-procesamiento masivo de videos de laboratorio. Básicamente, toma los videos crudos de las sesiones con ratas y los convierte en videos pequeños y ordenados listos para la inferencia en DLC.
 
-- **Meta:** Normalizar videos (recorte, rotación y cropping) en un solo paso antes de ingresarlos a **DeepLabCut**.
+- **Meta:** Normalizar videos (recorte, rotación, orientación y segmentación) en un solo paso antes de ingresarlos a **DeepLabCut**.
 - **Prioridad:** Mantener la integridad de los frames (sin pérdida visual) y ofrecer una UX sencilla para usuarios no técnicos.
 
 ## Contexto Y Problema
 
-En el laboratorio grabamos sesiones de comportamiento de ratas en la tarea CMC (Conflicto Mediado por Cruces). Una sesión dura ~35-45 minutos y tiene unos 30 ensayos, donde la rata decide si cruzar o no una rejilla electrificada para obtener comida. También hay eventos donde la luz se enciende del mismo lado. Entre ensayo y ensayo hay ITIs: en algunas fases son cortos, pero en el entrenamiento de cruces peligrosos pueden ser largos y vale la pena conservarlos si se quiere segmentar todo el video sin perder contexto.
+En el laboratorio grabamos sesiones de comportamiento de ratas en la tarea CMC (Conflicto Mediado por Cruces). Una sesión dura ~35-45 minutos y tiene unos 30 ensayos aproximadamente, donde la rata decide si cruzar o no una rejilla electrificada para obtener comida. También hay eventos donde la luz se enciende del mismo lado. Entre ensayo y ensayo hay ITIs: en algunas fases son cortos, pero en el entrenamiento de cruces peligrosos pueden ser largos y vale la pena conservarlos si se quiere segmentar todo el video sin perder contexto.
 
 Actualmente:
 
@@ -50,12 +50,13 @@ Necesitamos una herramienta que haga todo esto en un solo paso, sin tener que ed
 
 La idea general de este proyecto es que se puedan normalizar/estandarizar todos los videos. La idea es que cumpla las siguientes características:
 
-1. **Batch processing:** que se puedan subir muchos videos y que el programa en automático reconozca qué etapa, día y rata es el video.
-2. **Cropping del video:** que a través de una interfaz sencilla el usuario pueda seleccionar secciones del video no utiles (los laterales del video que no muestran la caja conductual) y eso se aplique a todo el batch. Se asume que durante todo el protocolo la cámara quedó fija. Se asume que entre protocolo y protocolo la cámara se mueve debido al moldeamiento (la cámara pasa del centro al lateral y al terminar el moldeamiento se mueve de regreso al centro).
-4. **Rotación/reflejo del video:** que el usuario pueda seleccionar si se rota 180° o se refleja en espejo con un botón, y que eso se aplique a todo el batch. También dar la opción para que no se haga en caso de que el video esté bien.
-5. **Identificación de ensayos:** utilizar algoritmos de visión artificial para reconocer cuándo se prende cada una de las tres luces. Para que sea más fácil identificar las luces, el usuario, a través de la gui, selecciona con círculos dónde se encuentran.
-6. **Recorte por segmento:** una vez que el programa identifica los eventos de luz, que recorte en automático la habituación, los ensayos/eventos y los ITIs.
-7. **Recorte de habituación:** mostrar al usuario cuánto tiempo dura la habituación inicial y final y permitir recortar al tiempo deseado. Si en 10 videos de 50 se observa que la habituación final dura más de 7 minutos pero solo se ocupan 5 min, el programa debe permitir recortarla. También debe mostrar cuando las habituaciones duren menos de un tiempo establecido por el usuario.
+1. **Batch processing:** el usuario puede cargar varios videos. El programa reconoce etapa, día y rata, los agrupa por protocolo y evita mezclarlos en el procesamiento.
+2. **Configuración de cámara:** el usuario define recorte, orientación, ROIs y calibración para cada grupo de videos que comparte una misma posición de cámara.
+3. **Rotación/reflejo:** el usuario puede rotar 180° o reflejar los videos cuando lo necesite, o dejar la imagen intacta.
+4. **Identificación de luces:** el programa detecta cuándo se prenden las tres luces a partir de ROIs y umbrales calibrados por el usuario.
+5. **Recorte por segmento:** una vez que identifica los eventos de luz, recorta automáticamente habituación, eventos/ensayos e ITIs.
+6. **Asociación con `.mat`:** usa el `.mat` para completar etiquetas conductuales de los eventos y conservar su trazabilidad con el video.
+7. **Recorte de habituación:** informa excepciones de habituación final y permite seleccionar qué sesiones largas se quieren recortar.
 
 ## Requisitos Funcionales
 
@@ -63,13 +64,17 @@ La idea general de este proyecto es que se puedan normalizar/estandarizar todos 
 
 El usuario selecciona una carpeta con muchos videos. El programa lee el nombre de cada video y sabe de qué etapa es, qué día, qué rata, etc. Por ejemplo, puede leer archivos legacy como `exp_0126_dis_d9r4.mp4` o nombres del estándar del lab cuando existan.
 
+Antes de procesar, muestra una lista ordenada por protocolo, fase, día y rata. La lista permite confirmar que los videos pertenecen al grupo esperado y asignarles una configuración de cámara; no debe mezclar automáticamente sesiones de protocolos distintos.
+
 ### 2. Recortar La Caja Una Vez Y Aplicar Al Lote
 
-En el primer video, el usuario dibuja un rectángulo sobre la caja donde está la rata. Como la cámara no se mueve durante todo un protocolo, ese recorte se aplica a todos los videos del lote. Si la cámara se movió entre protocolos (pasa cuando la movemos del centro al lateral por el moldeamento), se puede redefinir.
+El usuario dibuja un rectángulo sobre la caja donde está la rata. Esa configuración se aplica a los videos que comparten la misma posición de cámara.
+
+La app no asume que todo el protocolo conserva una sola cámara ni que el cambio ocurre exactamente dos veces. Antes de continuar, muestra frames representativos de las sesiones ordenadas. Si el usuario identifica que la cámara se movió, crea otro `CameraProfile`, indica desde qué sesión aplica y vuelve a definir crop, orientación, ROIs y calibración para ese grupo. Esto evita que el LED de ruido quede fuera de su ROI y parezca apagado cuando el problema real es el encuadre.
 
 ### 3. Enderezar Si Está Chueco
 
-A veces la cámara queda rotada 180° o en espejo. El usuario puede girar o reflejar el video con un botón, y eso se aplica a todo el lote.
+A veces la cámara queda rotada 180° o en espejo. El usuario puede girar o reflejar el video con un botón. Esa decisión forma parte del `CameraProfile` y se aplica solo a las sesiones asignadas a ese perfil.
 
 ### 4. Marcar Las Luces Una Vez Y Aplicar Al Lote
 
@@ -77,9 +82,11 @@ En la caja hay tres lucecitas que señalizan los ensayos:
 
 - Una luz del lado **izquierdo** → la comida está disponible a la izquierda
 - Una luz del lado **derecho** → la comida está disponible a la derecha
-- Un LED en la parte superior derecha que se enciende cuando suena el **ruido blanco** (no tenemos audio en los videos, usamos el LED para saber cuándo hay amenaza)
+- Un LED en la parte superior derecha que se enciende cuando suena el **ruido blanco** (no tenemos audio en los videos, usamos el LED para saber cuándo hay amenaza). Es particularmente pequeño y necesita revisión ampliada durante la configuración.
 
-En el primer video, el usuario marca con un círculo dónde está cada una de estas tres luces. El programa entonces **detecta automáticamente cuándo se encienden y apagan** en todos los videos.
+En un frame de referencia, el usuario marca una ROI rectangular pequeña para cada luz. Después calibra el umbral con ejemplos claros de OFF y ON para **cada** luz: puede usar un frame oscuro compartido, pero las referencias ON pueden ser frames distintos porque `FoodLeft` y `FoodRight` no se encienden simultáneamente. La app propone un umbral a partir de esas referencias, muestra el brillo medido y permite confirmarlo o ajustarlo.
+
+Para `NoiseLed`, la vista debe ampliar la ROI y avisar si queda fuera del frame o del crop. Con esa configuración confirmada, el programa detecta automáticamente cuándo se encienden y apagan las luces en las sesiones asignadas al mismo `CameraProfile`.
 
 ### 5. Partir Los Ensayos Automáticamente
 
@@ -87,9 +94,9 @@ Con la información de las luces, el programa sabe:
 
 - **Cuándo empieza un ensayo/segmento** (luz de comida en seguros; LED/ruido previo en riesgo si se quiere conservar el periodo de advertencia)
 - **Cuándo termina** (se apaga la luz)
-- **Cuándo el ensayo es de cruce o no** (si el ensayo anterior fue del mismo o el lado contrario)
+- **Una heurística visual inicial** de si la rata necesitó cruzar o ya estaba del mismo lado
 - **De qué lado es la comida** (luz izquierda o derecha)
-- **Si es ensayo seguro o de conflicto** (solo luz = seguro; luz + LED ruido = conflicto)
+- **Si es ensayo seguro, conflicto con comida o solo ruido** (según luces y, cuando exista, `TipoEvento` del `.mat`)
 - **Cuánto dura el ITI** (entre ensayos)
 
 Como contexto experimental, el primer ensayo de la sesión siempre es seguro/de comida. Esto sirve como referencia o sanity check, pero el programa debe seguir etiquetando los eventos por detección de luces y por el `.mat`, no por asumir la secuencia.
@@ -106,7 +113,7 @@ El programa corta cada ensayo o segmento relevante en su propio video, usando la
 - ...
 - También corta los ensayos donde la rata **no cruzó** (esos son importantes para el análisis).
 
-> Decisión tomada: los clips de salida agregan el campo `resultado`, usando `cr` para cruce, `nc` para no cruce, `to` para timeout y `na` cuando no aplica.
+> Decisión tomada: los clips de salida agregan el campo `resultado`, usando `cr` para cruce, `nc` para no cruce, `to` para timeout, `rv` para una excepción pendiente de revisión y `na` cuando no aplica.
 
 ### 6. Saber Si La Rata Cruzó O No
 
@@ -114,13 +121,32 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 
 **Por la luz:** si en el ensayo anterior la luz se encendió del mismo lado, la rata ya está en ese lado, así que no necesita cruzar. Pero esto no siempre funciona (a veces la rata no cruzó y se quedó donde estaba). Esta inferencia puede servir como heurística inicial.
 
-**Por el archivo .mat:** para cada sesión tenemos un archivo .mat (del programa Caja Valentia) que registra toda la información de la sesión: latencia de cruce, si recibió descarga, etc. El programa puede leer ese archivo y saber con certeza si la rata cruzó y en cuánto tiempo.
+**Por el archivo `.mat`:** para cada sesión tenemos un archivo `.mat` (del programa Caja Valentia) que registra la información conductual: latencias, descarga, desplazamiento y resultado. El programa lo usa para determinar cruce, no cruce o timeout cuando el registro existe; en los dos patrones excepcionales definidos abajo, genera una alerta `rv` para decisión humana.
 
-Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y el `.mat` define las etiquetas conductuales.
+Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y el `.mat` define las etiquetas conductuales. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-MAT de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
 
 ### 7. Recortar La Habituación
 
-Al inicio y al final de cada sesión hay unos minutos donde la rata se acostumbra a la caja (habituación). Aunque el protocolo original describe 5 min de exposición al contexto al inicio y al final, en los videos reales la habituación final suele depender del corte manual y puede variar (por ejemplo ~3–8 min). El programa muestra cuánto dura y permite al usuario decir "déjame solo 5 minutos de habituación". Si la habituación del video es más corta, avisa. De esta manera permite al usuario saber cuál fue la habituación más corta dentro de una etapa de entrenamiento. Digamos que en discriminación hubo un día donde la habituación final de una rata solo duró 3 min 15 seg; de esa manera el usuario puede decidir si excluye esa habituación o si recorta todas las habituaciones finales a ese tiempo.
+Al inicio y al final de cada sesión hay unos minutos donde la rata se acostumbra a la caja (habituación). Aunque el protocolo original describe 5 min de exposición al contexto al inicio y al final, en los videos reales la habituación final suele depender del corte manual y puede variar (por ejemplo ~3–8 min).
+
+Con los valores iniciales del proyecto, la app solo destaca las excepciones útiles para revisión: habituación final mayor a 5 min o menor a 3 min. Para las sesiones mayores a 5 min presenta una tabla con duración y una palomita por sesión; el usuario puede seleccionar cuáles recortar a 5 min o dejar todas intactas. Para las menores a 3 min muestra una advertencia informativa, porque no hay material suficiente para llegar a 5 min y esa diferencia debe considerarse después en el análisis. Las sesiones entre esos límites no generan ruido visual innecesario. Ambos límites deben poder configurarse por lote.
+
+### 8. Alertas De Revisión Conductual
+
+La app debe señalar patrones que no puede decidir automáticamente y entregar la
+evidencia para que el investigador defina su criterio de análisis. En concreto:
+
+- `InterEventCrossing`: el `Lado` se repite, pero `Desplaz > 1 s`; la rata pudo
+  haberse cruzado durante el ITI.
+- `ShortSideChange`: `Lado` cambia, pero `Desplaz <= 1 s`; la rata pudo haber
+  iniciado desde la zona media de la caja.
+
+Por cada alerta, mostrar protocolo, fase, rata, día, número de evento, valores
+raw de `Lado` y `Desplaz`, referencia al clip/video y al `.mat`. El reporte del
+lote debe agruparlas por rata y sesión, por ejemplo: "protocolo 0126, rata 2,
+CS: tres hallazgos `InterEventCrossing` en los días 1, 2 y 3". La aplicación no
+decide si se cuentan o excluyen; conserva la decisión del investigador como
+parte de la revisión.
 
 ## Plan De Entrega Por Módulos
 

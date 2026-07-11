@@ -11,8 +11,8 @@ Proyecto en fase de backend base + prototipo visual.
 - Producto completo: Video Batch Processor.
 - Prototipo actual: `LightEventDetector`, una app Avalonia que permite abrir un video, marcar ROIs de luces, detectar eventos ON/OFF y exportar una línea de tiempo con CSV.
 - Backend actual: `VideoBatchProcessor.Core`, librería donde vive la lógica reusable del producto.
-- Módulos backend ya implementados: `NomenclatureParser`, `LightDetection`, `SessionMetadataResolver` y `VideoReader`.
-- Validación actual: `NomenclatureParser` y `SessionMetadataResolver` tienen pruebas pasando; `VideoReader` compila y sus pruebas dependen de resolver el runtime nativo de OpenCV en macOS ARM.
+- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer` y `LightDetection`.
+- Validación actual: la suite del backend tiene 109 pruebas pasando en macOS con `./scripts/test-macos.sh`. Falta conectar `FrameAnalyzer` con `LightDetection` mediante el adaptador de brillo y construir `LightTimelineBuilder` antes de integrar la UI.
 
 ## Stack
 
@@ -43,8 +43,9 @@ Proyecto en fase de backend base + prototipo visual.
 - [Protocolo CMC](docs/protocol/cmc-protocol.md)
 - [Formato .mat](docs/reference/mat-format.md)
 - [Nomenclatura](docs/reference/naming-convention.md)
-- [Convención operativa de términos](docs/reference/operational-terms.md)
+- [Términos operativos y reglas de decisión](docs/reference/operational-terms.md)
 - [Arquitectura](docs/project/architecture.md)
+- [Sincronización video-MAT con CajaValentia](docs/project/sincronizacion-video-mat-cajavalentia.md)
 - [Contexto de integración futura](docs/project/future-integration-context.md)
 - [Plan de trabajo activo de Eric](docs/development/eric-workplan.md)
 

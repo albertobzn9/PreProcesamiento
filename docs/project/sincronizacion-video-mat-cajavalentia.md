@@ -1,120 +1,165 @@
-# Sincronizacion Video-MAT De CajaValentia
+# Sincronización Video-MAT De CajaValentia
 
-## Proposito
+> Volver a la [arquitectura](architecture.md).
 
-Definir como el programa debe medir y reportar el desfase entre las luces que
-aparecen en el video y los tiempos que guarda MATLAB en el archivo `.mat`.
+## Idea Central
 
-No se debe asumir que el video y MATLAB empiezan a contar desde el mismo
-instante.
+Este proyecto no sigue el cuerpo de la rata en video. Por eso no intenta medir
+visualmente el tiempo de desplazamiento. Lo que sí puede comparar es:
 
-## Hecho Experimental Que Debe Verificarse
+- lo que las luces muestran en el video;
+- el tiempo de palanqueo que registró MATLAB;
+- y la diferencia entre ambos relojes.
 
-En videos de discriminacion se observo aproximadamente lo siguiente:
+La meta no es fingir que video y MATLAB están sincronizados. Es medir sus
+diferencias, reportarlas y después comparar si cambian entre tipos de evento.
 
-```text
-LED de ruido blanco / amenaza ON
-             ~4 s despues
-luz de comida ON
-```
-
-En el codigo de CajaValentia, la secuencia de riesgo esta ordenada como:
+## Los Dos Registros
 
 ```text
-ruido blanco -> LED de amenaza -> parrilla -> luz de comida -> reloj R2
+VIDEO:   luz de comida ON -------------------------- luz de comida OFF
+MATLAB:        inicia su reloj ------ palanqueo registrado
 ```
 
-El codigo revisado contiene esperas de menos de un segundo en ese tramo. Por
-eso, los ~4 s observados en video deben tratarse como una medicion fisica que
-requiere confirmacion por sesion; no como un numero fijo que se reste a todos
-los videos.
+En el video se ven con precisión los límites visuales de la luz. En MATLAB se
+registra el palanqueo y su latencia. Ambas líneas deberían estar cerca, pero no
+se debe asumir que empiezan o terminan exactamente al mismo tiempo.
 
-## Regla De Sincronizacion
+### Lo Que Significan Las Columnas
 
-Para vincular un evento del `.mat` con el video, el ancla principal es el
-**encendido de la luz de comida**, no el encendido del LED de ruido blanco.
+| Dato del `.mat` | Significado operativo |
+|-----------------|-----------------------|
+| `TiempoAbs` | Segundos totales desde que el usuario inició la habituación. En un evento con palanqueo, es el momento en que MATLAB registra ese evento; al final de sesión puede llegar aproximadamente a 40-45 minutos expresados en segundos. |
+| `Latencia` | Segundos que transcurrieron desde que MATLAB inició el evento hasta que la rata palanqueó. Es una duración, no un timestamp absoluto. |
+| `Desplaz` | Latencia asociada al sensor de desplazamiento. Con cambio de `Lado`, `> 1 s` confirma un cruce completo. Si se repite con `> 1 s`, emitir `InterEventCrossing` para decisión del investigador. Si cambia de lado pero dura `<= 1 s`, emitir `ShortSideChange` y revisar video porque la rata pudo estar en medio de la caja. No equivale a un tiempo que este programa pueda medir desde video. |
 
-El LED de ruido blanco marca el inicio visual de la advertencia/amenaza. Debe
-conservarse como una fase anterior del mismo evento peligroso, pero no debe
-desplazar silenciosamente el tiempo de inicio usado para empatar con MATLAB.
+Para un evento con palanqueo, el programa puede obtener una estimación del
+inicio MATLAB:
 
-## Datos Que Debe Conservar El Pipeline
+```text
+inicio MATLAB estimado = TiempoAbs - Latencia
+```
 
-Por cada evento detectado en video, guardar al menos:
+Esta operación conserva los datos raw y calcula una referencia para comparar;
+no modifica el `.mat`.
+
+## Qué Diferencias Debemos Medir
+
+### 1. Desfase Al Inicio
+
+Compara cuándo MATLAB estima que comenzó el evento con cuándo aparece la luz de
+comida en video.
+
+```text
+desfaseInicio = videoFoodLightOn - inicioMATLABEstimado
+```
+
+Por ejemplo, si el primer evento MATLAB empieza alrededor del segundo 300, pero
+la luz aparece en el video en el segundo 305, el desfase inicial es cercano a
+5 s. Ese retraso puede ser intencional o técnico; por ahora solo se mide.
+
+### 2. Cola Visual Después Del Palanqueo
+
+Idealmente la luz se apagaría cuando la rata palanquea. En la práctica puede
+seguir prendida después de que MATLAB ya terminó de contar la latencia.
+
+```text
+colaDespuesDelPalanqueo = videoFoodLightOff - TiempoAbs
+```
+
+Un valor positivo significa que la luz siguió visible después del palanqueo
+registrado por MATLAB.
+
+### 3. Periodo De Advertencia En Riesgo
+
+En eventos de riesgo/conflicto existe además un periodo visual anterior: el LED
+de ruido se enciende antes que la luz de comida.
+
+```text
+advertenciaRiesgo = videoFoodLightOn - videoNoiseLedOn
+```
+
+Esta medida describe la advertencia para el animal. No debe mezclarse con el
+desfase video-MAT del inicio o del final del evento.
+
+## Qué Se Va A Comparar
+
+El reporte debe resumir las tres medidas anteriores por sesión y por grupos de
+eventos:
+
+- seguro;
+- riesgo/conflicto;
+- mismo lado;
+- lado contrario;
+- no cruce y timeout, cuando aplique.
+
+La latencia de palanqueo puede dar una pista útil: en los datos del laboratorio,
+los eventos de mismo lado suelen ser cortos (por ejemplo ~3-8 s), mientras que
+un cruce puede tardar más de 10 s. Es una señal para revisar patrones, no una
+regla fija para clasificar el resultado. Cambio de `Lado` con `Desplaz > 1 s`
+confirma un cruce. Los dos patrones excepcionales se reportan para decisión del
+investigador: `InterEventCrossing` cuando el lado se repite con
+`Desplaz > 1 s`, y `ShortSideChange` cuando el lado cambia con
+`Desplaz <= 1 s`. El programa muestra la evidencia, pero no decide si esos
+eventos cuentan como cruces en un análisis concreto.
+
+## Qué Debe Guardar El Programa
+
+Por cada evento con comida asociado al `.mat`, conservar:
 
 | Campo | Significado |
-|---|---|
-| `noiseLedOnFrame` / `noiseLedOnSeconds` | Primer frame estable con LED de amenaza encendido. |
-| `foodLightOnFrame` / `foodLightOnSeconds` | Primer frame estable con luz de comida encendida. |
-| `foodLightOffFrame` / `foodLightOffSeconds` | Fin visual de la oportunidad de comida, si se detecta. |
-| `warningToFoodSeconds` | `foodLightOnSeconds - noiseLedOnSeconds`. |
-| `matchedMatEventIndex` | Fila/evento del `.mat` asociado, si existe. |
-| `matStartEstimateSeconds` | Estimacion del inicio MATLAB, conservando tambien los valores raw usados. |
-| `matToFoodOffsetSeconds` | `foodLightOnSeconds - matStartEstimateSeconds`. |
-| `confidence` | Calidad del emparejamiento y motivo de cualquier advertencia. |
+|-------|-------------|
+| `noiseLedOnSeconds` | Inicio visual del LED de ruido, si existe. |
+| `foodLightOnSeconds` | Inicio visual de la luz de comida. |
+| `foodLightOffSeconds` | Fin visual de la luz de comida. |
+| `matPressSeconds` | `TiempoAbs` raw del evento. |
+| `matEventStartEstimateSeconds` | `TiempoAbs - Latencia`. |
+| `videoMatStartGapSeconds` | Diferencia entre inicio visual e inicio MATLAB estimado. |
+| `postPressLightTailSeconds` | Tiempo que la luz siguió encendida tras el palanqueo MATLAB. |
+| `warningToFoodSeconds` | Periodo LED de ruido -> luz de comida en riesgo. |
+| `matchedMatEventIndex` | Fila del `.mat` asociada. |
+| `matchConfidence` | Alta, media, baja o requiere revisión, con su motivo. |
 
-El `.mat` original no se modifica. El reporte debe conservar tanto los valores
-raw como las estimaciones calculadas.
-
-## Como Interpretar El `.mat`
-
-En los resultados legacy, `Tiempo Absoluto` se escribe al registrar el
-resultado y `Latencia` se mide desde el reloj `R2`. Una estimacion inicial del
-inicio de evento puede ser:
-
-```text
-inicio MATLAB estimado = Tiempo Absoluto - Latencia
-```
-
-Esto es una hipotesis de trabajo, no una verdad universal: debe validarse con
-casos de cruce y de no cruce antes de usarla para cortes automaticos.
-
-En versiones nuevas, `TipoEvento` es la columna 9:
-
-```text
-0 = seguro
-1 = riesgo con comida
-2 = solo sonido
-```
+El reporte por sesión debe incluir mediana, rango y eventos atípicos de cada
+medida. No debe reducir todo a un solo delay global.
 
 ## Procedimiento Del Programa
 
-1. Detectar transiciones de las tres luces: comida izquierda, comida derecha y
-   LED de ruido blanco.
-2. Formar candidatos de evento peligroso cuando el LED de ruido blanco precede
-   a una luz de comida.
-3. Medir `warningToFoodSeconds` para cada candidato. No fijar 4 s en el codigo.
-4. Empatar los inicios de luz de comida con los eventos del `.mat`, respetando
-   orden, lado, tipo de evento y tiempos relativos.
-5. Estimar por sesion el desfase video-MAT con varios eventos, usando una
-   medida robusta como la mediana y reportando los eventos que no coinciden.
-6. Mantener dos referencias de clip cuando sea util:
-   - inicio conductual/MATLAB: luz de comida;
-   - inicio de advertencia: LED de ruido blanco.
+1. Detectar en video las transiciones de `FoodLeft`, `FoodRight` y `NoiseLed`.
+2. Leer del `.mat` `TiempoAbs`, `Latencia`, `Desplaz`, lado, tipo y resultado.
+3. Empatar eventos respetando orden, lado, tipo y tiempos relativos.
+4. Calcular desfase inicial, cola posterior y, en riesgo, advertencia previa.
+5. Resumir las diferencias por sesión y por tipo de evento usando una medida
+   robusta como la mediana.
+6. Marcar para revisión manual los eventos o sesiones que no coincidan de forma
+   consistente.
 
-## Criterios De Validacion
+## Reglas Importantes
 
-Antes de automatizar recortes de una sesion:
+1. No fijar en código un delay universal de 4 s ni de cualquier otro valor.
+2. No usar la duración visual de la luz como sustituto directo de `Latencia`.
+3. Clasificar automáticamente como cruce solo cambio de `Lado` +
+   `Desplaz > 1 s`. Emitir `InterEventCrossing` o `ShortSideChange` para
+   decisión del investigador en los dos patrones excepcionales; no sustituir
+   estas reglas con latencia de palanqueo corta/larga.
+4. Conservar por separado el periodo de advertencia, el desfase inicial y la
+   cola posterior al palanqueo.
+5. Los clips pueden iniciar en el LED de ruido para conservar contexto, aunque
+   la comparación con MATLAB use la luz de comida como referencia visual.
+6. Si no hay una asociación consistente, exportar la advertencia para revisión
+   en vez de forzar una coincidencia falsa.
 
-- Revisar manualmente varios eventos seguros y de riesgo.
-- Confirmar si el desfase LED -> comida es estable dentro de la sesion.
-- Confirmar si el inicio MATLAB estimado coincide con la luz de comida, no con
-  el LED de amenaza.
-- Reportar cualquier sesion donde el desfase cambie mucho entre eventos.
+## Por Qué La Integración Futura Lo Resolverá Mejor
 
-Si los ~4 s aparecen de forma estable en video pero no en el tiempo que mide
-MATLAB, el reporte debe etiquetarlos como `warningPhaseSeconds`: una fase real
-para el animal, anterior al inicio temporal de MATLAB.
+Hoy video y CajaValentia empiezan con relojes separados, por lo que el programa
+debe reconstruir la relación a partir de los datos. En una integración futura,
+la captura de video y la tarea conductual podrán recibir la misma identidad de
+sesión y timestamps compartidos. Entonces estas diferencias se podrán medir
+desde el origen, sin hacer esta reconstrucción posterior.
 
-Si ni la luz de comida ni el LED se empatan de forma consistente con el `.mat`,
-la sesion debe marcarse para revision manual. Posibles causas: una copia vieja
-de MATLAB, rutas de funciones distintas, latencia de tarjeta/electronica o
-datos incompletos.
+## Fuente Técnica
 
-## Fuentes Tecnicas
-
-La investigacion de esta secuencia esta en el repositorio canonico de
-CajaValentia:
+La secuencia conductual se investigó en el repositorio canónico de CajaValentia:
 
 ```text
 /Users/ab/Documents/GitHub/CajaValentia

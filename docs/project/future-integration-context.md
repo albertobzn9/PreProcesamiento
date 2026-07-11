@@ -28,7 +28,7 @@ a unified application.
 
 In a later semester, a session orchestrator may validate the session, create a
 unique `sessionId`, coordinate behavior and video recording, and keep a
-structured record of events, timestamps, files, and final state.
+structured record of events, timestamps, files, camera profile, and final state.
 
 That future system should let Video Batch Processor associate the video, `.mat`
 file, and session metadata without reconstructing identity from manual file
@@ -44,6 +44,11 @@ The backend should preserve these capabilities while it is built:
 - Preserve traceable timestamps and distinguish at least: video start,
   habituation start, MATLAB event start, LED or food-light changes, and session
   end.
+- Preserve raw behavioral times and any estimated video-MAT offset separately;
+  an estimate must never overwrite the source `.mat` values.
+- Preserve which `CameraProfile` was used for each session or contiguous group
+  of sessions. Crop, orientation, ROIs, calibration references, and accepted
+  thresholds are part of the evidence needed to reproduce visual processing.
 - Keep the behavioral protocol, hardware control, video recording, storage,
   and clip analysis as separate responsibilities.
 - Produce reviewable evidence of how a video segment was associated with its
@@ -73,5 +78,6 @@ At the end of this semester, the useful shared foundation is:
   now.
 - [MAT Format](../reference/mat-format.md): current behavioral data available
   to the processor.
+- [CajaValentia Video-MAT Synchronization](sincronizacion-video-mat-cajavalentia.md): current rule for matching visual and MATLAB time references.
 - [Operational Terms](../reference/operational-terms.md): shared operational
   meanings used by parsers, segmenters, and exporters.

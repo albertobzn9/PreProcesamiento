@@ -1,45 +1,83 @@
-# Convención Operativa De Términos
+# Operational Terms And Decision Rules
 
-> 🔗 Volver al [índice de documentación](../README.md)
+> Return to the [documentation index](../README.md).
 
-Este documento define cómo usaremos los términos principales del protocolo CMC dentro del Video Batch Processor. La meta es evitar ambigüedad al implementar parsers, segmentadores y exportadores.
+This is the shared vocabulary for Video Batch Processor. Use it when a term is
+needed by more than one area of the project: protocol interpretation, `.mat`
+parsing, video segmentation, output naming, tests, or UI review.
 
-## Términos Principales
+It does not replace the [CMC Protocol](../protocol/cmc-protocol.md), the
+[MAT Format](mat-format.md), or the [Architecture](../project/architecture.md).
+Those documents own experimental detail, column definitions, and module design.
 
-| Término | Significado operativo |
-|---------|-----------------------|
-| **Sesión** | Video completo de un día/rata/fase. Puede incluir habituación inicial, eventos/ensayos, ITIs y habituación final. |
-| **Clip de salida** | Fragmento de video exportado por el Video Batch Processor. Puede corresponder a un evento/ensayo, ITI o habituación, y se nombra con la nomenclatura de output del programa. |
-| **Evento** | Registro conductual producido por una presión de palanca o timeout en el `.mat`. Una fila del `.mat` corresponde a un evento, no necesariamente a un cruce. |
-| **Ensayo** | Periodo detectado en video por señales de luz/LED. Inicia con la señal relevante y termina cuando la señal se apaga, por palanqueo o timeout. |
-| **Ensayo de cruce** | Ensayo en el que la rata debe desplazarse al lado opuesto para obtener comida. |
-| **Primer ensayo seguro** | Regla contextual de sesión: el primer ensayo siempre es seguro/de comida. Sirve como referencia experimental o sanity check, pero no reemplaza la detección de luces ni la lectura del `.mat`. |
-| **Evento del mismo lado** | Evento donde la luz se enciende del mismo lado donde ya está la rata. Puede haber palanqueo sin cruce real. Esto puede ocurrir en CS, CP y DIS. |
-| **Cruce** | Desplazamiento válido de la rata hacia el lado opuesto. En el `.mat`, se interpreta principalmente con `Desplaz > 1`. |
-| **No cruce** | Caso donde la rata presiona sin desplazamiento significativo (`Desplaz <= 1`) o no cruza antes del timeout. No confundir palanqueo sin cruce con timeout. |
-| **Timeout** | Ensayo/evento donde la rata no cruza dentro del tiempo máximo. En el `.mat` suele aparecer como `Lado = -2`, latencia cercana al límite y `Desplaz` cercano al timeout. |
-| **Latencia de palanqueo** | Tiempo desde el inicio del evento/ensayo hasta que la rata presiona la palanca. En el `.mat` corresponde a la columna `Latencia`. |
-| **Latencia de cruce/desplazamiento** | Tiempo o medida asociada al desplazamiento real de la rata. En el `.mat` corresponde a `Desplaz`. |
-| **ITI** | Intervalo entre ensayos/eventos. En video no hay luces ni LED relevantes encendidos. Puede ser corto en CS/DIS y largo en CP, por lo que debe poder conservarse como clip si se quiere segmentar toda la sesión. |
-| **Habituación inicial** | Periodo al inicio de la sesión, sin luces, ruido ni descarga. En el protocolo original es de 5 min. |
-| **Habituación final** | Periodo al final de la sesión, sin luces, ruido ni descarga. En videos reales puede variar por corte manual y no debe asumirse como exactamente 5 min. |
-| **Seguro / no conflicto** | Ensayo con luz de comida sin LED de ruido blanco. |
-| **Conflicto / peligroso** | Ensayo con luz de comida y LED de ruido blanco. En DIS, el LED puede encender antes que la luz de comida. |
-| **Evento de solo ruido** | Evento con LED, ruido aversivo y parrilla activa, pero sin luz de comida ni recompensa. En `.mat` nuevo se identifica con `TipoEvento = 2`; no debe clasificarse como seguro ni como conflicto con comida. |
-| **Periodo de advertencia** | Delay intencional en ensayos de riesgo/conflicto: primero se enciende el LED de ruido blanco y suena el ruido; unos segundos después se prende la luz de comida. El clip de video puede conservar este periodo. |
-| **Inicio MATLAB del evento** | Momento desde el que MATLAB empieza a contar la latencia del evento. En ensayos de riesgo/conflicto ocurre cuando se prende la luz de comida, no cuando se prende el LED de ruido. |
+## Core Terms
 
-## Reglas Para Implementación
+| Term | Operational meaning |
+|------|---------------------|
+| **Session** | Complete video from one rat, day, and protocol phase. It can contain initial habituation, events, ITIs, and final habituation. |
+| **Event** | Behavioral record in the `.mat`. A row is an event, not automatically a successful crossing. |
+| **Trial** | Visually detectable period defined by the relevant food light or noise LED. |
+| **Output clip** | Video fragment exported by this program. It can represent an event, ITI, or habituation. |
+| **`MatEvent`** | Data object created by `MatParser` from one `.mat` row. It carries behavioral information such as latencies, result, and optional `TipoEvento`. |
+| **`LightTimeline`** | Data object built from video frames. It records stable ON/OFF transitions of `FoodLeft`, `FoodRight`, and `NoiseLed`. |
+| **`VideoSegment`** | Proposed interval of the source video, with start/end frames and an operational label, ready for review or export. |
+| **Same-side event** | The food light appears on the side where the rat already is. It can include lever pressing without a crossing. |
+| **Crossing** | Complete displacement from one end to the opposite side. The normal automatic case requires a `Lado` change and `Desplaz > 1 s`. |
+| **No crossing** | Lever pressing on the same known side with `Desplaz <= 1 s`. It is different from a timeout. |
+| **Short side-change discrepancy** | `Lado` changes but `Desplaz <= 1 s`. This can happen when the rat was already in the middle of the alley. It is not automatically a complete crossing and requires video review. |
+| **`InterEventCrossing`** | `Lado` remains the same but `Desplaz > 1 s`. The rat may have crossed during the short ITI and was back on the same side when the next event was recorded. It is a review finding, not an automatic final decision to count the event as a crossing. |
+| **Behavioral review finding** | Exception detected from `.mat` and video evidence that needs the investigator's decision. The program reports the pattern and preserves its evidence; it does not decide the experimental inclusion criterion. |
+| **Timeout** | Event where the rat does not complete the required behavior before the phase limit. Historical `.mat` data usually has `Lado = -2` and values near that limit. |
+| **ITI** | Interval between events, with no relevant food light or noise LED active. It may be short in CS/DIS and long in CP. |
+| **Initial habituation** | Beginning of the session without relevant signals. The original protocol uses five minutes. |
+| **Final habituation** | End of the session without relevant signals. Its real duration can vary because the end is manually determined. |
 
-1. El video define los tiempos visuales de encendido/apagado de luces.
-2. El `.mat` es la fuente de verdad para cruce, no cruce, timeout y latencias.
-3. No asumir que una fila del `.mat` equivale automáticamente a un cruce.
-4. No asumir que toda luz encendida implica que la rata debe cruzar; puede ser un evento del mismo lado.
-5. No asumir que la habituación final dura exactamente 5 min.
-6. Para segmentar clips, conservar también timeouts y eventos sin cruce si son relevantes para el análisis.
-7. En caso de conflicto entre heurística visual y `.mat`, documentar la discrepancia y priorizar el `.mat` para etiquetas conductuales.
-8. En nombres de clips, `eN` conserva el número del evento/ensayo del `.mat`; no significa necesariamente cruce exitoso.
-9. En clips de ITI o habituación, usar `na` para campos de tipo de ensayo o resultado que no apliquen.
-10. En ensayos de riesgo/conflicto, distinguir entre inicio visual del clip (LED/ruido) e inicio de latencia en MATLAB (luz de comida).
-11. Si el `.mat` tiene nueve columnas, usar `TipoEvento` para clasificar el evento. Si tiene ocho, conservar la interpretación histórica basada en `Estim`.
-12. Para `TipoEvento = 2`, segmentar por el LED de ruido aunque no exista luz de comida y no aplicar automáticamente las etiquetas conductuales de un ensayo con comida.
+## Event Categories
+
+| Category | Visible signals | Behavioral meaning |
+|----------|-----------------|--------------------|
+| **Safe** | Food light, no noise LED | Food event without conflict. |
+| **Conflict** | Food light plus noise LED | Risk/conflict event with food. The LED can begin before the food light. |
+| **Sound-only** | Noise LED, aversive sound, and grid; no food light | Control event without food or reward. In new `.mat` files, `TipoEvento = 2`. |
+
+The first food event of a session is always safe. This is useful context and a
+sanity check, but it must never replace actual light detection or `.mat`
+reading.
+
+## Timing Terms
+
+| Term | Meaning |
+|------|---------|
+| **Warning period** | In a conflict event, the interval from noise LED/sound onset to food-light onset. The output clip can include it. |
+| **MATLAB event start** | Internal instant from which MATLAB measures lever latency. It is compared with the food-light onset seen in video; the two references can differ. |
+| **Absolute session time** | `TiempoAbs`: total seconds since habituation was started. For a lever event, it records the MATLAB time of that event. |
+| **Lever latency** | `Latencia`: duration from MATLAB event start to lever press, not an absolute timestamp. |
+| **Crossing latency** | `Desplaz`: latency associated with the displacement sensor. Together with the consecutive `Lado` values, it identifies normal crossings and behavioral review findings. |
+| **Video-to-MAT association** | Reviewable pairing between a visual event and a `.mat` event. It measures start gap and post-press light tail because video and MATLAB do not share a guaranteed clock. |
+
+## Decision Rules
+
+1. The video is the source of truth for visible signal timing and clip frame boundaries.
+2. The `.mat` is the source of truth for behavioral labels, latencies, and
+   `TipoEvento` when it exists.
+3. Excel is an auxiliary review format, never the required parser input.
+4. Do not modify or rename source `.mat` files.
+5. `eN` in an output filename means the event number associated with the `.mat`;
+   it does not mean a successful crossing.
+6. Use `na` for output fields that do not apply to ITI or habituation.
+7. For conflict clips, keep separate the visual warning start (`NoiseLed`),
+   the food-light onset observed in video, and the MATLAB event-start estimate.
+8. For `TipoEvento = 2`, use the noise LED as the visible anchor. Do not label
+   the event as safe or conflict-with-food, and do not automatically apply
+   normal crossing/no-crossing/timeout rules.
+9. When video and `.mat` disagree, preserve the discrepancy as a warning for
+   review instead of silently forcing a match.
+10. A normal automatic crossing requires `Lado` to change (`0 -> 1` or
+    `1 -> 0`) and `Desplaz > 1 s`. If `Lado` stays the same with
+    `Desplaz > 1 s`, emit an `InterEventCrossing` review finding. If `Lado`
+    changes but `Desplaz <= 1 s`, emit a `ShortSideChange` review finding; the
+    rat may have started from the middle of the alley. The program must not
+    decide whether either exception counts in a particular analysis. A short
+    or long lever latency never replaces these rules or other `.mat` fields.
+11. A timeout or a missing/unknown previous side breaks the side sequence. Do
+    not infer a complete crossing from the next event without review.

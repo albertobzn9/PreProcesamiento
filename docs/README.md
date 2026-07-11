@@ -7,6 +7,7 @@
 - [Product Requirements](project/product-requirements.md): requisitos de producto, decisiones actuales y especificación de usuario fusionadas sin resumir.
 - [Architecture](project/architecture.md): arquitectura de módulos, flujo de uso, configuración y dependencias.
 - [Architecture Review Log](project/architecture-review-log.md): decisiones aplicadas y pendientes de diseño retirados del documento principal.
+- [CajaValentia Video-MAT Synchronization](project/sincronizacion-video-mat-cajavalentia.md): especificación para medir, estimar y reportar el desfase entre señales visuales y eventos MATLAB.
 - [Future Integration Context](project/future-integration-context.md): horizonte compartido con CajaValentia y reglas de sesión que este proyecto debe respetar desde ahora.
 
 ## Protocol
@@ -18,7 +19,7 @@
 
 - [MAT Format](reference/mat-format.md): estructura de los archivos `.mat` generados por Caja Valentia.
 - [Naming Convention](reference/naming-convention.md): tres nomenclaturas del proyecto: legacy, estándar del lab y output del Video Batch Processor.
-- [Operational Terms](reference/operational-terms.md): convención operativa de términos para implementar parsers, segmentadores y exportadores.
+- [Operational Terms And Decision Rules](reference/operational-terms.md): vocabulario y reglas compartidas para protocolo, parser, segmentación y exportación.
 
 ## Development
 

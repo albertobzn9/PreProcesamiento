@@ -67,15 +67,23 @@ Video:  Noise LED ON -------- Food light ON -------- Food light OFF
 MATLAB:                         event/latency begins
 ```
 
-For a normal risk event, the output clip may start at `Noise LED ON`, but the
-MATLAB lever latency is interpreted from `Food light ON`.
+For a normal risk event, the output clip may start at `Noise LED ON`. The food
+light ON/OFF frames remain visual references that are compared with MATLAB's
+event start estimate and lever-press time; they are not assumed identical.
+
+The detailed measurement, offset-estimation, and validation rules are defined
+in [CajaValentia Video-MAT Synchronization](../project/sincronizacion-video-mat-cajavalentia.md).
+In particular, it derives the MATLAB event-start estimate as `TiempoAbs -
+Latencia`, measures both the start gap and the post-press light tail, and
+estimates their session patterns from multiple matched events rather than
+assuming a fixed delay.
 
 ## Future Processing Flow
 
 ```text
-VideoReader -> FrameAnalyzer -> LightDetection -> LightTimeline
-                                                     |
-.mat file -> MatParser -> MatEvent[] ---------------+-> SegmentPlanner -> VideoSegment
+VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder
+                                                                    |
+.mat file -> MatParser -> MatEvent[] ------------------------------+-> SegmentPlanner -> VideoSegment
 ```
 
 The responsibilities are deliberately separate:
@@ -139,4 +147,5 @@ video-to-event associations.
 - [MAT Format](../reference/mat-format.md)
 - [Operational Terms](../reference/operational-terms.md)
 - [Architecture](../project/architecture.md)
+- [CajaValentia Video-MAT Synchronization](../project/sincronizacion-video-mat-cajavalentia.md)
 - [Eric Workplan](eric-workplan.md)

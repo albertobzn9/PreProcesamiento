@@ -2,7 +2,7 @@
 
 > 🔗 Volver a [visión general](../protocol/cmc-protocol.md)
 
-Para distinguir evento, ensayo, cruce, no cruce, timeout y tipos de latencia, ver también la [convención operativa de términos](operational-terms.md).
+Para distinguir evento, ensayo, cruce, no cruce, timeout y tipos de latencia, ver también la [convención operativa de términos](operational-terms.md). Para la asociación de tiempos entre el `.mat` y el video, ver [Sincronización video-MAT de CajaValentia](../project/sincronizacion-video-mat-cajavalentia.md).
 
 ## ¿Qué es un .mat?
 
@@ -16,7 +16,7 @@ Las sesiones históricas de **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) 
 
 > Nota operativa: los Excel son vistas auxiliares útiles para revisar los datos, pero el formato que debe analizar el programa es el `.mat`. El parser no debe depender de hojas, fechas o bloques visuales del Excel.
 
-> Nota sobre timing: en ensayos de riesgo/conflicto, el LED de ruido blanco se prende antes que la luz de comida. MATLAB empieza a contar la latencia cuando se prende la luz de comida, no cuando se prende el LED. El video puede conservar ese periodo previo como contexto visual.
+> Nota sobre timing: en ensayos de riesgo/conflicto, el LED de ruido blanco se prende antes que la luz de comida. MATLAB inicia su evento en la lógica asociada a la luz de comida, no al LED. El encendido observado de esa luz puede tener un desfase respecto a esa referencia; el programa debe medirlo, como se explica en la guía de sincronización. El video puede conservar el periodo previo como contexto visual.
 
 ---
 
@@ -29,14 +29,31 @@ Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Po
 | 0 | **Ensayo** | 1, 2, 3... | Contador de eventos/ensayos donde la rata presionó la palanca durante la sesión (NO es el número de ensayo de cruce) |
 | 1 | **Lado** | `0`, `1`, `-2` | **0** = lado izquierdo registrado para el evento · **1** = lado derecho registrado para el evento · **-2** = la rata no cruzó (timeout) |
 | 2 | **Estim** | `0`, `1` | **0** = sin descarga · **1** = descarga activa. No distingue por sí sola un evento de riesgo con comida de un evento de solo ruido. |
-| 3 | **Latencia** | float (s) | Latencia de palanqueo. Tiempo desde que MATLAB inicia el evento hasta que la rata presiona la palanca. En riesgo/conflicto, ese inicio ocurre con la luz de comida, no con el LED de ruido. Operativamente, para este programa se trata como latencia de palanqueo; no confundir con `Desplaz`, que registra cruce/desplazamiento. Si es ~**180s** → no cruzó (timeout) |
-| 4 | **TiempoAbs** | float (s) | Tiempo absoluto desde que inició la sesión (timestamp UNIX-like). Útil para ubicar el evento en el video. |
+| 3 | **Latencia** | float (s) | Latencia de palanqueo: duración desde que MATLAB inició el evento hasta que la rata presionó la palanca. No es un timestamp absoluto y no debe confundirse con `Desplaz`. Si alcanza el límite de fase, corresponde a timeout. |
+| 4 | **TiempoAbs** | float (s) | Segundos totales desde que el usuario inició la habituación. En un evento con palanqueo, registra el momento MATLAB de ese evento. Junto con `Latencia` permite calcular `inicio MATLAB estimado = TiempoAbs - Latencia` para compararlo con el video. |
 | 5 | **PalancasIzq** | int (acumulado) | Presiones acumuladas en la palanca izquierda hasta este evento |
 | 6 | **PalancasDer** | int (acumulado) | Presiones acumuladas en la palanca derecha hasta este evento |
-| 7 | **Desplaz** | float | Latencia de cruce/desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. **>1** = cruce válido (la rata realmente se desplazó). **≤1** = solo presionó palanca sin cruce significativo. **~180** = timeout. |
+| 7 | **Desplaz** | float | Latencia asociada al sensor de desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. Cambio de `Lado` + `Desplaz > 1 s` es el cruce automático normal. Los dos patrones excepcionales se reportan para decisión humana. **~180** = timeout. |
 | 8 | **TipoEvento** | `0`, `1`, `2` | Solo existe en archivos `N×9`. **0** = seguro con comida · **1** = riesgo/conflicto con comida · **2** = solo ruido, LED y parrilla, sin luz de comida ni recompensa. |
 
 Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la interpretación existente: `Estim=0` representa seguro y `Estim=1` representa conflicto con comida, porque esos datos fueron producidos antes de que existiera el evento de solo ruido.
+
+### Regla Para Clasificar Cruce
+
+El parser debe conservar `Lado` y `Desplaz` raw; el resultado conductual no se
+debe deducir de una sola columna.
+
+| Comparación con el último `Lado` conocido (`0` o `1`) | `Desplaz` | Interpretación |
+|--------------------------------------------------------|------------|----------------|
+| Cambia `0 -> 1` o `1 -> 0` | `> 1 s` | Cruce completo con cambio de lado. |
+| Se mantiene igual | `<= 1 s` | Palanqueo del mismo lado, sin cruce. |
+| Se mantiene igual | `> 1 s` | Hallazgo `InterEventCrossing`: la rata pudo cruzar durante el ITI y el evento siguiente volvió a registrar el mismo lado. Reportar para decisión del investigador; no clasificarlo automáticamente como cruce contado. |
+| Cambia `0 -> 1` o `1 -> 0` | `<= 1 s` | Hallazgo `ShortSideChange`: puede ocurrir si la rata ya estaba en medio de la caja. Reportar para decisión del investigador; no clasificarlo automáticamente como cruce contado. |
+| `Lado = -2` o valor cercano al límite de fase | — | Timeout. |
+
+Un timeout o un `Lado` anterior desconocido rompe la secuencia de lados. El
+siguiente evento no debe clasificarse por comparación con un lado viejo. La
+latencia de palanqueo tampoco sustituye estas reglas.
 
 ---
 
@@ -46,7 +63,7 @@ Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la in
 ```
 Ensayo=3, Lado=1, Estim=0, Latencia=6.06, TiempoAbs=334.8, PalI=1, PalD=2, Desplaz=4.25
 ```
-🟢 **Seguro.** Luz derecha (Lado=1). Cruzó en 4s y palanqueo en 6s. Dado que Desplaz=4.25 > 1 → cruce válido.
+🟢 **Seguro.** Si el último `Lado` conocido era 0, el cambio a 1 junto con Desplaz=4.25 > 1 confirma un cruce completo. Palanqueó en 6 s.
 
 ### Caso 2: Ensayo conflicto, la rata NO cruzó
 ```
@@ -76,7 +93,9 @@ Variable interna: `exp_0126_cs_d1r1`; shape `(57, 8)`.
 Lectura rápida:
 
 - Todos los eventos tienen `Estim=0`.
-- Puede haber cruce válido (`Desplaz > 1`) o palanqueo sin cruce (`Desplaz <= 1`).
+- Cambio de `Lado` + `Desplaz > 1` indica cruce con cambio de lado.
+- Lado igual + `Desplaz > 1` genera hallazgo `InterEventCrossing` para revisión del investigador.
+- Lado igual + `Desplaz <= 1` indica palanqueo sin cruce.
 - En este ejemplo no hay `Lado=-2`, pero pueden existir timeouts raros en CS, sobre todo al inicio del entrenamiento.
 
 ### CP: `exp_0126_cp_d1r1.mat`
@@ -110,8 +129,10 @@ Lectura rápida:
 
 - `Estim=0` indica seguro; `Estim=1` indica conflicto.
 - `Lado=-2` marca timeout/no cruce.
-- `Desplaz > 1` indica cruce válido.
-- `Desplaz <= 1` indica palanqueo sin cruce significativo.
+- Cambio de `Lado` + `Desplaz > 1` indica cruce con cambio de lado.
+- Lado igual + `Desplaz > 1` genera hallazgo `InterEventCrossing` para revisión del investigador.
+- Lado igual + `Desplaz <= 1` indica palanqueo sin cruce significativo.
+- Cambio de `Lado` + `Desplaz <= 1` requiere revisar video: la rata pudo estar en medio de la caja.
 - `Latencia` y `Desplaz` pueden diferir porque representan mediciones distintas: palanqueo vs cruce/desplazamiento.
 
 ---
@@ -143,6 +164,6 @@ La relación completa entre nomenclatura legacy, estándar del lab y output del 
 
 ## Para el Video Batch Processor
 
-El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection`, en particular `LightDetector`, detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para saber la latencia de palanqueo, la latencia de cruce/desplazamiento y si hubo cruce. Combinando ambas fuentes se obtiene trazabilidad entre tiempos visuales del video y etiquetas conductuales del `.mat`.
+El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection`, en particular `LightDetector`, detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para obtener `TiempoAbs`, latencia de palanqueo, desplazamiento y resultado. Combinando ambas fuentes se pueden medir el desfase al inicio y la cola visual después del palanqueo sin inventar un reloj compartido.
 
 Cuando exista `TipoEvento`, el `MatParser` debe conservarlo en cada `MatEvent` y usarlo antes que `Estim` para clasificar el evento. Para `TipoEvento=2`, `SegmentPlanner` debe buscar el LED/ruido sin exigir una luz de comida y crear un segmento de solo ruido. El resultado de cruce/no cruce/timeout no debe inferirse automáticamente con las reglas de un ensayo con comida.
