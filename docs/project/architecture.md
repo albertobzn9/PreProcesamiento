@@ -495,7 +495,7 @@ SessionData = {
     MatEvent = {
       EventIndex:       int,    // columna Ensayo del .mat
       LeverLatency:     float,  // duración MATLAB desde inicio de evento a palanqueo
-      AbsoluteTime:      float,  // TiempoAbs: segundos desde inicio de habituación
+      AbsoluteTime:      float,  // TiempoAbs: segundos desde R0 de MATLAB, previo a habituación
       CrossingLatency:  float,  // columna Desplaz: se combina con cambio de Lado
       Result:           enum,   // cruce, no cruce o timeout
       Side:             int,    // columna Lado: 0=izq, 1=der, -2=timeout
@@ -513,7 +513,7 @@ El `.mat` normalmente tiene una variable `Resultados` (array N×8 histórico o N
 | 1 | Lado | 0=izq, 1=der, -2=no cruzó/timeout |
 | 2 | EstimElectrico | 1=descarga activa |
 | 3 | Latencia | Duración MATLAB desde inicio de evento hasta palanqueo (~límite de fase=timeout) |
-| 4 | TiempoAbs | Segundos totales desde inicio de habituación; `TiempoAbs - Latencia` estima inicio MATLAB para comparación con video. |
+| 4 | TiempoAbs | Segundos desde R0 de MATLAB, previo a mensajes y habituación; `TiempoAbs - Latencia` estima inicio MATLAB para comparación con video. |
 | 5 | PalancasIzq | Presiones acumuladas palanca izquierda |
 | 6 | PalancasDer | Presiones acumuladas palanca derecha |
 | 7 | Desplazamiento | Cambio de Lado + >1 = cruce automático. Lado igual + >1 = `InterEventCrossing` para decisión humana. Cambio de lado + <=1 = `ShortSideChange` para decisión humana. ~límite de fase = timeout. |
