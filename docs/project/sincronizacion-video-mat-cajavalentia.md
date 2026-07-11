@@ -29,7 +29,7 @@ se debe asumir que empiezan o terminan exactamente al mismo tiempo.
 
 | Dato del `.mat` | Significado operativo |
 |-----------------|-----------------------|
-| `TiempoAbs` | Segundos totales desde que el usuario inició la habituación. En un evento con palanqueo, es el momento en que MATLAB registra ese evento; al final de sesión puede llegar aproximadamente a 40-45 minutos expresados en segundos. |
+| `TiempoAbs` | Segundos desde que MATLAB crea su reloj interno `R0`. En `ValentiaE`, `R0` se crea antes de los mensajes modales y antes de la habituación inicial; no equivale automáticamente al primer estímulo visible en video. En un evento con palanqueo, es el momento en que MATLAB registra ese evento. |
 | `Latencia` | Segundos que transcurrieron desde que MATLAB inició el evento hasta que la rata palanqueó. Es una duración, no un timestamp absoluto. |
 | `Desplaz` | Latencia asociada al sensor de desplazamiento. Con cambio de `Lado`, `> 1 s` confirma un cruce completo. Si se repite con `> 1 s`, emitir `InterEventCrossing` para decisión del investigador. Si cambia de lado pero dura `<= 1 s`, emitir `ShortSideChange` y revisar video porque la rata pudo estar en medio de la caja. No equivale a un tiempo que este programa pueda medir desde video. |
 
@@ -42,6 +42,29 @@ inicio MATLAB estimado = TiempoAbs - Latencia
 
 Esta operación conserva los datos raw y calcula una referencia para comparar;
 no modifica el `.mat`.
+
+### Hallazgo Confirmado En Caja (2026-07-11)
+
+La prueba supervisada `prueba1107.mat` confirmó esta semántica en la caja real.
+Con habituación configurada en 30 s, la primera fila tuvo:
+
+```text
+TiempoAbs = 77.914 s
+Latencia  = 42.003 s
+inicio MATLAB estimado = 35.911 s
+```
+
+El primer ensayo empezó aproximadamente 35.9 s después de crear `R0`: 30 s
+nominales de habituación más tiempo de mensajes modales, lecturas de sensores y
+sobrecarga de la GUI. Esto es un desfase interno de MATLAB, no todavía una
+medición del desfase video-MAT. Cuando exista el video/Excel, se comparará el
+inicio MATLAB estimado de varios eventos con el encendido visual de la luz para
+obtener el desfase real de esa sesión.
+
+En un evento `SoundOnly` (`TipoEvento=2`), la fila se registra al terminar los
+180 s: `TiempoAbs - Latencia` sigue siendo el inicio MATLAB estimado porque la
+latencia almacenada es la duración completa del evento. El primer cruce, si lo
+hubo, se conserva por separado en `Desplaz`.
 
 ## Qué Diferencias Debemos Medir
 
