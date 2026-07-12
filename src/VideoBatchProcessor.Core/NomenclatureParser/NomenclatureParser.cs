@@ -27,7 +27,7 @@ public sealed class NomenclatureParser
         @"_(?<sexo>m|h)" +
         @"_(?<seg>habini|habfin|hab|iti\d+|e\d+)" +
         @"_(?<tipo>s|p|na)" +
-        @"_(?<res>cr|nc|to|na)" +
+        @"_(?<res>cr|nc|to|rv|na)" +
         @"_(?<trat>[a-z0-9]+)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -213,6 +213,7 @@ public sealed class NomenclatureParser
         "cr" => ResultadoConductual.Cruce,
         "nc" => ResultadoConductual.NoCruce,
         "to" => ResultadoConductual.Timeout,
+        "rv" => ResultadoConductual.RequiereRevision,
         "na" => ResultadoConductual.NoAplica,
         _    => null
     };

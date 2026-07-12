@@ -54,20 +54,20 @@ Status meanings:
 ### Segmentation And Synchronization
 
 - Define the exact boundary between event, ITI, and habituation when light intensity changes around a threshold. A frame must not belong to two categories.
-- Make the review stage explicit: the user should be able to inspect detected light transitions, proposed segment start/end frames, event labels, `.mat` matching, and warnings before export.
-- Confirm the rule for crossing versus no crossing. The `.mat` remains the preferred behavioral source when present; any visual heuristic needs documented limits.
-- Implement the documented `TipoEvento = 2` path in `MatParser`, `SegmentPlanner`, tests, and the output naming code. Its output code is still undecided and must not reuse `s`, `p`, or `na`.
+- Make the review stage explicit: the user should be able to inspect detected light transitions, proposed segment start/end frames, event labels, behavioral-source matching, and warnings before export.
+- Confirm the rule for crossing versus no crossing. The behavioral source remains preferred when present; any visual heuristic needs documented limits.
+- `BehavioralData` already reads `TipoEvento = 2`; `SegmentPlanner` and the output naming code still need its path. The output code is still undecided and must not reuse `s`, `p`, or `na`.
 
 ### MAT And Spreadsheet Validation
 
 - Keep source precision internally. Round only when displaying values; one video frame at 30 FPS is about 0.033 seconds, so rounding to centiseconds can hide useful alignment information.
-- When a `.mat` is reconstructed from Excel, compare row count and event identity against the video and report missing trailing rows. The video is the primary visual evidence; Excel is secondary convenience data.
+- When a historical `.mat` is reconstructed from Excel, compare row count and event identity against the video and report missing trailing rows. The video is the primary visual evidence; Excel is secondary convenience data.
 - Define acceptance thresholds for a stable session-level offset after validation with real sessions.
 
 ### Batch Processing And Calibration
 
 - The batch should scan a protocol folder, process only supported CMC phases, and ignore fear-conditioning material without treating it as an error.
-- Compare the available video, `.mat`, and optional Excel records; report discrepancies and preserve evidence rather than silently forcing a match.
+- Compare the available video, behavioral source, and optional Excel records; report discrepancies and preserve evidence rather than silently forcing a match.
 - Decide later whether a fading-but-still-on frame is needed as an optional calibration example.
 
 ## Related Files

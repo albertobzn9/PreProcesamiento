@@ -146,15 +146,18 @@ public class SessionMetadataResolverTests
     }
 
     [Fact]
-    public void MatPath_MismaCarpeta()
+    public void SinFuenteConductual_NoInventaRutaMat()
     {
         var meta = Resolve("/sesiones/exp_0122_dis_d22r1.mp4",
             new BatchManifest { Iniciales="abs", Sexo="m", Tratamiento="stx" });
-        Assert.Equal("/sesiones/exp_0122_dis_d22r1.mat", meta.SourceMatPath);
+        Assert.Null(meta.SourceBehavioralPath);
+        Assert.Null(meta.SourceMatPath);
+        Assert.Equal("None", meta.SourceBehavioralKind);
+        Assert.NotNull(meta.BehavioralSourceError);
     }
 
     [Fact]
-    public void Complete_MatPath_Override()
+    public void Complete_MatPathLegacy_InexistenteNoSeAceptaComoFuente()
     {
         var partial = Resolve("/s/exp_0122_dis_d22r1.mp4");
         var completa = _resolver.Complete(partial, new UserFieldValues
@@ -162,7 +165,8 @@ public class SessionMetadataResolverTests
             Iniciales="abs", Sexo="m", Tratamiento="stx",
             MatPath="/mats/exp_0122_dis_d22r1.mat"
         });
-        Assert.Equal("/mats/exp_0122_dis_d22r1.mat", completa.SourceMatPath);
+        Assert.Null(completa.SourceBehavioralPath);
+        Assert.Null(completa.SourceMatPath);
     }
 
     [Fact]

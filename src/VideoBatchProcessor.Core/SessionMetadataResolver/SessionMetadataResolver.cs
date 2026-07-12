@@ -1,4 +1,5 @@
 using VideoBatchProcessor.Core.Nomenclature;
+using VideoBatchProcessor.Core.BehavioralData;
 
 namespace VideoBatchProcessor.Core.SessionResolver;
 
@@ -23,6 +24,12 @@ namespace VideoBatchProcessor.Core.SessionResolver;
 /// </summary>
 public sealed class SessionMetadataResolver
 {
+    private readonly BehavioralSourceResolver _behavioralSourceResolver;
+
+    public SessionMetadataResolver(BehavioralSourceResolver? behavioralSourceResolver = null)
+    {
+        _behavioralSourceResolver = behavioralSourceResolver ?? new BehavioralSourceResolver();
+    }
     /// <summary>
     /// Mensaje que la UI debe mostrar cuando el nombre del archivo no coincide
     /// con ningún esquema conocido (Legacy ni Lab Standard).
@@ -62,8 +69,9 @@ public sealed class SessionMetadataResolver
                 ? NomenclatureParser.ConvertirFechaAYYMM(parsed.Fecha)
                 : parsed.Fecha;
 
-        var fase    = parsed.FaseEstandar;
-        var matPath = over?.MatPath ?? ResolveMatPath(videoPath, stem);
+        var fase = parsed.FaseEstandar;
+        var explicitBehavioralPath = over?.BehavioralSourcePath ?? over?.MatPath;
+        var behavioralSource = _behavioralSourceResolver.Resolve(videoPath ?? string.Empty, explicitBehavioralPath);
 
         var missing = ValidarCampos(iniciales, fecha, fase, parsed.Dia, parsed.Rata, sexo, tratamiento);
 
@@ -78,7 +86,14 @@ public sealed class SessionMetadataResolver
             Sexo            = sexo        ?? string.Empty,
             Tratamiento     = tratamiento ?? string.Empty,
             SourceVideoPath = videoPath   ?? string.Empty,
-            SourceMatPath   = matPath,
+            SourceBehavioralPath = behavioralSource.SourcePath,
+            SourcePressesPath = behavioralSource.PressesPath,
+            SourceBehavioralKind = behavioralSource.SourceKind.ToString(),
+            BehavioralSourceWarnings = behavioralSource.Warnings,
+            BehavioralSourceError = behavioralSource.Error,
+            SourceMatPath = behavioralSource.SourceKind == BehavioralSourceKind.LegacyMat
+                ? behavioralSource.SourcePath
+                : null,
             MissingFields   = missing,
         };
     }
@@ -107,7 +122,19 @@ public sealed class SessionMetadataResolver
         var fase        = FirstNonEmpty(partial.Fase,        userValues.Fase);
         var dia         = partial.Dia  != 0 ? partial.Dia  : (userValues.Dia  ?? 0);
         var rata        = partial.Rata != 0 ? partial.Rata : (userValues.Rata ?? 0);
-        var matPath     = userValues.MatPath ?? partial.SourceMatPath;
+        var behavioralPath = userValues.BehavioralSourcePath ?? userValues.MatPath ?? partial.SourceBehavioralPath;
+        var behavioralSource = string.IsNullOrWhiteSpace(behavioralPath)
+            ? new BehavioralSourceResolution
+            {
+                SourcePath = partial.SourceBehavioralPath,
+                PressesPath = partial.SourcePressesPath,
+                SourceKind = Enum.TryParse<BehavioralSourceKind>(partial.SourceBehavioralKind, out var currentKind)
+                    ? currentKind
+                    : BehavioralSourceKind.None,
+                Warnings = partial.BehavioralSourceWarnings,
+                Error = partial.BehavioralSourceError,
+            }
+            : _behavioralSourceResolver.Resolve(partial.SourceVideoPath, behavioralPath);
 
         var missing = ValidarCampos(iniciales, fecha, fase, dia, rata, sexo, tratamiento);
 
@@ -120,7 +147,14 @@ public sealed class SessionMetadataResolver
             Rata          = rata,
             Sexo          = sexo        ?? string.Empty,
             Tratamiento   = tratamiento ?? string.Empty,
-            SourceMatPath = matPath,
+            SourceBehavioralPath = behavioralSource.SourcePath,
+            SourcePressesPath = behavioralSource.PressesPath,
+            SourceBehavioralKind = behavioralSource.SourceKind.ToString(),
+            BehavioralSourceWarnings = behavioralSource.Warnings,
+            BehavioralSourceError = behavioralSource.Error,
+            SourceMatPath = behavioralSource.SourceKind == BehavioralSourceKind.LegacyMat
+                ? behavioralSource.SourcePath
+                : null,
             MissingFields = missing,
         };
     }
@@ -145,12 +179,4 @@ public sealed class SessionMetadataResolver
     private static string? FirstNonEmpty(string existing, string? userValue)
         => !string.IsNullOrEmpty(existing) ? existing : userValue;
 
-    private static string? ResolveMatPath(string? videoPath, string stem)
-    {
-        if (string.IsNullOrEmpty(videoPath)) return null;
-        var dir = Path.GetDirectoryName(videoPath);
-        return string.IsNullOrEmpty(dir)
-            ? stem + ".mat"
-            : Path.Combine(dir, stem + ".mat");
-    }
 }

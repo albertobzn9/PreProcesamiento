@@ -8,7 +8,7 @@ Este documento define las tres nomenclaturas que conviven en el proyecto:
 2. **Estándar del lab**: nomenclatura acordada por el laboratorio para las sesiones fuente futuras.
 3. **Output del Video Batch Processor**: extensión usada por este programa para exportar clips pequeños sin perder ensayos sin cruce, ITIs ni habituación.
 
-La regla principal es simple: los archivos fuente, especialmente los `.mat`, **no se renombran ni se modifican**. El programa los lee, interpreta sus eventos y genera clips de video con la nomenclatura de output.
+La regla principal es simple: los archivos fuente conductuales (`.mat` históricos o CSV V1 nuevos) **no se renombran ni se modifican**. El programa los lee, interpreta sus eventos y genera clips de video con la nomenclatura de output.
 
 ---
 
@@ -46,7 +46,7 @@ Representa una **sesión completa**: un día, una rata y una fase. No representa
 
 ### Uso En El Proyecto
 
-- El `.mat` legacy es fuente de verdad para eventos, latencias, cruces, no cruces y timeouts.
+- El `.mat` legacy es la fuente conductual histórica para eventos, latencias, cruces, no cruces y timeouts.
 - El video legacy es el archivo completo que se va a recortar.
 - Una fila del `.mat` corresponde a un evento experimental, no necesariamente a un cruce exitoso.
 - El programa debe poder leer estos nombres porque son los datos reales actuales.
@@ -92,9 +92,9 @@ abs_2601_f5_d1r3_m_stx.mp4
 Esta nomenclatura identifica una **sesión fuente completa**: una rata, día y fase.
 No identifica todavía un ensayo individual, su tipo ni su resultado. Esos datos no
 pueden conocerse desde el nombre del video antes de que Video Batch Processor lea
-el video y, cuando exista, el `.mat`.
+el video y, cuando exista, la fuente conductual asociada.
 
-Aunque el estándar del lab contempla extensiones como `.mat`, `.mp4` y `.szv`, en este proyecto los `.mat` existentes se tratan como archivos de entrada. El Video Batch Processor no genera `.mat` nuevos; genera clips de video.
+Aunque el estándar del lab contempla extensiones como `.mat`, `.mp4` y `.szv`, en este proyecto los `.mat` existentes y los CSV V1 nuevos se tratan como archivos de entrada. El Video Batch Processor no genera datos conductuales nuevos; genera clips de video.
 
 Por ejemplo, el estándar del lab no distingue explícitamente:
 
@@ -127,7 +127,7 @@ video: `segmento`, `tipoensayo` y `resultado`. Así permite saber qué parte del
 video representa el clip y si el evento fue cruce, no cruce, timeout o requiere
 revisión antes de una decisión final.
 
-En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia donde se prende el LED de ruido blanco antes de la luz de comida. Aun así, el identificador `eN` conserva la trazabilidad con el evento del `.mat`, cuya latencia empieza cuando se prende la luz de comida.
+En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia donde se prende el LED de ruido blanco antes de la luz de comida. Aun así, el identificador `eN` conserva la trazabilidad con el evento de la fuente conductual, cuya latencia empieza cuando se prende la luz de comida.
 
 ### Campos
 
@@ -138,7 +138,7 @@ En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia 
 | `f5` | Fase del protocolo | discriminación |
 | `d1r3` | Día + rata | día 1, rata 3 |
 | `m` | Sexo | macho |
-| `e1` | Segmento | evento/ensayo 1 del `.mat` |
+| `e1` | Segmento | evento/ensayo 1 de la fuente conductual |
 | `p` | Tipo de ensayo | peligroso/riesgo |
 | `cr` | Resultado | cruce |
 | `stx` | Tratamiento | sin tratamiento |
@@ -147,7 +147,7 @@ En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia 
 
 | Código | Significado |
 |--------|-------------|
-| `eN` | Evento/ensayo registrado en el `.mat`. Se conserva el número para mantener trazabilidad con la fila correspondiente. |
+| `eN` | Evento/ensayo registrado en la fuente conductual. Se conserva el número para mantener trazabilidad con la fila correspondiente. |
 | `itiN` | Intervalo entre eventos. Por ejemplo, `iti1` es el intervalo posterior a `e1`. |
 | `hab` | Habituación cuando se exporta como un solo bloque. |
 | `habini` | Habituación inicial, si se exporta separada. |
@@ -196,12 +196,12 @@ abs_2601_f5_d1r3_m_hab_na_na_stx.mp4   # habituación
 
 ### Por Qué `eN` No Significa Solo Cruce
 
-En esta convención, `eN` significa **evento/ensayo registrado en el `.mat`**, no "cruce exitoso".
+En esta convención, `eN` significa **evento/ensayo registrado en la fuente conductual**, no "cruce exitoso".
 
 Esto conserva trazabilidad directa:
 
 ```text
-fila/evento 12 del .mat -> e12 -> clip e12
+fila/evento 12 de la fuente conductual -> e12 -> clip e12
 ```
 
 El resultado conductual se codifica aparte:
@@ -255,10 +255,10 @@ La diferencia conceptual es:
 2. Usar guion bajo `_` entre campos.
 3. Día y rata van juntos: `d1r3`, no `d1_r3`.
 4. No usar espacios en nombres de archivo.
-5. No renombrar ni modificar los `.mat` fuente.
+5. No renombrar ni modificar los datos conductuales fuente.
 6. El programa debe poder leer la nomenclatura legacy y la nomenclatura estándar del lab para sesiones fuente completas.
 7. El programa debe exportar clips usando la nomenclatura de output del Video Batch Processor.
-8. Para eventos del `.mat`, conservar `eN` aunque no haya cruce.
+8. Para eventos de la fuente conductual, conservar `eN` aunque no haya cruce.
 9. Usar `na` cuando un campo no aplique, como en ITI o habituación.
 
 ---
@@ -266,7 +266,7 @@ La diferencia conceptual es:
 ## Para Implementación Futura
 
 - `NomenclatureParser` debe detectar nombres legacy y nombres con estándar del lab de sesión fuente.
-- `MatParser` debe leer el `.mat` fuente sin asumir cambios de nombre.
+- `IBehavioralSessionReader` debe leer la fuente conductual sin asumir cambios de nombre.
 - `SegmentPlanner` debe generar segmentos de tipo `eN`, `itiN`, `hab`, `habini` o `habfin`.
 - `ClipExporter` debe construir nombres usando la nomenclatura de output del Video Batch Processor.
-- La correspondencia entre video completo y `.mat` se mantiene por el nombre legacy de sesión cuando se trabaja con datos históricos.
+- La correspondencia entre video completo y fuente conductual se mantiene por el mismo `stem` de sesión cuando se trabaja con datos históricos o CSV V1.

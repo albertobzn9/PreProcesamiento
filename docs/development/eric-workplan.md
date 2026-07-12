@@ -124,11 +124,11 @@ found in ROI selection or thresholds.
 
 - Run the full suite and build the solution.
 - Present the new classes, tests, and one short example sequence.
-- Stop after review; do not start `MatParser` without an agreed `.mat` fixture.
+- Stop after review; do not start the binary MAT reader or `SegmentPlanner` without agreed fixtures and review criteria.
 
 ## Out Of Scope For This Block
 
-- `MatParser`, including the future ninth `TipoEvento` column.
+- The binary MAT adapter. CSV V1, N×8/N×9 normalization, and `TipoEvento` handling already exist in `BehavioralData`.
 - `SegmentPlanner`, ITI/habituation rules, and crossing classification.
 - Output code for the sound-only event.
 - FFmpeg export, batch orchestration, and final GUI screens.
@@ -137,7 +137,7 @@ found in ROI selection or thresholds.
 
 After the 24 July review, choose the next module based on evidence:
 
-1. `MatParser` with real 8-column and 9-column `.mat` fixtures; or
+1. the binary MAT adapter with real 8-column and 9-column `.mat` fixtures; or
 2. a thin UI connection that lets the user select ROIs and inspect the verified
    frame-to-light path.
 
@@ -145,6 +145,6 @@ After the 24 July review, choose the next module based on evidence:
 
 - [Architecture](../project/architecture.md)
 - [Architecture Review Log](../project/architecture-review-log.md)
-- [MAT Format](../reference/mat-format.md)
-- [MAT And Video Synchronization Guide](mat-video-synchronization-guide.md)
+- [Historical MAT Format](../reference/mat-format.md)
+- [Behavioral Data And Video Synchronization Guide](mat-video-synchronization-guide.md)
 - [Naming Convention](../reference/naming-convention.md)

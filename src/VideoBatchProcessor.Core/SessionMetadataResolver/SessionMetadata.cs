@@ -17,6 +17,8 @@ public sealed record FileOverride
     public string? Iniciales   { get; init; }
     public string? Sexo        { get; init; }
     public string? Tratamiento { get; init; }
+    public string? BehavioralSourcePath { get; init; }
+    // Compatibilidad temporal con manifests existentes.
     public string? MatPath     { get; init; }
 }
 
@@ -25,6 +27,8 @@ public sealed record UserFieldValues
     public string? Iniciales   { get; init; }
     public string? Sexo        { get; init; }
     public string? Tratamiento { get; init; }
+    public string? BehavioralSourcePath { get; init; }
+    // Compatibilidad temporal con formularios que todavía dicen MAT.
     public string? MatPath     { get; init; }
     public string? Fecha       { get; init; }
     public string? Fase        { get; init; }
@@ -43,6 +47,12 @@ public sealed record SessionMetadata
     public string       Sexo            { get; init; } = string.Empty;
     public string       Tratamiento     { get; init; } = string.Empty;
     public string       SourceVideoPath { get; init; } = string.Empty;
+    public string?      SourceBehavioralPath { get; init; }
+    public string?      SourcePressesPath    { get; init; }
+    public string       SourceBehavioralKind { get; init; } = "None";
+    public IReadOnlyList<string> BehavioralSourceWarnings { get; init; } = [];
+    public string?      BehavioralSourceError { get; init; }
+    // Alias legacy. Solo se llena cuando la fuente principal resuelta es MAT.
     public string?      SourceMatPath   { get; init; }
     public bool         IsComplete      => MissingFields.Count == 0;
     public bool         FormatoNoReconocido => Scheme == NamingScheme.Unknown;

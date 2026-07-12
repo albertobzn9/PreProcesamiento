@@ -9,7 +9,7 @@
 | Video I/O actual | OpenCvSharp |
 | Exportación de video prevista | FFmpeg (via FFmpeg.AutoGen o proceso externo) |
 | Imágenes | OpenCvSharp / SkiaSharp según el adaptador |
-| Archivos `.mat` | Librería para leer MATLAB `.mat` (CSV export o librería .NET) |
+| Datos conductuales | CSV V1 de CajaValentia y adaptador para `.mat` históricos |
 
 **¿Por qué este stack?**
 - C#/Avalonia es cross-platform nativo (no electron)
@@ -44,7 +44,7 @@
 │  │              │ │                    │ │Builder      │ │
 │  └──────────────┘ └────────────────────┘ └─────────────┘ │
 │  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐  │
-│  │MatParser     │ │SegmentPlanner      │ │ClipExporter│  │
+│  │BehavioralData│ │SegmentPlanner      │ │ClipExporter│  │
 │  │              │ │                    │ │+ FFmpeg    │  │
 │  └──────────────┘ └────────────────────┘ └────────────┘  │
 │  ┌────────────────────┐ ┌─────────────────────────────┐  │
@@ -69,25 +69,26 @@ Esta sección **no describe módulos ejecutables**. Describe las piezas de infor
 Piensa en esta sección como un inventario de preguntas que el sistema debe poder contestar:
 - ¿De qué sesión estamos hablando?
 - ¿Qué luces se prendieron y cuándo?
-- ¿Qué evento del `.mat` corresponde?
+- ¿Qué evento conductual corresponde?
 - ¿Qué clip exacto se va a exportar?
 
 | Modelo | Qué representa | Campos clave |
 |--------|----------------|--------------|
-| `SessionMetadata` | Identidad de una sesión completa. | `scheme`, `initials`, `dateCode`, `phaseCode`, `day`, `rat`, `sex`, `treatment`, `sourceVideoPath`, `sourceMatPath`. |
-| `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadataDefaults`, overrides por archivo, ruta del `.mat`, treatment, sex, initials. |
+| `SessionMetadata` | Identidad de una sesión completa. | `scheme`, `initials`, `dateCode`, `phaseCode`, `day`, `rat`, `sex`, `treatment`, `sourceVideoPath`, `sourceBehavioralPath`, tipo de fuente y avisos. |
+| `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadataDefaults`, overrides por archivo, ruta conductual explícita, treatment, sex, initials. |
 | `CameraProfile` | Configuración visual reutilizable para un grupo de sesiones con el mismo encuadre. | `profileId`, sesiones asignadas, crop, rotation, flip, ROIs y calibración. |
 | `LightCalibration` | Evidencia usada para escoger y confirmar el umbral de una luz. | `lightId`, frames OFF/ON, medianas de brillo, umbral sugerido, umbral aceptado. |
 | `LightSample` | Estado de las tres luces en un frame o tiempo específico. | `frameIndex`, `timeSeconds`, `foodLeft`, `foodRight`, `noiseLed`, brillo por ROI. |
 | `LightTransition` | Cambio estable de una luz entre OFF y ON o entre ON y OFF. | `lightId`, `from`, `to`, `frameIndex`, `timeSeconds`, confianza. |
-| `MatEvent` | Un evento/fila leído desde el `.mat`. | `eventIndex`, `side`, `stim`, `eventType`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`, `result`. |
+| `BehavioralEvent` | Un evento/fila leído desde CSV V1 o MAT histórico. | `eventIndex`, `side`, `stim`, `eventType`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`. |
+| `BehavioralPressEvent` | Presión individual opcional leída de `stem_palanqueos.csv`. | evento de sesión, tiempo, fase, ensayo nullable, tipo textual, lado y contadores raw. |
 | `VideoSegment` | Parte lógica de una sesión que el programa propone revisar o exportar como clip. | `segmentCode`, límites visuales, `warningStart`, `foodLightStart`, `matEventIndex`, estimación de desfase, confianza, tipo y resultado. |
 | `ExportClip` | Instrucción final para generar un archivo de salida. | `inputVideoPath`, `outputPath`, `segment`, `transformConfig`, `namingMetadata`. |
-| `BehavioralReviewFinding` | Excepción conductual detectada que requiere decisión humana. | tipo, sesión, evento, lados, `Desplaz`, evidencia `.mat`, frames y explicación. |
-| `BatchReport` | Evidencia de lo procesado. | clips exportados, desfase video-MAT, hallazgos conductuales agrupados por sesión/rata, warnings, discrepancias, errores y configuración usada. |
+| `BehavioralReviewFinding` | Excepción conductual detectada que requiere decisión humana. | tipo, sesión, evento, lados, `Desplaz`, evidencia conductual, frames y explicación. |
+| `BatchReport` | Evidencia de lo procesado. | clips exportados, desfase video-conducta, hallazgos conductuales agrupados por sesión/rata, warnings, discrepancias, errores y configuración usada. |
 
 La distinción importante es esta:
-- `MatEvent` describe lo que MATLAB registró
+- `BehavioralEvent` describe lo que registró la fuente conductual
 - `VideoSegment` describe lo que se va a cortar del video
 - `ExportClip` describe el archivo final que se escribirá en disco
 - `CameraProfile` describe qué configuración visual corresponde a un grupo de sesiones
@@ -136,7 +137,7 @@ Para que todas las secciones se lean igual, cada módulo se describe con este fo
 ```text
 NomenclatureParser -> SessionMetadataResolver
 VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder -> SegmentPlanner -> ClipExporter
-MatParser --------------------------------------------------------------^
+BehavioralSourceResolver -> IBehavioralSessionReader -------------------------------^
 VideoTransformConfig -----------------------------------------------> ClipExporter
 BatchOrchestrator -> coordina todo
 ```
@@ -146,12 +147,13 @@ BatchOrchestrator -> coordina todo
 | Módulo | Estado | Evidencia o siguiente límite |
 |--------|--------|------------------------------|
 | `NomenclatureParser` | Implementado | 35 pruebas. Lee los tres esquemas y construye nombres de output existentes. |
-| `SessionMetadataResolver` | Implementado | 18 pruebas. Completa metadata sin adivinar campos faltantes. |
+| `SessionMetadataResolver` | Implementado | Completa metadata y resuelve una fuente conductual explícita, CSV V1, MAT legacy o ausencia. |
+| `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee CSV V1 y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`. |
 | `VideoReader` | Implementado | 18 pruebas con video sintético y runtime nativo de OpenCV en macOS. |
 | `FrameAnalyzer` | Implementado | 18 pruebas. Mide brillo de ROI y puede devolver el recorte de esa ROI. |
 | `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
 | Adaptador OpenCV a `LightDetection` | Siguiente entrega | Conectará un `Mat` real con `IFrameBrightnessSource`; no debe duplicar la lógica de brillo. |
-| `LightTimelineBuilder`, `MatParser`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. |
+| `LightTimelineBuilder`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -376,20 +378,20 @@ Eso evita que un frame brillante aislado se interprete como un evento real.
 
 ### 7. SegmentPlanner
 
-**Función en simple:** Decide dónde empieza y dónde termina cada clip, y con qué etiqueta debe salir. Los archivos `.mat` se sincronizan con el video de forma aproximada y revisable.
+**Función en simple:** Decide dónde empieza y dónde termina cada clip, y con qué etiqueta debe salir. La fuente conductual se sincroniza con el video de forma aproximada y revisable.
 
-**Recibe:** `LightTimeline` + `MatEvent[]` opcional + `SessionMetadata` + reglas de segmentación.
+**Recibe:** `LightTimeline` + `BehavioralEvent[]` opcional + `SessionMetadata` + reglas de segmentación.
 
 **Entrega:** `VideoSegment[]`.
 
-**Depende de:** `LightTimelineBuilder` y, cuando exista, `MatParser`.
+**Depende de:** `LightTimelineBuilder` y, cuando exista, `IBehavioralSessionReader`.
 
 Ojo importante:
 - `LightTimeline` **no es un módulo**, es un dato construido por `LightTimelineBuilder`
-- `MatEvent` **no es un módulo**, es un dato leído por `MatParser`
+- `BehavioralEvent` **no es un módulo**, es un dato leído por una fuente conductual
 
 ```
-Input:  LightTimeline + MatEvent[]? + SessionMetadata + SegmentConfig
+Input:  LightTimeline + BehavioralEvent[]? + SessionMetadata + SegmentConfig
 Output: VideoSegment[]
 
 VideoSegment = {
@@ -399,8 +401,8 @@ VideoSegment = {
   SegmentCode:        string,  // e1, e2, iti1, hab, habini, habfin
   TrialType:          enum { Safe, Conflict, SoundOnly, ITI, Habituation },
   Result:             enum { Crossing, NoCrossing, Timeout, PendingReview, NotApplicable },
-  MatEventIndex:      int?,    // evento/fila correspondiente del .mat
-  LeverLatencyMat:    float?,  // columna Latencia del .mat
+  BehavioralEventIndex:int?,   // evento/fila correspondiente de la fuente conductual
+  LeverLatencySeconds: float?, // columna Latencia / latencia_s
   CrossingLatencyMat: float?,  // Desplaz, usado con SideChanged para detectar excepciones
   PreviousKnownSide:  enum?,   // último Lado válido antes del evento: Left o Right
   SideChanged:        bool?,   // current Side difiere de PreviousKnownSide
@@ -410,10 +412,10 @@ VideoSegment = {
   FoodLightStart:     int?,    // frame donde prende FoodLeft/FoodRight
   FoodLightEnd:       int?,    // frame donde se apaga la luz de comida
   WarningToFoodSeconds: float?, // segundos entre NoiseLed y luz de comida
-  MatPressSeconds:    float?,  // TiempoAbs: segundos desde inicio de habituación
-  MatEventStartEstimateSeconds: float?, // TiempoAbs - Latencia
-  VideoMatStartGapSeconds: float?, // FoodLightStart - MatEventStartEstimateSeconds
-  PostPressLightTailSeconds: float?, // FoodLightEnd - TiempoAbs
+  BehavioralPressSeconds: float?,  // TiempoAbs / tiempo_absoluto_s
+  BehavioralStartEstimateSeconds: float?, // tiempo absoluto - latencia
+  VideoBehavioralStartGapSeconds: float?, // inicio visual - inicio conductual estimado
+  PostPressLightTailSeconds: float?, // fin visual - tiempo de palanqueo conductual
   MatchConfidence:    enum,    // alta, media, baja o requiere revisión
   DurationSeconds:    float,
 }
@@ -423,18 +425,18 @@ VideoSegment = {
 BehavioralReviewFinding = {
   Type:                enum { InterEventCrossing, ShortSideChange },
   Session:             SessionMetadata, // protocolo, fase, rata y día
-  MatEventIndex:       int,
+  BehavioralEventIndex:int,
   PreviousKnownSide:   enum?,
   CurrentSide:         enum?,
   DisplacementSeconds: float?,
   VideoEvidence:       { startFrame, endFrame, clipReference },
-  MatEvidence:         { lado, desplaz, latencia, tiempoAbs },
+  BehavioralEvidence:  { lado, desplaz, latencia, tiempoAbs },
   Explanation:         string,
   InvestigatorDecision: enum { Pending, CountAsCrossing, DoNotCount, Other },
 }
 ```
 
-`BehavioralReviewFinding` no altera los valores raw del `.mat`. Mientras
+`BehavioralReviewFinding` no altera los valores raw de la fuente conductual. Mientras
 `InvestigatorDecision` sea `Pending`, el segmento conserva
 `Result = PendingReview`; la UI debe pedir una decisión antes de asignar una
 etiqueta final de output como `cr` o `nc`. Si se exporta antes para facilitar la
@@ -445,7 +447,7 @@ Decisiones principales que toma este módulo:
 2. determina si el evento es seguro, conflicto con comida o solo ruido
 3. detecta huecos entre eventos para marcar `ITI`
 4. detecta zonas sin eventos al inicio o final para marcar habituación
-5. si hay `.mat`, empareja el evento visual con el evento conductual correspondiente
+5. si hay fuente conductual, empareja el evento visual con el evento correspondiente
 6. produce una lista para revisión y luego exportación
 
 Para eventos con comida, `FoodLightStart` es la referencia visual para comparar
@@ -455,82 +457,107 @@ palanqueo registrado en `TiempoAbs`. El LED de ruido conserva el inicio visual
 de advertencia del mismo evento. Las diferencias por sesión se resumen con una
 medida robusta como la mediana; nunca se resta un delay fijo supuesto para todos
 los videos. La especificación completa está en
-[Sincronización video-MAT de CajaValentia](sincronizacion-video-mat-cajavalentia.md).
+[Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md).
 
 **Lógica de segmentación:**
 1. Cuando una luz de comida pasa de OFF a ON -> inicio visual del evento
 2. Cuando se apaga la luz de comida -> fin visual del evento
 3. Si el LED de ruido se enciende antes de la luz de comida -> periodo de advertencia de riesgo/conflicto
-4. Si un `MatEvent` tiene `EventType=SoundOnly` (`TipoEvento=2`), LED sin luz de comida -> tipo `SoundOnly`
+4. Si un `BehavioralEvent` tiene `EventType=SoundOnly` (`tipo_evento=2`), LED sin luz de comida -> tipo `SoundOnly`
 5. LED de ruido asociado a un evento con comida -> tipo `Conflict`
 6. Luz de comida sin LED de ruido asociado -> tipo `Safe`
 7. Entre ensayos/eventos sin luces relevantes -> `ITI`
 8. Al inicio/fin del video sin luces -> `Habituation`
 9. El primer ensayo de la sesión siempre es seguro/de comida; usarlo como referencia contextual, no como sustituto de la detección
-10. Para determinar cruce/no cruce/timeout: clasifica automáticamente como cruce solo cambio de `Lado` + `Desplaz > 1 s`. Si el lado se mantiene igual con `Desplaz > 1 s`, crea un hallazgo `InterEventCrossing`; si cambia con `Desplaz <= 1 s`, crea un hallazgo `ShortSideChange`. Ambos conservan video y datos `.mat`, pero requieren decisión del investigador, no una etiqueta automática final. La latencia de palanqueo solo sirve como señal de revisión.
+10. Para determinar cruce/no cruce/timeout: clasifica automáticamente como cruce solo cambio de `Lado` + `Desplaz > 1 s`. Si el lado se mantiene igual con `Desplaz > 1 s`, crea un hallazgo `InterEventCrossing`; si cambia con `Desplaz <= 1 s`, crea un hallazgo `ShortSideChange`. Ambos conservan video y datos conductuales, pero requieren decisión del investigador, no una etiqueta automática final. La latencia de palanqueo solo sirve como señal de revisión.
 
 **Timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. `FoodLightStart` y `FoodLightEnd` son límites visuales que se comparan con el inicio MATLAB estimado y `TiempoAbs`; no se asumen idénticos. En un evento `SoundOnly`, `WarningStart` es el inicio relevante y `FoodLightStart` queda vacío.
 
-**Prueba aislada:** Sí. Con `LightTimeline` y `MatEvent` sintéticos se prueba sin necesidad de video.
+**Prueba aislada:** Sí. Con `LightTimeline` y `BehavioralEvent` sintéticos se prueba sin necesidad de video.
 
-**Aclaración de nombres:** `LightTimeline` y `MatEvent` son estructuras de datos, no módulos.
+**Aclaración de nombres:** `LightTimeline` y `BehavioralEvent` son estructuras de datos, no módulos.
 
 ---
 
-### 8. MatParser
+### 8. BehavioralData
 
-**Función en simple:** Lee el archivo `.mat` de una sesión y lo convierte en eventos que el resto del sistema pueda usar.
+**Función en simple:** Encuentra y lee la información conductual que acompaña a
+un video. Puede venir de un CSV nuevo o de un `.mat` histórico, pero el resto
+del programa recibe siempre los mismos datos normalizados.
 
-**Recibe:** la ruta de un `.mat`.
+**Recibe:** ruta del video y, opcionalmente, una ruta indicada explícitamente
+por el usuario o el manifest.
 
-**Entrega:** `SessionData`, que contiene una lista de `MatEvent`.
-
-**Depende de:** una estrategia de lectura del formato `.mat`.
+**Entrega:** una `BehavioralSourceResolution` y, cuando se lee la fuente, un
+`BehavioralSessionData` con `BehavioralEvent[]` y presiones opcionales.
 
 ```
-Read(matPath) -> SessionData
+videoPath + explicitSourcePath?
+  -> BehavioralSourceResolver
+  -> IBehavioralSessionReader
+  -> BehavioralSessionData
+```
 
-SessionData = {
-  Eventos: MatEvent[] donde
-    MatEvent = {
-      EventIndex:       int,    // columna Ensayo del .mat
-      LeverLatency:     float,  // duración MATLAB desde inicio de evento a palanqueo
-      AbsoluteTime:      float,  // TiempoAbs: segundos desde R0 de MATLAB, previo a habituación
-      CrossingLatency:  float,  // columna Desplaz: se combina con cambio de Lado
-      Result:           enum,   // cruce, no cruce o timeout
-      Side:             int,    // columna Lado: 0=izq, 1=der, -2=timeout
-      StimElect:        int,    // columna Estim: 1=descarga activa
-      EventType:        enum?,  // columna TipoEvento si existe: SafeFood, ConflictWithFood, SoundOnly
-    }
+#### Resolución de fuente
+
+La prioridad es deliberada y debe ser visible para el usuario:
+
+1. ruta explícita (`BehavioralSourcePath`; `MatPath` sigue como alias legacy);
+2. `stem.csv` si existe y tiene el encabezado exacto CSV V1;
+3. `stem.mat` legacy si existe;
+4. fuente ausente.
+
+`stem_palanqueos.csv` nunca se toma como tabla principal. Solo se asocia como
+evidencia hermana después de resolver una fuente principal. Si el CSV principal
+tiene encabezado válido pero una fila corrupta, el lector reporta el error: no
+cae silenciosamente al `.mat`. Si el encabezado CSV no es V1, el resolver puede
+usar el MAT disponible, dejando un warning auditable.
+
+#### Modelo normalizado
+
+```text
+BehavioralEvent = {
+  EventNumber,
+  Side,                       // 1=izquierda, 0=derecha, -2=timeout
+  Stimulus,
+  LeverLatencySeconds,
+  AbsoluteTimeSeconds,
+  LeftLeverPresses,
+  RightLeverPresses,
+  CrossingLatencySeconds,
+  EventType,                  // SafeFood, ConflictWithFood o SoundOnly
+  RawValues,
 }
 ```
 
-El `.mat` normalmente tiene una variable `Resultados` (array N×8 histórico o N×9 con evento de solo ruido), pero algunos archivos pueden usar como nombre de variable el identificador de la sesión. El `MatParser` debe buscar la primera variable no interna que sea una matriz numérica con 8 o 9 columnas. Las columnas son:
+La regla temporal permanece igual para ambas fuentes:
 
-| Col | Nombre | Significado |
-|-----|--------|-------------|
-| 0 | Ensayo | Número de evento |
-| 1 | Lado | 0=izq, 1=der, -2=no cruzó/timeout |
-| 2 | EstimElectrico | 1=descarga activa |
-| 3 | Latencia | Duración MATLAB desde inicio de evento hasta palanqueo (~límite de fase=timeout) |
-| 4 | TiempoAbs | Segundos desde R0 de MATLAB, previo a mensajes y habituación; `TiempoAbs - Latencia` estima inicio MATLAB para comparación con video. |
-| 5 | PalancasIzq | Presiones acumuladas palanca izquierda |
-| 6 | PalancasDer | Presiones acumuladas palanca derecha |
-| 7 | Desplazamiento | Cambio de Lado + >1 = cruce automático. Lado igual + >1 = `InterEventCrossing` para decisión humana. Cambio de lado + <=1 = `ShortSideChange` para decisión humana. ~límite de fase = timeout. |
-| 8 | TipoEvento | Solo en N×9: 0=seguro con comida, 1=conflicto con comida, 2=solo ruido |
+```text
+inicio MATLAB estimado = tiempo absoluto - latencia de palanqueo
+```
 
-**Estrategia de parseo:** el producto debe leer directamente el `.mat` fuente
-con una librería .NET compatible con los archivos reales de MATLAB y validada
-contra fixtures de 8 y 9 columnas. `MathNet.Numerics` sirve para cálculo
-numérico, no es un lector de archivos `.mat`. CSV o JSON pueden usarse para
-pruebas o diagnóstico, pero nunca deben convertirse en una entrada obligatoria
-del producto.
+No se usa `6.77 s` ni otro offset universal. Para `SoundOnly` (`tipo_evento=2`),
+la referencia visual es `NoiseLed`; no se exige luz de comida.
 
-**Estado actual:** pendiente. Antes de codificar, se debe elegir el lector con
-una prueba mínima sobre los fixtures aprobados y documentar la variable/matriz
-detectada, sin modificar el archivo fuente.
+#### Lectores
 
-**Prueba aislada:** Sí. Con un `.mat` de prueba se valida.
+- `CsvV1BehavioralSessionReader` está implementado. Exige exactamente las nueve
+  columnas acordadas, usa punto decimal con cultura invariante, preserva orden y
+  valores raw. También lee el CSV de palanqueos si está disponible y conserva
+  `ensayo=NA` como valor ausente.
+- `LegacyMatBehavioralSessionReader` define el adaptador de MAT. Ya normaliza
+  matrices N×8 y N×9 mediante `LegacyMatEventMapper`: para N×8 deriva el tipo
+  desde `Estim`; para N×9 usa `TipoEvento`. Falta conectar un lector binario
+  real que extraiga la matriz desde el archivo `.mat` sin modificarlo.
+
+La definición exacta de las columnas, CSV V1 y palanqueos vive en el
+[handoff de CajaValentia](handoff-cajavalentia-csv-backend.md) y en
+[Formato MAT histórico](../reference/mat-format.md). Este documento define
+cómo se conectan esos datos con el producto, sin duplicar toda la especificación.
+
+**Prueba aislada:** Sí. Hay pruebas para prioridad de rutas, CSV válido y
+malformado, punto decimal bajo cultura española, `lado=-2`, `tipo_evento=2`,
+`NA` en palanqueos y normalización de matrices MAT N×8/N×9.
 
 ---
 
@@ -611,7 +638,7 @@ Run(config) -> BatchReport
     CameraProfiles: CameraProfile[],
     ManifestPath,
     HabituationConfig: { TargetFinal, WarnShortFinal },
-    UseMatParser: bool,
+    UseBehavioralSource: bool,
   }
 ```
 
@@ -622,7 +649,7 @@ Flujo:
 4. asigna el `CameraProfile` correspondiente y lee metadata del video con `VideoReader`
 5. obtiene brillo por ROI con `FrameAnalyzer`, lo entrega mediante el `BrightnessAdapter` y detecta luces con `LightDetection`
 6. construye transiciones estables con `LightTimelineBuilder`
-7. si hay `.mat`, lo lee con `MatParser`
+7. si hay fuente conductual, la resuelve y la lee con `IBehavioralSessionReader`
 8. planea segmentos con `SegmentPlanner`
 9. muestra revisión/QA al usuario antes de exportar
 10. exporta clips con `ClipExporter` aplicando trim + transformaciones
@@ -636,13 +663,13 @@ Flujo:
 
 El frontend se divide en bloques de trabajo, no solo en pantallas. Cada bloque
 recoge una decisión del usuario, muestra evidencia y entrega información al
-siguiente; ninguno interpreta por sí mismo el video o el `.mat`.
+siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 
 | Bloque UI y vistas | Función en simple | Recibe | Entrega | Conexión con backend |
 |--------------------|-------------------|--------|---------|----------------------|
-| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta y ayudar al usuario a confirmar qué sesiones se van a procesar. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, archivos no reconocidos y grupos de trabajo. | Puede conectarse ahora a `NomenclatureParser` y `SessionMetadataResolver`. |
+| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta y ayudar al usuario a confirmar qué sesiones se van a procesar. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, fuente conductual resuelta, avisos y grupos de trabajo. | Implementado en `VideoBatchProcessor.App`; usa `NomenclatureParser` y `SessionMetadataResolver`. La visualización detallada de fuente queda para el siguiente ajuste de UI. |
 | `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Puede abrir frames con `VideoReader` y validar ROIs con `FrameAnalyzer`. La detección real espera `BrightnessAdapter`. |
-| `ProcessingReview` (`SegmentTimelineView`, `HabituationView`, `BehavioralFindingsView`) | Mostrar lo que el backend propuso y permitir confirmar o corregir casos importantes. | Segmentos, eventos `.mat`, advertencias, hallazgos `InterEventCrossing`/`ShortSideChange` y duraciones de habituación. | Decisiones de revisión: aceptar, excluir, ajustar o marcar para revisión manual. | Se diseña ahora; se conecta después a `LightTimelineBuilder`, `MatParser` y `SegmentPlanner`. |
+| `ProcessingReview` (`SegmentTimelineView`, `HabituationView`, `BehavioralFindingsView`) | Mostrar lo que el backend propuso y permitir confirmar o corregir casos importantes. | Segmentos, eventos conductuales, tipo de fuente, advertencias, hallazgos `InterEventCrossing`/`ShortSideChange` y duraciones de habituación. | Decisiones de revisión: aceptar, excluir, ajustar o marcar para revisión manual. | Se diseña ahora; se conecta después a `LightTimelineBuilder`, `IBehavioralSessionReader` y `SegmentPlanner`. |
 | `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Clips confirmados, opciones de salida y progreso. | `BatchReport`, logs y acceso a la carpeta de salida. | Se diseña ahora; se conecta después a `ClipExporter` y `BatchOrchestrator`. |
 
 ### Estado De La UI
@@ -651,6 +678,66 @@ siguiente; ninguno interpreta por sí mismo el video o el `.mat`.
 existen mientras el usuario configura o revisa. Solo pasan a configuración
 reutilizable cuando el usuario los confirma y el backend los guarda. Esto evita
 que la pantalla se convierta en otra fuente de verdad distinta al Core.
+
+### 12. AppShell + SessionSetup
+
+**Función en simple:** Es la puerta de entrada del programa. Presenta el flujo
+de trabajo, deja elegir videos o una carpeta y ayuda a confirmar que cada sesión
+tiene identidad y fuente conductual reconocibles antes de seguir.
+
+**Recibe:** rutas de videos elegidas por el usuario y, después, los valores que
+el usuario complete para metadata faltante.
+
+**Entrega:** una lista revisable de `SessionMetadata`: nombre interpretado,
+campos faltantes, fuente conductual resuelta (CSV V1, MAT legacy o ausente) y
+sus avisos. No inicia procesamiento de video.
+
+**Depende de:** `NomenclatureParser`, `SessionMetadataResolver` y, de manera
+indirecta, `BehavioralSourceResolver`.
+
+**Validación/Pruebas:** cargar nombres legacy, estándar y desconocidos; comprobar
+que los campos manuales se actualizan, que CSV/MAT se muestran correctamente y
+que una fuente ausente o inválida aparece como aviso, no como un bloqueo oculto.
+
+### 13. CameraSetup
+
+**Función en simple:** Permite escoger un video representativo y decir cómo se
+debe ver la caja: orientación, espejo y recorte. Agrupa esas decisiones en un
+perfil reutilizable para las sesiones que comparten el mismo encuadre.
+
+**Recibe:** una sesión confirmada, un frame de preview y decisiones del usuario
+sobre crop, rotación, espejo y pertenencia a un perfil de cámara.
+
+**Entrega:** `CameraProfileDraft`, una propuesta de configuración visual todavía
+editable. No reexporta ni modifica el video fuente.
+
+**Depende de:** `VideoReader` para abrir el video y de la futura capa de
+preview de transformaciones. `FrameAnalyzer` puede validar que un crop o ROI
+quede dentro del frame.
+
+**Validación/Pruebas:** abrir un video de prueba, cambiar orientación y crop,
+confirmar que las coordenadas se conservan y crear dos perfiles para videos con
+encuadres distintos.
+
+### 14. LightCalibration
+
+**Función en simple:** Deja marcar dónde están las tres luces y escoger umbrales
+de encendido/apagado con ejemplos visuales. Su trabajo termina al guardar una
+calibración revisable; no decide ensayos ni exporta clips.
+
+**Recibe:** frame ya preparado por `CameraSetup`, tres ROIs, ejemplos OFF/ON y
+ajustes de umbral del usuario.
+
+**Entrega:** ROIs y `LightCalibration` por `FoodLeft`, `FoodRight` y `NoiseLed`,
+incluidas las referencias usadas para justificar cada umbral.
+
+**Depende de:** `FrameAnalyzer` para medir las ROIs y `LightDetector` para
+probar el umbral. La lectura continua desde video real espera
+`BrightnessAdapter`; esta vista no debe recrear esa lógica.
+
+**Validación/Pruebas:** usar referencias ON/OFF conocidas por cada luz, revisar
+que el LED pequeño se vea ampliado y verificar que cambiar un umbral modifica
+solo el estado propuesto por el Core.
 
 ---
 
@@ -715,7 +802,7 @@ lectura de video, análisis de frame y detección de luces.
 4. Para cada perfil: dibuja crop, elige orientación, marca las 3 ROIs y calibra OFF/ON por luz
 5. Los parámetros y la asignación de perfiles se guardan en un archivo de configuración
 6. Programa genera segmentos preliminares y los muestra en timeline
-7. Usuario revisa/corrige segmentos críticos, emparejamiento `.mat` y excepciones de habituación
+7. Usuario revisa/corrige segmentos críticos, emparejamiento conductual y excepciones de habituación
 8. Usuario da clic en "Procesar todo"
 9. Pipeline se ejecuta sobre todos los videos
 10. Al terminar: carpeta de salida + reporte
@@ -734,9 +821,9 @@ Paso 1:  NomenclatureParser      -> independiente
 Paso 2:  BrightnessAdapter       -> conecta FrameAnalyzer con LightDetection
          LightDetection          -> depende de BrightnessAdapter solo cuando se conecta a frames reales
          LightTimelineBuilder    -> depende de LightDetection
-         MatParser               -> independiente
+         BehavioralData          -> resolución y CSV V1 ya implementados; falta lector binario MAT
 
-Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + opcional MatParser
+Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente conductual opcional
          CameraProfile           -> reúne transformaciones, ROIs y calibración por grupo de sesiones
          VideoTransformConfig    -> requiere VideoReader y preview de transformaciones
 

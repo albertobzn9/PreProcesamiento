@@ -41,11 +41,11 @@ Proyecto en fase de backend base + prototipo visual.
 - [Índice de documentación](docs/README.md)
 - [Requisitos de producto](docs/project/product-requirements.md)
 - [Protocolo CMC](docs/protocol/cmc-protocol.md)
-- [Formato .mat](docs/reference/mat-format.md)
+- [Formato MAT histórico](docs/reference/mat-format.md)
 - [Nomenclatura](docs/reference/naming-convention.md)
 - [Términos operativos y reglas de decisión](docs/reference/operational-terms.md)
 - [Arquitectura](docs/project/architecture.md)
-- [Sincronización video-MAT con CajaValentia](docs/project/sincronizacion-video-mat-cajavalentia.md)
+- [Sincronización video-conducta con CajaValentia](docs/project/sincronizacion-video-mat-cajavalentia.md)
 - [Contexto de integración futura](docs/project/future-integration-context.md)
 - [Plan de trabajo activo de Eric](docs/development/eric-workplan.md)
 

@@ -204,6 +204,12 @@ public class NomenclatureParserTests
         Assert.Equal(ResultadoConductual.Timeout, r.Resultado);
     }
 
+    [Fact] public void VbpOutput_RequiereRevision()
+    {
+        Assert.True(_parser.TryParse("abs_2201_f2_d7r1_m_e4_s_rv_stx.mp4", out var r));
+        Assert.Equal(ResultadoConductual.RequiereRevision, r.Resultado);
+    }
+
     [Fact] public void VbpOutput_ITI()
     {
         _parser.TryParse("abs_2201_f2_d7r1_m_iti1_na_na_stx.mp4", out var r);

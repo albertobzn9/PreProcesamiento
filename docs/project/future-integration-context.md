@@ -17,7 +17,7 @@ The source planning document is maintained in:
 This semester, both projects advance separately:
 
 - **CajaValentia** controls the behavioral task, its GUIs, and hardware.
-- **Video Batch Processor** reads video, metadata, and `.mat` files to plan and
+- **Video Batch Processor** reads video, metadata, and behavioral sources (CSV V1 or historical `.mat`) to plan and
   export reviewable video segments.
 
 Neither project should start, control, or depend on the other at runtime yet.
@@ -30,8 +30,8 @@ In a later semester, a session orchestrator may validate the session, create a
 unique `sessionId`, coordinate behavior and video recording, and keep a
 structured record of events, timestamps, files, camera profile, and final state.
 
-That future system should let Video Batch Processor associate the video, `.mat`
-file, and session metadata without reconstructing identity from manual file
+That future system should let Video Batch Processor associate the video, behavioral
+source, and session metadata without reconstructing identity from manual file
 names or risking swapped files.
 
 ## Design Rules For This Repository
@@ -44,15 +44,15 @@ The backend should preserve these capabilities while it is built:
 - Preserve traceable timestamps and distinguish at least: video start,
   habituation start, MATLAB event start, LED or food-light changes, and session
   end.
-- Preserve raw behavioral times and any estimated video-MAT offset separately;
-  an estimate must never overwrite the source `.mat` values.
+- Preserve raw behavioral times and any estimated video-to-behavior offset separately;
+  an estimate must never overwrite the source values.
 - Preserve which `CameraProfile` was used for each session or contiguous group
   of sessions. Crop, orientation, ROIs, calibration references, and accepted
   thresholds are part of the evidence needed to reproduce visual processing.
 - Keep the behavioral protocol, hardware control, video recording, storage,
   and clip analysis as separate responsibilities.
 - Produce reviewable evidence of how a video segment was associated with its
-  metadata and `.mat` events.
+  metadata and behavioral events.
 
 ## What Is Deliberately Out Of Scope Now
 
@@ -76,8 +76,8 @@ At the end of this semester, the useful shared foundation is:
   repository.
 - [Product Requirements](product-requirements.md): what the application must do
   now.
-- [MAT Format](../reference/mat-format.md): current behavioral data available
-  to the processor.
-- [CajaValentia Video-MAT Synchronization](sincronizacion-video-mat-cajavalentia.md): current rule for matching visual and MATLAB time references.
+- [Historical MAT Format](../reference/mat-format.md): historical behavioral data available
+  to the processor alongside CSV V1.
+- [CajaValentia Video-Behavior Synchronization](sincronizacion-video-mat-cajavalentia.md): current rule for matching visual and MATLAB time references.
 - [Operational Terms](../reference/operational-terms.md): shared operational
   meanings used by parsers, segmenters, and exporters.

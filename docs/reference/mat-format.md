@@ -1,10 +1,17 @@
-# Formato .mat — 8 Columnas Históricas Y Extensión `TipoEvento`
+# Formato MAT Histórico — Matrices N×8 Y N×9
 
 > 🔗 Volver a [visión general](../protocol/cmc-protocol.md)
 
-Para distinguir evento, ensayo, cruce, no cruce, timeout y tipos de latencia, ver también la [convención operativa de términos](operational-terms.md). Para la asociación de tiempos entre el `.mat` y el video, ver [Sincronización video-MAT de CajaValentia](../project/sincronizacion-video-mat-cajavalentia.md).
+Para distinguir evento, ensayo, cruce, no cruce, timeout y tipos de latencia, ver también la [convención operativa de términos](operational-terms.md). Para la asociación de tiempos entre la fuente conductual y el video, ver [Sincronización video-conducta de CajaValentia](../project/sincronizacion-video-mat-cajavalentia.md). Para el CSV nuevo, ver el [handoff de backend](../project/handoff-cajavalentia-csv-backend.md).
 
-## ¿Qué es un .mat?
+## Alcance De Este Documento
+
+Este documento describe exclusivamente los `.mat` históricos. El producto ya no
+asume que toda sesión llegue como MAT: CajaValentia también exporta CSV V1 para
+sesiones nuevas. Ambos formatos se normalizan como eventos conductuales, pero
+los MAT existentes permanecen inmutables y siguen siendo soporte obligatorio.
+
+## ¿Qué contiene un .mat histórico?
 
 Los archivos históricos contienen una tabla numérica de **N filas × 8 columnas**. Las sesiones nuevas que usen el evento de solo ruido contienen **N filas × 9 columnas**: la novena columna se llama `TipoEvento`.
 
@@ -14,7 +21,7 @@ Cada fila NO es un ensayo de cruce exitoso — es un **evento de palanqueo o tim
 
 Las sesiones históricas de **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) y **DIS** (Discriminación) usan las ocho columnas base. Las versiones nuevas de CP o DIS con evento de solo ruido agregan `TipoEvento` como novena columna.
 
-> Nota operativa: los Excel son vistas auxiliares útiles para revisar los datos, pero el formato que debe analizar el programa es el `.mat`. El parser no debe depender de hojas, fechas o bloques visuales del Excel.
+> Nota operativa: los Excel son vistas auxiliares útiles para revisar los datos. Para datos históricos, el parser lee el `.mat`; para sesiones nuevas puede leer el CSV V1. Nunca debe depender de hojas, fechas o bloques visuales del Excel.
 
 > Nota sobre timing: en ensayos de riesgo/conflicto, el LED de ruido blanco se prende antes que la luz de comida. MATLAB inicia su evento en la lógica asociada a la luz de comida, no al LED. El encendido observado de esa luz puede tener un desfase respecto a esa referencia; el programa debe medirlo, como se explica en la guía de sincronización. El video puede conservar el periodo previo como contexto visual.
 
@@ -27,7 +34,7 @@ Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Po
 | # | Nombre | Valores | Qué significa |
 |---|--------|---------|---------------|
 | 0 | **Ensayo** | 1, 2, 3... | Contador de eventos/ensayos donde la rata presionó la palanca durante la sesión (NO es el número de ensayo de cruce) |
-| 1 | **Lado** | `0`, `1`, `-2` | **0** = lado izquierdo registrado para el evento · **1** = lado derecho registrado para el evento · **-2** = la rata no cruzó (timeout) |
+| 1 | **Lado** | `0`, `1`, `-2` | **1** = lado izquierdo registrado para el evento · **0** = lado derecho registrado para el evento · **-2** = la rata no cruzó (timeout). Regla validada fisicamente en CajaValentia el 11-jul-2026. |
 | 2 | **Estim** | `0`, `1` | **0** = sin descarga · **1** = descarga activa. No distingue por sí sola un evento de riesgo con comida de un evento de solo ruido. |
 | 3 | **Latencia** | float (s) | Latencia de palanqueo: duración desde que MATLAB inició el evento hasta que la rata presionó la palanca. No es un timestamp absoluto y no debe confundirse con `Desplaz`. Si alcanza el límite de fase, corresponde a timeout. |
 | 4 | **TiempoAbs** | float (s) | Segundos desde que MATLAB crea su reloj interno, antes de mensajes modales y de la habituación inicial. En un evento con palanqueo, registra el momento MATLAB de ese evento. Junto con `Latencia` permite calcular `inicio MATLAB estimado = TiempoAbs - Latencia` para compararlo con el video. |
@@ -80,7 +87,7 @@ Ensayo=7, Lado=-2, Estim=1, Latencia=180.60, TiempoAbs=551.6, PalI=1, PalD=5, De
 ```
 Ensayo=2, Lado=0, Estim=0, Latencia=1.85, TiempoAbs=323.0, PalI=0, PalD=2, Desplaz=0.15
 ```
-🟢 **Seguro.** Luz izquierda (Lado=0), pero Desplaz=0.15 → solo presionó palanca, no cruzó. La rata ya estaba en ese lado.
+🟢 **Seguro.** Luz derecha (Lado=0), pero Desplaz=0.15 → solo presionó palanca, no cruzó. La rata ya estaba en ese lado.
 
 ## Ejemplos Reales Por Fase
 
@@ -169,6 +176,15 @@ La relación completa entre nomenclatura legacy, estándar del lab y output del 
 
 ## Para el Video Batch Processor
 
-El `.mat` es la **fuente de verdad** para saber si la rata cruzó o no en cada evento. El módulo `LightDetection`, en particular `LightDetector`, detecta los estados visuales de `FoodLeft`, `FoodRight` y `NoiseLed`, y el `MatParser` lee el `.mat` para obtener `TiempoAbs`, latencia de palanqueo, desplazamiento y resultado. Combinando ambas fuentes se pueden medir el desfase al inicio y la cola visual después del palanqueo sin inventar un reloj compartido.
+El MAT histórico es una fuente conductual de evidencia para saber qué ocurrió
+en cada evento. `LightDetection` detecta los estados visuales de `FoodLeft`,
+`FoodRight` y `NoiseLed`; `LegacyMatBehavioralSessionReader` normaliza la matriz
+histórica como `BehavioralEvent`. Combinando ambas fuentes se pueden medir el
+desfase al inicio y la cola visual después del palanqueo sin inventar un reloj
+compartido.
 
-Cuando exista `TipoEvento`, el `MatParser` debe conservarlo en cada `MatEvent` y usarlo antes que `Estim` para clasificar el evento. Para `TipoEvento=2`, `SegmentPlanner` debe buscar el LED/ruido sin exigir una luz de comida y crear un segmento de solo ruido. El resultado de cruce/no cruce/timeout no debe inferirse automáticamente con las reglas de un ensayo con comida.
+Cuando exista `TipoEvento`, el lector lo conserva y lo prefiere sobre `Estim`
+para clasificar el evento. Para `TipoEvento=2`, `SegmentPlanner` debe buscar el
+LED/ruido sin exigir una luz de comida y crear un segmento de solo ruido. El
+resultado de cruce/no cruce/timeout no debe inferirse automáticamente con las
+reglas de un ensayo con comida.

@@ -55,7 +55,7 @@ La idea general de este proyecto es que se puedan normalizar/estandarizar todos 
 3. **Rotación/reflejo:** el usuario puede rotar 180° o reflejar los videos cuando lo necesite, o dejar la imagen intacta.
 4. **Identificación de luces:** el programa detecta cuándo se prenden las tres luces a partir de ROIs y umbrales calibrados por el usuario.
 5. **Recorte por segmento:** una vez que identifica los eventos de luz, recorta automáticamente habituación, eventos/ensayos e ITIs.
-6. **Asociación con `.mat`:** usa el `.mat` para completar etiquetas conductuales de los eventos y conservar su trazabilidad con el video.
+6. **Asociación conductual:** usa CSV V1 o `.mat` histórico para completar etiquetas conductuales de los eventos y conservar su trazabilidad con el video.
 7. **Recorte de habituación:** informa excepciones de habituación final y permite seleccionar qué sesiones largas se quieren recortar.
 
 ## Requisitos Funcionales
@@ -96,10 +96,10 @@ Con la información de las luces, el programa sabe:
 - **Cuándo termina** (se apaga la luz)
 - **Una heurística visual inicial** de si la rata necesitó cruzar o ya estaba del mismo lado
 - **De qué lado es la comida** (luz izquierda o derecha)
-- **Si es ensayo seguro, conflicto con comida o solo ruido** (según luces y, cuando exista, `TipoEvento` del `.mat`)
+- **Si es ensayo seguro, conflicto con comida o solo ruido** (según luces y, cuando exista, `tipo_evento` de la fuente conductual)
 - **Cuánto dura el ITI** (entre ensayos)
 
-Como contexto experimental, el primer ensayo de la sesión siempre es seguro/de comida. Esto sirve como referencia o sanity check, pero el programa debe seguir etiquetando los eventos por detección de luces y por el `.mat`, no por asumir la secuencia.
+Como contexto experimental, el primer ensayo de la sesión siempre es seguro/de comida. Esto sirve como referencia o sanity check, pero el programa debe seguir etiquetando los eventos por detección de luces y por la fuente conductual, no por asumir la secuencia.
 
 En ensayos de riesgo/conflicto, el LED de ruido blanco y el sonido se encienden primero; unos segundos después se enciende la luz de comida. Ese delay es intencional: avisa a la rata que hay amenaza antes de que aparezca la oportunidad de comida. En MATLAB, el evento empieza a correr cuando se prende la luz de comida, no cuando se prende el LED.
 
@@ -121,9 +121,9 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 
 **Por la luz:** si en el ensayo anterior la luz se encendió del mismo lado, la rata ya está en ese lado, así que no necesita cruzar. Pero esto no siempre funciona (a veces la rata no cruzó y se quedó donde estaba). Esta inferencia puede servir como heurística inicial.
 
-**Por el archivo `.mat`:** para cada sesión tenemos un archivo `.mat` (del programa Caja Valentia) que registra la información conductual: latencias, descarga, desplazamiento y resultado. El programa lo usa para determinar cruce, no cruce o timeout cuando el registro existe; en los dos patrones excepcionales definidos abajo, genera una alerta `rv` para decisión humana.
+**Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y tipo de evento. El programa lo usa para determinar cruce, no cruce o timeout cuando el registro existe; en los dos patrones excepcionales definidos abajo, genera una alerta `rv` para decisión humana.
 
-Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y el `.mat` define las etiquetas conductuales. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-MAT de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
+Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y la fuente conductual define las etiquetas. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
 
 ### 7. Recortar La Habituación
 
@@ -142,7 +142,7 @@ evidencia para que el investigador defina su criterio de análisis. En concreto:
   iniciado desde la zona media de la caja.
 
 Por cada alerta, mostrar protocolo, fase, rata, día, número de evento, valores
-raw de `Lado` y `Desplaz`, referencia al clip/video y al `.mat`. El reporte del
+raw de `Lado` y `Desplaz`, referencia al clip/video y a la fuente conductual. El reporte del
 lote debe agruparlas por rata y sesión, por ejemplo: "protocolo 0126, rata 2,
 CS: tres hallazgos `InterEventCrossing` en los días 1, 2 y 3". La aplicación no
 decide si se cuentan o excluyen; conserva la decisión del investigador como
@@ -157,7 +157,7 @@ Para no hacer todo de golpe, dividimos el programa en partes chiquitas e indepen
 3. **Recortar y rotar** — aplica crop y rotación a un video
 4. **Detectar luces** — analiza frames y dice qué luces están encendidas
 5. **Identificar ensayos** con la secuencia de luces — define dónde empieza y termina cada ensayo
-6. **Leer archivos .mat** para saber si la rata cruzó
+6. **Leer la fuente conductual** (CSV V1 o `.mat` histórico) para saber si la rata cruzó
 7. **Exportar clips** como videos individuales
 8. **Juntar todo** en una interfaz fácil de usar
 

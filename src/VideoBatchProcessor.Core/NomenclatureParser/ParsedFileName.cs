@@ -38,7 +38,7 @@ public enum TipoEnsayo { Seguro, Peligroso, NoAplica }
 /// <summary>
 /// Resultado conductual registrado en el .mat o inferido del video.
 /// </summary>
-public enum ResultadoConductual { Cruce, NoCruce, Timeout, NoAplica }
+public enum ResultadoConductual { Cruce, NoCruce, Timeout, RequiereRevision, NoAplica }
 
 /// <summary>
 /// Metadata extraída del nombre de un archivo CMC (legacy o lab standard).
