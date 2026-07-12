@@ -38,6 +38,11 @@ Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Po
 
 Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la interpretación existente: `Estim=0` representa seguro y `Estim=1` representa conflicto con comida, porque esos datos fueron producidos antes de que existiera el evento de solo ruido.
 
+En la GUI candidata, el modo de sonido solo es opcional. Un archivo `N×9` puede
+contener solo tipos `0` y `1` cuando esa casilla estuvo apagada; la presencia de
+un tipo `2`, no la mera novena columna, confirma que hubo un evento de solo
+sonido.
+
 ### Regla Para Clasificar Cruce
 
 El parser debe conservar `Lado` y `Desplaz` raw; el resultado conductual no se
