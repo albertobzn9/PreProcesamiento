@@ -51,6 +51,21 @@ public sealed record ParsedFileName
     public string       OriginalPath { get; init; } = string.Empty;
     public string       Extension    { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Indica si el nombre corresponde a un video completo que se puede cargar
+    /// como sesión fuente. Los clips generados por Video Batch Processor se
+    /// reconocen, pero no se vuelven a procesar como entrada.
+    /// </summary>
+    public bool IsSourceSession => Scheme is NamingScheme.LegacySession or NamingScheme.LabStandard;
+
+    /// <summary>
+    /// Fases que el lote inicial omite por diseño: Luz-Comida (f1), donde no
+    /// hay cruces, y Condicionamiento al Miedo (f3/cm), que no usa el flujo de
+    /// segmentación de cruces. Solo aplica a videos fuente reconocidos.
+    /// </summary>
+    public bool IsExcludedFromBatchInput =>
+        IsSourceSession && FaseEstandar is "f1" or "f3";
+
     // ── Presentes en los tres esquemas ───────────────────────────────────
 
     /// <summary>

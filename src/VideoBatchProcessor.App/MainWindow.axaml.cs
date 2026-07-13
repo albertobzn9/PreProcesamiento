@@ -1,43 +1,52 @@
-using System.Collections.ObjectModel;
+using System.Text.Json;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SessionResolver;
 
 namespace VideoBatchProcessor.App;
 
 public sealed partial class MainWindow : Window
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly SessionSetupService _sessionSetup = new();
-    private readonly ObservableCollection<SessionRow> _rows = [];
-    private readonly Dictionary<string, TextBox> _missingFieldInputs = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        SessionsGrid.ItemsSource = _rows;
-        ResetSelectionDetails();
-        UpdateSummary();
+        Browser.Source = new Uri(Path.Combine(AppContext.BaseDirectory, "WebUi", "index.html"));
     }
 
-    private async void OpenFolder_Click(object? sender, RoutedEventArgs e)
+    private async void Browser_WebMessageReceived(object? sender, WebMessageReceivedEventArgs e)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        if (string.IsNullOrWhiteSpace(e.Body))
         {
-            Title = "Abrir carpeta con videos de sesión",
-            AllowMultiple = false,
-        });
-
-        var folderPath = folders.FirstOrDefault()?.Path.LocalPath;
-        if (string.IsNullOrWhiteSpace(folderPath))
+            await SendToWebAsync(new { type = "status", message = "La interfaz envió un mensaje vacío." });
             return;
+        }
 
-        var files = Directory.EnumerateFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(SessionSetupService.IsSupportedVideo);
-        LoadSessions(files);
+        try
+        {
+            using var document = JsonDocument.Parse(e.Body);
+            var type = document.RootElement.GetProperty("type").GetString();
+
+            switch (type)
+            {
+                case "selectFiles":
+                    await SelectFilesAsync();
+                    break;
+                case "selectFolder":
+                    await SelectFolderAsync();
+                    break;
+            }
+        }
+        catch (JsonException)
+        {
+            await SendToWebAsync(new { type = "status", message = "La interfaz envió un mensaje no reconocido." });
+        }
     }
 
-    private async void AddFiles_Click(object? sender, RoutedEventArgs e)
+    private async Task SelectFilesAsync()
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -52,161 +61,106 @@ public sealed partial class MainWindow : Window
             ],
         });
 
-        LoadSessions(files.Select(file => file.Path.LocalPath));
-    }
-
-    private void LoadSessions(IEnumerable<string> paths)
-    {
-        _rows.Clear();
-        foreach (var entry in _sessionSetup.AnalyzeFiles(paths))
-            _rows.Add(new SessionRow(entry));
-
-        SessionsGrid.SelectedItem = null;
-        ResetSelectionDetails();
-        UpdateSummary();
-    }
-
-    private void NewBatch_Click(object? sender, RoutedEventArgs e)
-    {
-        _rows.Clear();
-        SessionsGrid.SelectedItem = null;
-        ResetSelectionDetails();
-        UpdateSummary();
-    }
-
-    private void SessionsGrid_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (SessionsGrid.SelectedItem is not SessionRow row)
-        {
-            ResetSelectionDetails();
+        if (files.Count == 0)
             return;
+
+        await SendSessionsAsync(files.Select(file => file.Path.LocalPath));
+    }
+
+    private async Task SelectFolderAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Seleccionar carpeta con videos de sesión",
+            AllowMultiple = false,
+        });
+
+        var folderPath = folders.FirstOrDefault()?.Path.LocalPath;
+        if (string.IsNullOrWhiteSpace(folderPath))
+            return;
+
+        try
+        {
+            var videoPaths = Directory.EnumerateFiles(folderPath, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+            })
+                .Where(SessionSetupService.IsSupportedVideo);
+            await SendSessionsAsync(videoPaths);
         }
-
-        SelectionPanel.IsVisible = true;
-        ShowSelectedSession(row);
-    }
-
-    private void ShowSelectedSession(SessionRow row)
-    {
-        var metadata = row.Entry.Metadata;
-        SelectedFileText.Text = row.FileName;
-        SelectedSourceText.Text = DescribeBehavioralSource(metadata);
-        SourceNoticeText.Text = metadata.BehavioralSourceError
-            ?? (metadata.BehavioralSourceWarnings.Count == 0
-                ? "Sin advertencias de fuente."
-                : string.Join(" ", metadata.BehavioralSourceWarnings));
-        SelectedStatusText.Text = metadata.FormatoNoReconocido && !metadata.IsComplete
-            ? "El nombre no coincide con una nomenclatura conocida. Completa los datos para poder continuar."
-            : metadata.FormatoNoReconocido
-                ? "La metadata fue completada manualmente. Conservamos que el nombre fuente no seguía una nomenclatura conocida."
-                : metadata.IsComplete
-                    ? "La metadata está completa. Esta sesión estará lista para el siguiente paso."
-                    : $"Faltan: {string.Join(", ", metadata.MissingFields)}.";
-
-        MetadataFieldsPanel.Children.Clear();
-        _missingFieldInputs.Clear();
-
-        foreach (var field in metadata.MissingFields)
-            AddMissingField(field);
-
-        ApplyMetadataButton.IsVisible = metadata.MissingFields.Count > 0;
-        FormStatusText.Text = string.Empty;
-    }
-
-    private void ResetSelectionDetails()
-    {
-        SelectionPanel.IsVisible = false;
-        ApplyMetadataButton.IsVisible = false;
-        SelectedFileText.Text = "Selecciona una sesión de la tabla.";
-        SelectedSourceText.Text = "Aún no hay una sesión seleccionada.";
-        SourceNoticeText.Text = string.Empty;
-        FormStatusText.Text = string.Empty;
-        MetadataFieldsPanel.Children.Clear();
-        _missingFieldInputs.Clear();
-    }
-
-    private void AddMissingField(string field)
-    {
-        var input = new TextBox { Watermark = PlaceholderFor(field) };
-        _missingFieldInputs[field] = input;
-        MetadataFieldsPanel.Children.Add(new TextBlock { Text = DisplayNameFor(field) });
-        MetadataFieldsPanel.Children.Add(input);
-    }
-
-    private void CompleteMetadata_Click(object? sender, RoutedEventArgs e)
-    {
-        if (SessionsGrid.SelectedItem is not SessionRow row)
-            return;
-
-        var values = new UserFieldValues
+        catch (UnauthorizedAccessException)
         {
-            Iniciales = ReadText(nameof(SessionMetadata.Iniciales)),
-            Sexo = ReadText(nameof(SessionMetadata.Sexo)),
-            Tratamiento = ReadText(nameof(SessionMetadata.Tratamiento)),
-            Fecha = ReadText(nameof(SessionMetadata.Fecha)),
-            Fase = ReadText(nameof(SessionMetadata.Fase)),
-            Dia = ReadPositiveInt(nameof(SessionMetadata.Dia)),
-            Rata = ReadPositiveInt(nameof(SessionMetadata.Rata)),
-        };
-
-        row.Update(_sessionSetup.Complete(row.Entry, values));
-        ShowSelectedSession(row);
-        UpdateSummary();
-    }
-
-    private void UpdateSummary()
-    {
-        var ready = _rows.Count(row => row.Entry.Metadata.IsComplete);
-        var unknown = _rows.Count(row => row.Entry.Metadata.FormatoNoReconocido);
-        SummaryText.Text = _rows.Count == 0
-            ? "Selecciona una carpeta o agrega videos para comenzar."
-            : $"{_rows.Count} video(s): {ready} listos, {_rows.Count - ready} con datos pendientes, {unknown} con formato no reconocido.";
-    }
-
-    private static string DescribeBehavioralSource(SessionMetadata metadata)
-    {
-        if (metadata.SourceBehavioralPath is null)
-            return "Sin fuente conductual asociada.";
-
-        var kind = metadata.SourceBehavioralKind switch
+            await SendToWebAsync(new { type = "status", message = "No hay permiso para leer esa carpeta." });
+        }
+        catch (IOException)
         {
-            "CsvV1" => "CSV V1",
-            "LegacyMat" => "MAT histórico",
-            _ => "Fuente conductual",
-        };
-
-        return $"{kind}: {Path.GetFileName(metadata.SourceBehavioralPath)}";
+            await SendToWebAsync(new { type = "status", message = "No se pudo leer esa carpeta." });
+        }
     }
 
-    private string? ReadText(string field) =>
-        _missingFieldInputs.TryGetValue(field, out var input)
-            ? input.Text?.Trim()
+    private async Task SendSessionsAsync(IEnumerable<string> videoPaths)
+    {
+        var entries = _sessionSetup.AnalyzeFiles(videoPaths);
+        var skipped = entries
+            .Where(entry => entry.ParsedName.IsExcludedFromBatchInput)
+            .ToArray();
+        var sessions = entries
+            .Except(skipped)
+            .Select(ToWebSession)
+            .ToArray();
+
+        await SendToWebAsync(new
+        {
+            type = "sessionsLoaded",
+            sessions,
+            skippedCount = skipped.Length,
+        });
+    }
+
+    private Task<string?> SendToWebAsync(object message)
+    {
+        var serialized = JsonSerializer.Serialize(message, JsonOptions);
+        return Browser.InvokeScript($"window.receiveFromHost({serialized});");
+    }
+
+    private static WebSession ToWebSession(SessionSetupEntry entry)
+    {
+        var metadata = entry.Metadata;
+        return new WebSession(
+            Path.GetFileName(metadata.SourceVideoPath),
+            metadata.Scheme.ToString(),
+            entry.ParsedName.IsSourceSession,
+            metadata.IsComplete,
+            metadata.Fase,
+            metadata.Dia == 0 ? null : metadata.Dia.ToString(),
+            metadata.Rata == 0 ? null : metadata.Rata.ToString(),
+            metadata.IsComplete ? null : string.Join(", ", metadata.MissingFields),
+            DescribeInputMessage(entry.ParsedName),
+            DescribeBehavioralSource(metadata));
+    }
+
+    private static string? DescribeInputMessage(ParsedFileName parsedName) =>
+        parsedName.Scheme == NamingScheme.VideoBatchOutput
+            ? "Este archivo ya es un clip generado por Video Batch Processor. Carga el video completo de la sesión."
             : null;
 
-    private int? ReadPositiveInt(string field) =>
-        int.TryParse(ReadText(field), out var number) && number > 0 ? number : null;
-
-    private static string DisplayNameFor(string field) => field switch
+    private static string DescribeBehavioralSource(SessionMetadata metadata) => metadata.SourceBehavioralKind switch
     {
-        nameof(SessionMetadata.Iniciales) => "Iniciales",
-        nameof(SessionMetadata.Sexo) => "Sexo",
-        nameof(SessionMetadata.Tratamiento) => "Tratamiento",
-        nameof(SessionMetadata.Fecha) => "Fecha",
-        nameof(SessionMetadata.Fase) => "Fase",
-        nameof(SessionMetadata.Dia) => "Día",
-        nameof(SessionMetadata.Rata) => "Rata",
-        _ => field,
+        "CsvV1" when metadata.SourceBehavioralPath is { } path => $"CSV V1: {Path.GetFileName(path)}",
+        "LegacyMat" when metadata.SourceBehavioralPath is { } path => $"MAT: {Path.GetFileName(path)}",
+        _ => "Sin fuente conductual",
     };
 
-    private static string PlaceholderFor(string field) => field switch
-    {
-        nameof(SessionMetadata.Iniciales) => "Ejemplo: abs",
-        nameof(SessionMetadata.Sexo) => "m o h",
-        nameof(SessionMetadata.Tratamiento) => "Ejemplo: stx o dzp",
-        nameof(SessionMetadata.Fecha) => "YYMM, por ejemplo 2601",
-        nameof(SessionMetadata.Fase) => "Ejemplo: f5",
-        nameof(SessionMetadata.Dia) => "Número de día",
-        nameof(SessionMetadata.Rata) => "Número de rata",
-        _ => field,
-    };
+    private sealed record WebSession(
+        string FileName,
+        string NamingScheme,
+        bool IsSourceSession,
+        bool IsComplete,
+        string? Phase,
+        string? Day,
+        string? Rat,
+        string? MissingFields,
+        string? InputMessage,
+        string BehavioralSource);
 }

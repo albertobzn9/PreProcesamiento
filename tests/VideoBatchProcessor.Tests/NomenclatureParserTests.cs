@@ -32,6 +32,28 @@ public class NomenclatureParserTests
         Assert.Equal(NamingScheme.VideoBatchOutput, r.Scheme);
     }
 
+    [Fact] public void VbpOutput_NoEsSesionFuente()
+    {
+        _parser.TryParse("abs_2201_f2_d7r1_m_e1_s_cr_stx.mp4", out var r);
+        Assert.False(r.IsSourceSession);
+    }
+
+    [Theory]
+    [InlineData("abs_2601_f1_d1r1_m_stx.mp4")]
+    [InlineData("exp_0126_cm_d12r1.mp4")]
+    public void LuzComida_Y_CondicionamientoMiedo_SeExcluyenDelLote(string fileName)
+    {
+        Assert.True(_parser.TryParse(fileName, out var parsed));
+        Assert.True(parsed.IsExcludedFromBatchInput);
+    }
+
+    [Fact]
+    public void CrucesSeguros_NoSeExcluyeDelLote()
+    {
+        _parser.TryParse("exp_0126_cs_d7r1.mp4", out var parsed);
+        Assert.False(parsed.IsExcludedFromBatchInput);
+    }
+
     [Fact] public void Desconocido_DevuelveFalse()
     {
         Assert.False(_parser.TryParse("video_sin_formato.mp4", out _));

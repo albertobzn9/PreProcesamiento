@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Batch Processor</title>
+  <style>
+    :root { --navy:#00215e; --text:#111827; --muted:#64748b; --line:#dbe2ea; --surface:#f7f9fb; --panel:#fff; --sidebar:#f2f4f6; --input:#f1f5f9; --green:#16a34a; --red:#dc2626; }
+    * { box-sizing:border-box; }
+    html, body { height:100%; margin:0; overflow:hidden; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:var(--surface); }
+    button, input, select { font:inherit; }
+    button { cursor:pointer; }
+    .app { height:100%; display:grid; grid-template-rows:80px 62px minmax(0,1fr) 62px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:0 30px; border-bottom:1px solid var(--line); background:#fbfcfe; }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand img { width:64px; height:48px; object-fit:contain; }
+    .brand h1 { margin:0; font-size:22px; letter-spacing:0; font-weight:700; }
+    .brand p { margin:3px 0 0; color:#52647e; font-size:14px; }
+    .top-actions { display:flex; align-items:center; gap:20px; color:#52647e; font-size:23px; }
+    .top-actions img { width:50px; height:42px; object-fit:contain; }
+    .steps { display:flex; align-items:center; justify-content:center; gap:38px; border-bottom:1px solid var(--line); background:#fbfcfe; }
+    .step { display:flex; align-items:center; gap:9px; color:#94a3b8; font-size:15px; font-weight:700; letter-spacing:.04em; }
+    .step b { display:grid; width:29px; height:29px; place-items:center; border-radius:50%; background:#e8edf3; color:#94a3b8; font-size:13px; }
+    .step.active { color:var(--navy); }
+    .step.active b { background:var(--navy); color:#fff; }
+    .connector { width:62px; height:1px; background:var(--line); }
+    .workspace { min-height:0; display:grid; grid-template-columns:320px minmax(490px,1fr) 400px; }
+    .left-nav { background:var(--sidebar); border-right:1px solid var(--line); padding:16px; display:flex; flex-direction:column; gap:20px; }
+    .profile { display:flex; align-items:center; gap:12px; padding:13px; min-height:70px; border-radius:7px; background:#e1e6eb; }
+    .avatar { display:grid; width:43px; height:43px; place-items:center; border:1px solid var(--line); border-radius:50%; background:#fff; color:var(--navy); font-size:16px; font-weight:700; }
+    .profile strong { display:block; font-size:15px; letter-spacing:.04em; }
+    .profile small { color:#52647e; font-weight:700; }
+    .batch { min-height:40px; border:0; border-radius:4px; background:var(--navy); color:white; font-size:15px; font-weight:700; letter-spacing:.04em; }
+    .nav-item { display:flex; align-items:center; gap:15px; padding:14px; border-radius:4px; color:#334155; text-decoration:none; font-size:16px; }
+    .nav-item.active { background:var(--navy); color:#fff; font-weight:700; }
+    .nav-icon { width:30px; font-size:22px; text-align:center; }
+    .center { min-width:0; overflow:auto; padding:30px; background:#fbfcfe; }
+    .dropzone { min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; border:2px dashed #b8c0cc; border-radius:10px; background:white; transition:background .15s,border-color .15s; }
+    .dropzone:hover, .dropzone.drag { background:#f0f9ff; border-color:#38bdf8; }
+    .upload-icon { color:#52647e; font-size:42px; line-height:1; }
+    .dropzone h2 { margin:8px 0 0; font-size:22px; }
+    .dropzone p { margin:0; color:#52647e; font-size:16px; }
+    .drop-actions { display:flex; gap:10px; margin-top:12px; }
+    .drop-action { min-height:38px; padding:0 14px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#334155; font-size:13px; font-weight:700; }
+    .drop-action.primary { border-color:var(--navy); background:var(--navy); color:#fff; }
+    .file-card { margin-top:30px; min-height:340px; overflow:hidden; border:1px solid var(--line); border-radius:9px; background:white; }
+    .file-card-head { display:flex; align-items:center; justify-content:space-between; min-height:52px; padding:0 20px; border-bottom:1px solid var(--line); background:#edf1f5; }
+    .file-card-head h3 { margin:0; font-size:14px; letter-spacing:.08em; }
+    .file-card-head button { border:0; background:transparent; color:#52647e; font-size:13px; }
+    .file-card-actions { display:flex; align-items:center; gap:14px; }
+    .file-card-head button.remove-incompatible { color:#b42318; font-weight:700; }
+    .hidden { display:none; }
+    .empty { padding:48px 20px; color:var(--muted); text-align:center; }
+    .file-row { display:grid; grid-template-columns:minmax(190px,1.6fr) minmax(100px,1fr) 70px 70px 76px 30px; align-items:center; gap:12px; min-height:70px; padding:10px 20px; border-bottom:1px solid var(--line); }
+    .file-name { display:flex; align-items:center; gap:12px; min-width:0; font-weight:600; }
+    .file-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .movie { color:#52647e; font-size:23px; }
+    .status { display:flex; align-items:center; gap:6px; color:#52647e; font-size:12px; font-weight:700; }
+    .status.ready { color:#166534; } .status.warn { color:var(--red); }
+    .dot { width:9px; height:9px; border-radius:50%; background:currentColor; }
+    .cell { color:#52647e; font-size:12px; font-weight:700; }
+    .remove { border:0; background:transparent; color:#64748b; font-size:20px; }
+    .remove:hover { color:var(--red); }
+    .right { overflow:auto; padding:27px 30px; border-left:1px solid var(--line); background:#f8fafc; }
+    .tabs { display:grid; grid-template-columns:1fr 1fr; margin-bottom:38px; border-bottom:1px solid var(--line); }
+    .tab { padding:12px 6px; border:0; border-bottom:2px solid transparent; background:transparent; color:#52647e; font-weight:700; letter-spacing:.05em; }
+    .tab.active { border-bottom-color:var(--navy); color:var(--navy); }
+    .settings-card { margin-bottom:20px; padding:20px; border:1px solid var(--line); border-radius:6px; background:white; }
+    .settings-card h3 { display:flex; gap:10px; align-items:center; margin:0 0 22px; padding-bottom:14px; border-bottom:1px solid var(--line); font-size:15px; letter-spacing:.08em; }
+    label { display:block; margin:0 0 8px; color:#52647e; font-size:13px; font-weight:700; letter-spacing:.04em; }
+    input, select { width:100%; min-height:44px; margin-bottom:18px; padding:10px; border:1px solid #d8e0ea; border-radius:3px; background:var(--input); color:#334155; }
+    input:last-child { margin-bottom:0; }
+    .footer { display:flex; align-items:center; justify-content:space-between; padding:0 30px; border-top:1px solid #cbd5e1; background:#e8edf2; }
+    .footer-copy { color:#52647e; font-size:12px; letter-spacing:.04em; text-transform:uppercase; }
+    .footer-links { display:flex; gap:22px; color:#64748b; font-size:12px; letter-spacing:.04em; text-transform:uppercase; }
+    .process { display:flex; align-items:center; gap:10px; min-height:44px; padding:0 25px; border:0; border-radius:4px; background:var(--navy); color:white; font-weight:700; letter-spacing:.04em; }
+    .notice { position:fixed; right:24px; bottom:78px; max-width:340px; padding:12px 15px; border:1px solid var(--line); border-radius:6px; background:white; box-shadow:0 8px 24px rgba(15,23,42,.12); color:#334155; font-size:13px; opacity:0; transform:translateY(10px); transition:.2s; pointer-events:none; }
+    .notice.show { opacity:1; transform:translateY(0); }
+    @media (max-width:1100px) { .workspace { grid-template-columns:250px minmax(460px,1fr); } .right { display:none; } .footer-links { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><img src="ifc-logo.png" alt="Instituto de Fisiologia Celular"><div><h1>Video Batch PreProcessor</h1><p>Scientific Video Systems</p></div></div>
+      <div class="top-actions"><img src="unam-logo-blue.png" alt="UNAM"><span aria-label="Notificaciones">♧</span><span aria-label="Ayuda">?</span></div>
+    </header>
+    <section class="steps"><div class="step active"><b>1</b> Sesiones</div><i class="connector"></i><div class="step"><b>2</b> Procesamiento</div><i class="connector"></i><div class="step"><b>3</b> Resultados</div></section>
+    <div class="workspace">
+      <nav class="left-nav"><div class="profile"><div class="avatar">VB</div><div><strong>BatchProcessor</strong><small>V1.0.4-Alpha</small></div></div><button class="batch" data-action="new-batch">New Batch</button><a class="nav-item active" href="#files"><span class="nav-icon">▱</span>Files</a><a class="nav-item" href="#processing"><span class="nav-icon">⚙</span>Processing</a><a class="nav-item" href="#settings"><span class="nav-icon">⌘</span>Settings</a></nav>
+      <main class="center" id="files">
+        <section class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Agregar videos"><div class="upload-icon">⇧</div><h2>Drag &amp; Drop Laboratory Videos</h2><p>Elige una carpeta con subcarpetas o videos individuales.</p><div class="drop-actions"><button class="drop-action primary" data-action="select-folder">Seleccionar carpeta</button><button class="drop-action" data-action="select-files">Seleccionar archivos</button></div></section>
+        <section class="file-card"><div class="file-card-head"><h3 id="file-count">Loaded Files (0)</h3><div class="file-card-actions"><button id="remove-incompatible" class="remove-incompatible hidden" data-action="remove-incompatible"></button><button data-action="clear">Clear All</button></div></div><div id="file-list"><p class="empty">Aún no hay videos. Usa la zona superior para abrir el selector nativo.</p></div></section>
+      </main>
+      <aside class="right"><div class="tabs"><button class="tab active">Transformación</button><button class="tab">Metadatos</button></div><section class="settings-card"><h3>✂&nbsp; TRIM</h3><label for="trim">Minutes (Total)</label><input id="trim" type="number" placeholder="0" min="0"></section><section class="settings-card"><h3>▤&nbsp; METADATOS GLOBALES</h3><label for="rat">ID Rata</label><input id="rat" placeholder="Ej.: R-402"><label for="sex">Sexo</label><select id="sex"><option>Macho</option><option>Hembra</option></select><label for="treatment">Tratamiento</label><input id="treatment" placeholder="Control / Fármaco A"><label for="phase">Fase</label><input id="phase" placeholder="Basal / Post-op"></section></aside>
+    </div>
+    <footer class="footer"><span class="footer-copy">Video Batch Processor. Estado global: sesiones.</span><div class="footer-links"><span>Documentation</span><span>System Logs</span><span>API Status</span></div><button class="process" data-action="process">▷&nbsp; Process Batch</button></footer>
+  </div>
+  <div class="notice" id="notice" role="status"></div>
+  <script>
+    const state = { sessions: [] };
+    const notice = document.getElementById('notice');
+    function showNotice(message) { notice.textContent = message; notice.classList.add('show'); window.setTimeout(() => notice.classList.remove('show'), 3600); }
+    function sendToHost(message) {
+      if (typeof window.invokeCSharpAction === 'function') { window.invokeCSharpAction(JSON.stringify(message)); return; }
+      showNotice('La conexión con la aplicación todavía está iniciando. Inténtalo de nuevo.');
+    }
+    function receiveFromHost(value) {
+      try { handleHostMessage(typeof value === 'string' ? JSON.parse(value) : value); }
+      catch { showNotice('No se pudo interpretar la respuesta de la aplicación.'); }
+    }
+    window.receiveFromHost = receiveFromHost;
+    function handleHostMessage(message) {
+      if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const suffix = [outputs ? `${outputs} clip(s) de output rechazado(s)` : '', incompatible ? `${incompatible} nombre(s) no compatible(s)` : '', skipped ? `${skipped} sesión(es) F1/CM omitida(s)` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} video(s) analizado(s)${suffix ? `; ${suffix}.` : ' por C#.'}`); }
+      if (message.type === 'status') showNotice(message.message);
+    }
+    function renderSessions() {
+      document.getElementById('file-count').textContent = `Loaded Files (${state.sessions.length})`;
+      const incompatible = incompatibleSessions();
+      const removeIncompatibleButton = document.getElementById('remove-incompatible');
+      removeIncompatibleButton.classList.toggle('hidden', incompatible.length <= 5);
+      removeIncompatibleButton.textContent = `Quitar no compatibles (${incompatible.length})`;
+      const list = document.getElementById('file-list');
+      if (!state.sessions.length) { list.innerHTML = '<p class="empty">Aún no hay videos. Usa la zona superior para abrir el selector nativo.</p>'; return; }
+      list.innerHTML = state.sessions.map((session, index) => {
+        const status = describeNamingScheme(session);
+        const statusTitle = session.inputMessage || status.label;
+        const ready = status.tone;
+        const label = status.label;
+        return `<div class="file-row"><div class="file-name"><b class="movie">▣</b><span title="${escapeHtml(session.fileName)}">${escapeHtml(session.fileName)}</span></div><div class="status ${ready}" title="${escapeHtml(statusTitle)}"><i class="dot"></i>${escapeHtml(label)}</div><div class="cell">${escapeHtml(session.phase || '—')}</div><div class="cell">Día ${escapeHtml(session.day || '—')}</div><div class="cell">Rata ${escapeHtml(session.rat || '—')}</div><button class="remove" aria-label="Quitar archivo" data-remove="${index}">×</button></div>`;
+      }).join('');
+    }
+    function describeNamingScheme(session) {
+      if (session.namingScheme === 'LegacySession') return { label: 'Legacy', tone: 'ready' };
+      if (session.namingScheme === 'LabStandard') return { label: 'Estándar lab', tone: 'ready' };
+      if (session.namingScheme === 'VideoBatchOutput') return { label: 'Clip de output', tone: 'warn' };
+      return { label: 'Nombre no compatible', tone: 'warn' };
+    }
+    function incompatibleSessions() { return state.sessions.filter(session => session.namingScheme === 'Unknown'); }
+    function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]); }
+    document.addEventListener('click', event => {
+      const action = event.target.closest('[data-action]')?.dataset.action;
+      if (action === 'select-files') sendToHost({ type: 'selectFiles' });
+      if (action === 'select-folder') sendToHost({ type: 'selectFolder' });
+      if (action === 'clear') { state.sessions = []; renderSessions(); }
+      if (action === 'remove-incompatible') { const removed = incompatibleSessions().length; state.sessions = state.sessions.filter(session => session.namingScheme !== 'Unknown'); renderSessions(); showNotice(`${removed} video(s) quitado(s) de este lote. Los archivos siguen intactos en disco.`); }
+      if (action === 'new-batch') { state.sessions = []; renderSessions(); showNotice('Lote reiniciado.'); }
+      if (action === 'process') showNotice('El procesamiento se conectará cuando estén listos los módulos posteriores.');
+      const remove = event.target.closest('[data-remove]');
+      if (remove) { state.sessions.splice(Number(remove.dataset.remove), 1); renderSessions(); }
+    });
+    const dropzone = document.getElementById('dropzone');
+    dropzone.addEventListener('click', event => { if (!event.target.closest('[data-action]')) sendToHost({ type: 'selectFiles' }); });
+    dropzone.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') sendToHost({ type: 'selectFiles' }); });
+    ['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.remove('drag'); }));
+    dropzone.addEventListener('drop', () => sendToHost({ type: 'selectFiles' }));
+  </script>
+</body>
+</html>
