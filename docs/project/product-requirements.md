@@ -102,7 +102,7 @@ En la caja hay tres lucecitas que señalizan los ensayos:
 - Una luz del lado **derecho** → la comida está disponible a la derecha
 - Un LED en la parte superior derecha que se enciende cuando suena el **ruido blanco** (no tenemos audio en los videos, usamos el LED para saber cuándo hay amenaza). Es particularmente pequeño y necesita revisión ampliada durante la configuración.
 
-En un frame de referencia, el usuario marca una ROI rectangular pequeña para cada luz. Después calibra el umbral con ejemplos claros de OFF y ON para **cada** luz: puede usar un frame oscuro compartido, pero las referencias ON pueden ser frames distintos porque `FoodLeft` y `FoodRight` no se encienden simultáneamente. La app propone un umbral a partir de esas referencias, muestra el brillo medido y permite confirmarlo o ajustarlo.
+En un frame de referencia, el usuario marca una ROI circular pequeña para cada luz. Después calibra el umbral con ejemplos claros de OFF y ON para **cada** luz: puede usar un frame oscuro compartido, pero las referencias ON pueden ser frames distintos porque `FoodLeft` y `FoodRight` no se encienden simultáneamente. La app propone un umbral a partir de esas referencias, muestra el brillo medido y permite confirmarlo o ajustarlo.
 
 Para `NoiseLed`, la vista debe ampliar la ROI y avisar si queda fuera del frame o del crop. Con esa configuración confirmada, el programa detecta automáticamente cuándo se encienden y apagan las luces en las sesiones asignadas al mismo `CameraProfile`.
 

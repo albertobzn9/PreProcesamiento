@@ -3,6 +3,17 @@ using OpenCvSharp;
 namespace VideoBatchProcessor.Core.FrameAnalyzer;
 
 /// <summary>
+/// Forma de la región que se medirá. El rectángulo conserva compatibilidad con
+/// configuraciones existentes; el círculo evita incluir esquinas ajenas cuando
+/// el indicador visual es pequeño y redondo.
+/// </summary>
+public enum RoiShape
+{
+    Rectangle,
+    Circle,
+}
+
+/// <summary>
 /// Tipo de LED en la caja CMC.
 /// <list type="bullet">
 ///   <item><b>Izquierda</b> — luz de comida del lado izquierdo.
@@ -42,6 +53,12 @@ public sealed record RoiDefinition
     /// X,Y = esquina superior izquierda. Width,Height = dimensiones.
     /// </summary>
     public Rect Region { get; init; }
+
+    /// <summary>
+    /// Forma que se usa para medir brillo dentro del rectángulo delimitador.
+    /// Una ROI circular requiere ancho y alto iguales.
+    /// </summary>
+    public RoiShape Shape { get; init; } = RoiShape.Rectangle;
 }
 
 /// <summary>

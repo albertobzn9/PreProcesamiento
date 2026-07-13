@@ -1,3 +1,4 @@
+using VideoBatchProcessor.Core.FrameAnalyzer;
 using VideoBatchProcessor.Core.LightDetection;
 using Xunit;
 
@@ -170,5 +171,32 @@ public class LightDetectorTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new LightRoi(LightId.FoodLeft, x: 0, y: 0, width: 30, height: 30, threshold: -1));
+    }
+
+    [Fact]
+    public void LightRoi_Circular_ConservaSuForma()
+    {
+        var roi = new LightRoi(
+            LightId.NoiseLed,
+            x: 10,
+            y: 10,
+            width: 24,
+            height: 24,
+            shape: RoiShape.Circle);
+
+        Assert.Equal(RoiShape.Circle, roi.Shape);
+    }
+
+    [Fact]
+    public void LightRoi_CircularConRectangulo_LanzaExcepcion()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new LightRoi(
+                LightId.NoiseLed,
+                x: 10,
+                y: 10,
+                width: 24,
+                height: 18,
+                shape: RoiShape.Circle));
     }
 }

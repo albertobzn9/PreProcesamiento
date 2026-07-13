@@ -151,9 +151,10 @@ BatchOrchestrator -> coordina todo
 | `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee CSV V1 y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`. |
 | `VideoReader` | Implementado | 20 pruebas con video sintético y runtime nativo de OpenCV en macOS; incluye preview JPEG reducido, validado manualmente en la UI de macOS. |
 | `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 2 pruebas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. La persistencia de `CameraProfile` queda pendiente. |
-| `FrameAnalyzer` | Implementado | 18 pruebas. Mide brillo de ROI y puede devolver el recorte de esa ROI. |
+| `FrameAnalyzer` | Implementado | 20 pruebas. Mide brillo de ROI rectangular o circular y puede devolver el recorte de esa ROI. |
 | `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
-| Adaptador OpenCV a `LightDetection` | Siguiente entrega | Conectará un `Mat` real con `IFrameBrightnessSource`; no debe duplicar la lógica de brillo. |
+| `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
+| `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
 | `LightTimelineBuilder`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
@@ -329,17 +330,24 @@ LightDetector.Analyze(frameBrightnessSource, frameIndex, timeSeconds) -> LightSa
 El brillo puede venir de un adaptador como `IFrameBrightnessSource`, que permite probar el detector con datos sintéticos o conectarlo después a OpenCV.
 
 La UI no debe pedir un único frame con las tres luces ON: `FoodLeft` y
-`FoodRight` no se encienden al mismo tiempo. Para cada luz, el usuario marca una
-ROI rectangular y elige una o más referencias claras de OFF y ON.
-`LightCalibration` propone un umbral entre las medianas de brillo de ambos
-grupos, pero el usuario puede confirmarlo o ajustarlo. La calibración de
-`NoiseLed` necesita zoom porque su ROI es pequeña.
+`FoodRight` no se encienden al mismo tiempo. Para la primera calibración basta
+con dos referencias: un frame donde las tres luces estén OFF y un frame de CP o
+DIS donde estén ON una luz de comida y `NoiseLed`. El usuario indica cuál lado
+de comida está encendido. Esa luz y el LED reciben una referencia directa; la
+otra luz de comida usa provisionalmente el mismo umbral y se etiqueta como
+referencia compartida hasta validarla con video real.
 
-**Estado actual:** `LightDetector` está implementado y probado con fuentes
-sintéticas. Falta el adaptador que reciba un `Mat` real, use `FrameAnalyzer` y
-exponga ese brillo mediante `IFrameBrightnessSource`. El adaptador hará la
-conversión puntual entre `LightRoi`/`LightId` y `RoiDefinition`/`TipoLed`; no
-debe reimplementar el cálculo de brillo.
+`LightCalibration` propone un umbral entre las medianas de brillo de ambos
+grupos. La primera interfaz lo guarda como umbral inicial; el ajuste manual del
+umbral se añadirá después de validar esta base con sesiones reales. La
+calibración de `NoiseLed` necesita zoom porque su ROI es pequeña.
+
+**Estado actual:** `LightDetector` y `BrightnessAdapter` están implementados y
+probados juntos con frames sintéticos de OpenCV. `FrameAnalyzerBrightnessSource`
+recibe un `Mat`, convierte puntualmente `LightRoi`/`LightId` a
+`RoiDefinition`/`TipoLed` y expone el brillo mediante `IFrameBrightnessSource`;
+no reimplementa el cálculo de brillo. Falta validarlo con una sesión real de la
+caja y referencias OFF/ON elegidas por el investigador.
 
 **Prueba aislada:** Sí. Con fuentes sintéticas de brillo se prueba sin abrir video ni UI.
 
@@ -697,7 +705,7 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 | Bloque UI y vistas | Función en simple | Recibe | Entrega | Conexión con backend |
 |--------------------|-------------------|--------|---------|----------------------|
 | `SessionSetup` (`VideoLoadView`) | Cargar una carpeta, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
-| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. Faltan persistencia de perfil, ROIs y validación con `FrameAnalyzer`; la detección real espera `BrightnessAdapter`. |
+| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta persistir el perfil y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
 | `ProcessingReview` (`SegmentTimelineView`, `HabituationView`, `BehavioralFindingsView`) | Mostrar lo que el backend propuso y permitir confirmar o corregir casos importantes. | Segmentos, eventos conductuales, tipo de fuente, advertencias, hallazgos `InterEventCrossing`/`ShortSideChange` y duraciones de habituación. | Decisiones de revisión: aceptar, excluir, ajustar o marcar para revisión manual. | Se diseña ahora; se conecta después a `LightTimelineBuilder`, `IBehavioralSessionReader` y `SegmentPlanner`. |
 | `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Clips confirmados, opciones de salida y progreso. | `BatchReport`, logs y acceso a la carpeta de salida. | Se diseña ahora; se conecta después a `ClipExporter` y `BatchOrchestrator`. |
 
@@ -781,10 +789,27 @@ por sesión mientras el lote está abierto.
 12-07-2026 con una sesión real: giro de 180°, espejo, recorte visual, límites
 numéricos y restablecimiento a video completo.
 
-**Siguiente corte de implementación:** marcar las tres ROIs sobre el frame ya
-preparado y construir `LightCalibration`. Después se guardará un
-`CameraProfile` reutilizable; no adelantar la calibración de luces sin
-`FrameAnalyzer` y `BrightnessAdapter` listos para validarla.
+**Estado actual:** `LightMarkerView` ya permite marcar, mover y ajustar las tres
+ROIs circulares sobre el preview preparado, con zoom de trackpad o rueda de
+mouse para los indicadores pequeños. El modo `Mano` o una pulsación de
+`Espacio` alternan el desplazamiento de la imagen; el botón central también
+permite navegar sin modificar una ROI. La interfaz las convierte a coordenadas
+reales del video preparado y C# las valida con `FrameAnalyzer` antes de
+conservarlas para la sesión actual. La medición circular excluye las esquinas
+del cuadro envolvente. Cambiar crop, giro o espejo invalida las ROIs anteriores
+para evitar aplicar una región en un encuadre distinto.
+
+**Estado actual:** `LightCalibration` ya puede recorrer un video por frame,
+mostrar el frame preparado con las tres ROIs superpuestas y guardar las dos
+referencias mínimas. La barra usa índices de frame y muestra un tiempo estimado;
+C# mide el frame completo tras aplicar crop, giro y espejo, no el JPEG reducido.
+El usuario puede regresar al editor de ROIs desde el frame de calibración que
+está revisando. Al guardar una ROI, C# conserva los mismos frames OFF/ON,
+vuelve a medirlos con las nuevas regiones y actualiza sus umbrales; así no se
+pierde la evidencia escogida por el investigador. Cada referencia guarda un
+token de esa medición, por lo que al confirmar no se vuelve a buscar un frame
+que podría variar según códec. El flujo se validó manualmente en macOS el
+13-07-2026; después se guardará un `CameraProfile` reutilizable.
 
 ### 14. LightCalibration
 
@@ -792,19 +817,21 @@ preparado y construir `LightCalibration`. Después se guardará un
 de encendido/apagado con ejemplos visuales. Su trabajo termina al guardar una
 calibración revisable; no decide ensayos ni exporta clips.
 
-**Recibe:** frame ya preparado por `CameraSetup`, tres ROIs, ejemplos OFF/ON y
-ajustes de umbral del usuario.
+**Recibe:** frames ya preparados por `CameraSetup`, tres ROIs, un ejemplo OFF y
+un ejemplo ON de comida + `NoiseLed`.
 
 **Entrega:** ROIs y `LightCalibration` por `FoodLeft`, `FoodRight` y `NoiseLed`,
-incluidas las referencias usadas para justificar cada umbral.
+incluidas las referencias usadas para justificar cada umbral. La luz de comida
+sin ejemplo ON directo queda marcada como calibración compartida provisional.
 
 **Depende de:** `FrameAnalyzer` para medir las ROIs y `LightDetector` para
 probar el umbral. La lectura continua desde video real espera
 `BrightnessAdapter`; esta vista no debe recrear esa lógica.
 
-**Validación/Pruebas:** usar referencias ON/OFF conocidas por cada luz, revisar
-que el LED pequeño se vea ampliado y verificar que cambiar un umbral modifica
-solo el estado propuesto por el Core.
+**Validación/Pruebas:** verificar que la barra muestre el frame seleccionado,
+que el frame OFF tenga las tres luces apagadas y que el frame activo tenga la
+luz de comida elegida junto con el LED. Probar después ambos lados de comida
+para decidir si la referencia compartida basta o requiere referencias separadas.
 
 ---
 
@@ -830,7 +857,7 @@ Video elegido
   -> FrameAnalyzer para validar o medir esas ROIs
 ```
 
-Cuando exista `BrightnessAdapter`, esa segunda ruta se amplía así:
+Con `BrightnessAdapter` ya implementado, esa segunda ruta queda así:
 
 ```text
 frame real -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightSample
@@ -897,8 +924,8 @@ Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente con
 Paso 4:  ClipExporter            -> depende de SegmentPlanner + VideoTransformConfig
          BatchOrchestrator       -> depende de todo lo anterior
 
-Paso 5:  UI base                 -> carga, lista, preview y CameraSetup inicial ya integrados
-                                  ROIs y calibración esperan FrameAnalyzer/BrightnessAdapter
+Paso 5:  UI base                 -> carga, lista, preview, CameraSetup, ROIs y calibración inicial integrados y validados
+                                  falta validar la referencia compartida con el lado opuesto
          UI de timeline/export   -> espera LightTimelineBuilder, SegmentPlanner,
                                   ClipExporter y BatchOrchestrator
          Pruebas con datos reales

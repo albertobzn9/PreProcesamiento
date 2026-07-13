@@ -55,6 +55,9 @@ public sealed class FrameAnalyzer
 
         foreach (var roi in rois)
         {
+            if (roi.Shape == RoiShape.Circle && roi.Region.Width != roi.Region.Height)
+                throw new ArgumentException("Una ROI circular debe tener ancho y alto iguales.", nameof(rois));
+
             var clipped = ClipToFrame(roi.Region, frame.Width, frame.Height);
 
             if (clipped.Width <= 0 || clipped.Height <= 0)
@@ -69,7 +72,7 @@ public sealed class FrameAnalyzer
             }
 
             var subMat = frame[clipped];
-            var brightness = ComputeMeanBrightness(subMat);
+            var brightness = ComputeMeanBrightness(subMat, roi.Shape);
 
             Mat? crop = null;
             if (includeCrop)
@@ -136,7 +139,7 @@ public sealed class FrameAnalyzer
     /// <summary>
     /// Convierte la sub-región a escala de grises y calcula el brillo promedio.
     /// </summary>
-    private static double ComputeMeanBrightness(Mat roiMat)
+    private static double ComputeMeanBrightness(Mat roiMat, RoiShape shape)
     {
         using var gray = new Mat();
 
@@ -144,6 +147,14 @@ public sealed class FrameAnalyzer
             roiMat.CopyTo(gray);
         else
             Cv2.CvtColor(roiMat, gray, ColorConversionCodes.BGR2GRAY);
+
+        if (shape == RoiShape.Circle)
+        {
+            using var mask = new Mat(gray.Rows, gray.Cols, MatType.CV_8UC1, Scalar.Black);
+            var radius = Math.Max(1, Math.Min(gray.Cols, gray.Rows) / 2);
+            Cv2.Circle(mask, new Point(gray.Cols / 2, gray.Rows / 2), radius, Scalar.White, -1);
+            return Cv2.Mean(gray, mask).Val0;
+        }
 
         var scalar = Cv2.Mean(gray);
         return scalar.Val0;

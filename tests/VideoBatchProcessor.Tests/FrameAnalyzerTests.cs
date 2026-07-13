@@ -83,6 +83,43 @@ public class FrameAnalyzerTests
             Assert.True(roi.MeanBrightness > 200);
     }
 
+    [Fact]
+    public void RoiCircular_MideSoloElDiscoYNoLasEsquinasDelRectangulo()
+    {
+        using var frame = new Mat(100, 100, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        Cv2.Circle(frame, new Point(50, 50), 20, new Scalar(255, 255, 255), -1);
+
+        var rectangle = new RoiDefinition
+        {
+            Tipo = TipoLed.Ruido,
+            Label = "rectangular",
+            Region = new Rect(30, 30, 40, 40),
+            Shape = RoiShape.Rectangle,
+        };
+        var circle = rectangle with { Label = "circular", Shape = RoiShape.Circle };
+
+        var result = _analyzer.Analyze(frame, [rectangle, circle], 0, TimeSpan.Zero);
+
+        Assert.True(result.Rois[0].MeanBrightness < 220);
+        Assert.True(result.Rois[1].MeanBrightness > 240);
+    }
+
+    [Fact]
+    public void RoiCircular_NoCuadrada_LanzaExcepcion()
+    {
+        using var frame = MakeFrame(false, false, false);
+        var invalid = new RoiDefinition
+        {
+            Tipo = TipoLed.Ruido,
+            Label = "circular no cuadrada",
+            Region = new Rect(10, 10, 20, 18),
+            Shape = RoiShape.Circle,
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            _analyzer.Analyze(frame, [invalid], 0, TimeSpan.Zero));
+    }
+
     // ── 2. Ensayo seguro: solo LED izquierdo ─────────────────────────────
 
     [Fact]

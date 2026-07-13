@@ -11,9 +11,9 @@ Proyecto en fase de backend base + primera integración de interfaz.
 - Producto completo: Video Batch Processor.
 - Prototipo actual: `LightEventDetector`, una app Avalonia que permite abrir un video, marcar ROIs de luces, detectar eventos ON/OFF y exportar una línea de tiempo con CSV.
 - Backend actual: `VideoBatchProcessor.Core`, librería donde vive la lógica reusable del producto.
-- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer`, `LightDetection` y la base de `BehavioralData` para CSV V1/MAT histórico.
-- Interfaz: HTML/CSS local dentro de Avalonia ya integrado y validado manualmente en macOS; cubre carga recursiva, filtros de fase, nomenclaturas, preview real y el primer `CameraSetup` (giro de 180°, espejo y recorte en modal).
-- Validación actual: hay 126 pruebas pasando. Falta conectar `FrameAnalyzer` con `LightDetection` mediante el adaptador de brillo, guardar `CameraProfile`, construir `LightTimelineBuilder` y leer MAT binario real antes de integrar procesamiento completo.
+- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer`, `BrightnessAdapter`, `LightDetection`, `LightCalibration` y la base de `BehavioralData` para CSV V1/MAT histórico.
+- Interfaz: HTML/CSS local dentro de Avalonia ya integrado y validado manualmente en macOS; cubre carga recursiva, filtros de fase, nomenclaturas, preview real, `CameraSetup`, marcado de las tres ROIs y una primera calibración ON/OFF por frame.
+- Validación actual: hay 139 pruebas pasando. El flujo de calibración ya pasó su prueba manual con video real; falta decidir si ambas luces de comida comparten referencia, guardar `CameraProfile`, construir `LightTimelineBuilder` y leer MAT binario real antes de integrar procesamiento completo.
 
 ## Stack
 

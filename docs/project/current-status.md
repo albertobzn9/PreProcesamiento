@@ -2,7 +2,7 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 12-07-2026
+**Fecha de revisión:** 13-07-2026
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
@@ -49,9 +49,11 @@ en la interfaz.
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
 | CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`; todavía no guarda perfiles. |
+| Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado. |
+| LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Guarda un frame OFF y otro de comida + `NoiseLed` ON; mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **126 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 126 pruebas.
+El estado actual compila y tiene **139 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 139 pruebas.
 
 ## Interfaz Actual
 
@@ -111,16 +113,21 @@ completo. El flujo, incluidos límites numéricos, recorte completo, giro y
 espejo, se aprobó manualmente el 12-07-2026 en macOS. Esta configuración vive
 por ahora solo durante el lote abierto.
 
+`LightMarker` y `LightCalibration` se aprobaron manualmente el 13-07-2026 en
+macOS. El investigador puede marcar las tres luces con círculos, verificar esas
+ROIs sobre un frame ON/OFF, guardar la calibración y volver a abrirla sin perder
+los frames elegidos. Si ajusta una ROI, el programa relee los mismos frames con
+la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visual.
+
 ## Lo Que Falta
 
 ### Backend inmediato
 
-1. `BrightnessAdapter`: conectar frames reales de `FrameAnalyzer` con
-   `LightDetection` sin reescribir el cálculo de brillo.
-2. `LightTimelineBuilder`: convertir lecturas por frame en transiciones estables.
-3. Lector binario real de MAT histórico, manteniendo la normalización N×8/N×9
+1. `LightTimelineBuilder`: recorrer un video ya calibrado, convertir lecturas
+   por frame en transiciones estables y descartar parpadeos aislados.
+2. Lector binario real de MAT histórico, manteniendo la normalización N×8/N×9
    ya existente.
-4. `SegmentPlanner`: proponer eventos, ITIs, habituación y hallazgos conductuales.
+3. `SegmentPlanner`: proponer eventos, ITIs, habituación y hallazgos conductuales.
 
 ### Backend posterior
 
@@ -128,17 +135,20 @@ por ahora solo durante el lote abierto.
 2. `ClipExporter` con FFmpeg/ffprobe internos.
 3. `BatchOrchestrator`, reporte final y decisiones de revisión.
 
-### Próxima integración de interfaz y Core
+### Próxima validación focalizada
 
-1. Marcar las tres ROIs y construir `LightCalibration` sobre el frame ya
-   preparado, cuando `BrightnessAdapter` esté listo para probarlas.
+1. Probar la calibración con una sesión donde se encienda el lado de comida
+   opuesto al ya usado. Eso decide con evidencia si la referencia compartida
+   provisional es suficiente o se requieren referencias directas separadas.
 2. Mostrar fuente conductual, avisos y campos faltantes por sesión cuando el
    flujo de revisión llegue a necesitarlos; no bloquea `CameraSetup`.
 
 ## Riesgos Y Decisiones Pendientes
 
-- El resultado del módulo de luces todavía se prueba con brillo sintético; falta
-  validarlo con videos reales y ROIs marcadas en una caja.
+- La ruta de calibración ya mide frames reales, conserva sus referencias al
+  reabrirse y pasó su flujo manual inicial.
+  La referencia compartida entre las dos luces de comida se mantiene provisional
+  hasta probarla con el lado opuesto en otra sesión.
 - No hay todavía segmentación, crop aplicado al archivo completo ni exportación
   de clips. La app no debe presentarse como procesador completo aún.
 - El código de output para `SoundOnly` sigue pendiente de acuerdo del lab.
@@ -156,11 +166,11 @@ por ahora solo durante el lote abierto.
 
 ## Próximo Orden Recomendado
 
-1. En paralelo, completar `BrightnessAdapter` y probar luces con un video real.
-2. Construir `LightCalibration` y validar las tres ROIs con `FrameAnalyzer`
-   sobre el frame ya preparado por `CameraSetup`.
-3. Con las ROIs y la calibración validadas, construir `LightTimelineBuilder`;
-   no empezar exportación antes de tener transiciones visuales confiables.
+1. Hacer una prueba focalizada del lado de comida opuesto; no bloquea el diseño
+   del siguiente backend.
+2. Construir y probar `LightTimelineBuilder` sobre la calibración ya validada.
+   Su primera salida debe ser una lista revisable de encendidos y apagados
+   estables; todavía no necesita crear clips ni una pantalla nueva.
 
 ## Lectura Para Retomar
 

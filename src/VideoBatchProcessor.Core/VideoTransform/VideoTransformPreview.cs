@@ -38,12 +38,86 @@ public static class VideoTransformPreviewRenderer
             }
 
             var crop = ToPreviewCrop(config.Crop, source.Metadata, decoded.Size());
-            using var cropped = decoded[crop].Clone();
-            using var rotated = Rotate(cropped, config.Rotation);
-            using var transformed = Mirror(rotated, config.MirrorHorizontally);
+            if (!TryTransform(decoded, crop, config, out var transformed, out error))
+                return false;
+
+            using (transformed)
+                return TryEncodePreview(transformed!, out preview, out error);
+        }
+        catch (Exception ex)
+        {
+            error = $"No se pudo aplicar la configuración de cámara: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Aplica crop, giro y espejo a un frame en resolución original. El caller
+    /// es dueño del <see cref="Mat"/> resultante y debe liberarlo.
+    /// </summary>
+    public static bool TryTransformFrame(
+        Mat source,
+        VideoMetadata metadata,
+        VideoTransformConfig config,
+        out Mat? transformed,
+        out string? error)
+    {
+        transformed = null;
+        error = null;
+
+        if (source is null || source.Empty())
+        {
+            error = "No se recibió un frame válido para aplicar la configuración de cámara.";
+            return false;
+        }
+
+        if (source.Width != metadata.Width || source.Height != metadata.Height)
+        {
+            error = "El frame no coincide con las dimensiones del video fuente.";
+            return false;
+        }
+
+        if (!config.TryValidateFor(metadata.Width, metadata.Height, out error))
+            return false;
+
+        var crop = config.Crop is null
+            ? new Rect(0, 0, source.Width, source.Height)
+            : new Rect(config.Crop.X, config.Crop.Y, config.Crop.Width, config.Crop.Height);
+
+        return TryTransform(source, crop, config, out transformed, out error);
+    }
+
+    /// <summary>
+    /// Convierte un frame ya preparado a JPEG para la interfaz. Reduce la
+    /// imagen si es necesario, pero no cambia el frame usado para medir brillo.
+    /// </summary>
+    public static bool TryEncodePreview(
+        Mat source,
+        out VideoTransformPreview? preview,
+        out string? error,
+        int maxDimension = 1280)
+    {
+        preview = null;
+        error = null;
+
+        if (source is null || source.Empty())
+        {
+            error = "No se recibió un frame válido para crear el preview.";
+            return false;
+        }
+
+        if (maxDimension <= 0)
+        {
+            error = "El tamaño máximo del preview debe ser mayor que cero.";
+            return false;
+        }
+
+        try
+        {
+            using var previewFrame = ResizeForPreview(source, maxDimension);
             Cv2.ImEncode(
                 ".jpg",
-                transformed,
+                previewFrame,
                 out var jpegBytes,
                 new ImageEncodingParam(ImwriteFlags.JpegQuality, 85));
 
@@ -56,14 +130,14 @@ public static class VideoTransformPreviewRenderer
             preview = new VideoTransformPreview
             {
                 JpegBytes = jpegBytes,
-                Width = transformed.Width,
-                Height = transformed.Height,
+                Width = previewFrame.Width,
+                Height = previewFrame.Height,
             };
             return true;
         }
         catch (Exception ex)
         {
-            error = $"No se pudo aplicar la configuración de cámara: {ex.Message}";
+            error = $"No se pudo crear el preview del frame: {ex.Message}";
             return false;
         }
     }
@@ -83,6 +157,46 @@ public static class VideoTransformPreviewRenderer
         right = Math.Clamp(right, left + 1, previewSize.Width);
         bottom = Math.Clamp(bottom, top + 1, previewSize.Height);
         return new Rect(left, top, right - left, bottom - top);
+    }
+
+    private static bool TryTransform(
+        Mat source,
+        Rect crop,
+        VideoTransformConfig config,
+        out Mat? transformed,
+        out string? error)
+    {
+        transformed = null;
+        error = null;
+
+        try
+        {
+            using var cropped = source[crop].Clone();
+            using var rotated = Rotate(cropped, config.Rotation);
+            transformed = Mirror(rotated, config.MirrorHorizontally);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"No se pudo aplicar la configuración de cámara: {ex.Message}";
+            transformed?.Dispose();
+            transformed = null;
+            return false;
+        }
+    }
+
+    private static Mat ResizeForPreview(Mat source, int maxDimension)
+    {
+        var largestDimension = Math.Max(source.Width, source.Height);
+        if (largestDimension <= maxDimension)
+            return source.Clone();
+
+        var scale = maxDimension / (double)largestDimension;
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var resized = new Mat();
+        Cv2.Resize(source, resized, new Size(width, height), interpolation: InterpolationFlags.Area);
+        return resized;
     }
 
     private static Mat Rotate(Mat source, VideoRotation rotation)
