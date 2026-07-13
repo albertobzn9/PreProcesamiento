@@ -18,7 +18,7 @@ Este documento reúne los requisitos y decisiones de uso del Video Batch Process
 
 **Fecha Inicial:** 01-05-2026
 
-**Update:** 10-07-26
+**Update:** 12-07-26
 
 **Estado:** Backend base en desarrollo; diseño del frontend en refinamiento.
 
@@ -31,6 +31,20 @@ Desarrollar una aplicación de escritorio nativa (Windows/macOS) para automatiza
 
 - **Meta:** Normalizar videos (recorte, rotación, orientación y segmentación) en un solo paso antes de ingresarlos a **DeepLabCut**.
 - **Prioridad:** Mantener la integridad de los frames (sin pérdida visual) y ofrecer una UX sencilla para usuarios no técnicos.
+
+### Requisitos Iniciales Conservados
+
+El requerimiento técnico inicial del 01-05-2026 está consolidado aquí, no como
+un documento paralelo. Se conservan estas decisiones: aplicación local para
+Windows y macOS; carga de lotes de 10 o más videos; zona de arrastre; preview
+con crop, rotación y espejo; coordenadas visibles de crop (`x`, `y`, `width`,
+`height`); estado por archivo y progreso global; y exportación sin pedir al
+usuario que instale herramientas de video.
+
+La idea antigua de quitar ciegamente los mismos minutos al inicio y final de
+todo video no se conserva como regla automática: ahora el programa debe
+preservar ITIs y habituación, y recortar los segmentos que realmente detecte.
+El recorte de habituación final sigue siendo una decisión explícita del usuario.
 
 ## Contexto Y Problema
 
@@ -50,7 +64,7 @@ Necesitamos una herramienta que haga todo esto en un solo paso, sin tener que ed
 
 La idea general de este proyecto es que se puedan normalizar/estandarizar todos los videos. La idea es que cumpla las siguientes características:
 
-1. **Batch processing:** el usuario puede cargar varios videos. El programa reconoce etapa, día y rata, los agrupa por protocolo y evita mezclarlos en el procesamiento.
+1. **Batch processing:** el usuario puede cargar una carpeta, seleccionar archivos individuales o arrastrar y soltar 10 o más videos. El programa reconoce etapa, día y rata, los agrupa por protocolo y evita mezclarlos en el procesamiento. Antes de iniciar, el usuario puede quitar sesiones de la lista y ve el estado de cada archivo.
 2. **Configuración de cámara:** el usuario define recorte, orientación, ROIs y calibración para cada grupo de videos que comparte una misma posición de cámara.
 3. **Rotación/reflejo:** el usuario puede rotar 180° o reflejar los videos cuando lo necesite, o dejar la imagen intacta.
 4. **Identificación de luces:** el programa detecta cuándo se prenden las tres luces a partir de ROIs y umbrales calibrados por el usuario.
@@ -62,13 +76,13 @@ La idea general de este proyecto es que se puedan normalizar/estandarizar todos 
 
 ### 1. Cargar Videos Por Montón
 
-El usuario selecciona una carpeta con muchos videos. El programa lee el nombre de cada video y sabe de qué etapa es, qué día, qué rata, etc. Por ejemplo, puede leer archivos legacy como `exp_0126_dis_d9r4.mp4` o nombres del estándar del lab cuando existan.
+El usuario selecciona una carpeta, archivos individuales o los arrastra a una zona de carga. El programa lee el nombre de cada video y sabe de qué etapa es, qué día, qué rata, etc. Por ejemplo, puede leer archivos legacy como `exp_0126_dis_d9r4.mp4` o nombres del estándar del lab cuando existan.
 
-Antes de procesar, muestra una lista ordenada por protocolo, fase, día y rata. La lista permite confirmar que los videos pertenecen al grupo esperado y asignarles una configuración de cámara; no debe mezclar automáticamente sesiones de protocolos distintos.
+Antes de procesar, muestra una lista ordenada por protocolo, fase, día y rata. La lista permite confirmar que los videos pertenecen al grupo esperado, quitar los que no aplican, asignarles una configuración de cámara y ver si están pendientes, listos, en proceso o con un aviso; no debe mezclar automáticamente sesiones de protocolos distintos.
 
 ### 2. Recortar La Caja Una Vez Y Aplicar Al Lote
 
-El usuario dibuja un rectángulo sobre la caja donde está la rata. Esa configuración se aplica a los videos que comparten la misma posición de cámara.
+El usuario dibuja un rectángulo sobre la caja donde está la rata. Al confirmarlo, la interfaz muestra las coordenadas `x`, `y`, `width` y `height`. Esa configuración se aplica a los videos que comparten la misma posición de cámara.
 
 La app no asume que todo el protocolo conserva una sola cámara ni que el cambio ocurre exactamente dos veces. Antes de continuar, muestra frames representativos de las sesiones ordenadas. Si el usuario identifica que la cámara se movió, crea otro `CameraProfile`, indica desde qué sesión aplica y vuelve a definir crop, orientación, ROIs y calibración para ese grupo. Esto evita que el LED de ruido quede fuera de su ROI y parezca apagado cuando el problema real es el encuadre.
 
@@ -148,6 +162,26 @@ CS: tres hallazgos `InterEventCrossing` en los días 1, 2 y 3". La aplicación n
 decide si se cuentan o excluyen; conserva la decisión del investigador como
 parte de la revisión.
 
+### 9. Herramientas De Video Y Calidad De Exportación
+
+La aplicación usa `ffprobe` para conocer duración, fps y dimensiones del video,
+y FFmpeg para exportar. Estas herramientas deben quedar administradas por la
+aplicación: el investigador no instala ni configura ejecutables manualmente.
+La forma concreta de distribuirlas por sistema operativo (incluidas en el
+paquete o preparadas en una carpeta interna) se decide en la implementación,
+pero no debe alterar ese flujo de uso.
+
+Cada clip final debe aplicar sus límites de tiempo, crop, rotación y espejo en
+una sola exportación cuando sea posible. Esto evita recodificar un video entero
+y volverlo a recodificar por cada clip. El perfil inicial de referencia para
+DLC es H.264 (`libx264`) con `CRF 18`; debe validarse con videos reales antes de
+tratarlo como configuración fija del laboratorio.
+
+El uso de `-ss` y `-to` corresponde a los límites de cada segmento que el
+programa planeó. No se aplica por defecto un trim simétrico o asimétrico global
+a todas las sesiones, pues podría borrar ITIs o habituación que se necesita
+conservar.
+
 ## Plan De Entrega Por Módulos
 
 Para no hacer todo de golpe, dividimos el programa en partes chiquitas e independientes. Cada parte se puede probar por separado antes de juntar todo. El orden sería:
@@ -170,6 +204,15 @@ Cada parte se puede hacer y probar por separado. Esto permite que un ayudante (E
 - No analiza el comportamiento de la rata
 - No hace tracking postural
 - Solo procesa video — la ciencia la hacemos después
+
+## Entrega De La Aplicación
+
+La meta de entrega es una aplicación de escritorio local para Windows y macOS,
+con dependencias de video administradas internamente. Una distribución
+autocontenida es deseable. Native AOT y el objetivo histórico de menos de 150
+MB quedan como metas de empaquetado que se evaluarán cuando exista el pipeline
+real de FFmpeg: no deben imponerse antes de medir el peso y compatibilidad en
+ambos sistemas.
 
 ## Outputs Esperados
 

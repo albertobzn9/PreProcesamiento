@@ -5,6 +5,7 @@
 ## Project
 
 - [Product Requirements](project/product-requirements.md): requisitos de producto, decisiones actuales y especificación de usuario fusionadas sin resumir.
+- [Current Project Status](project/current-status.md): checkpoint operativo, avances verificados, riesgos y orden de trabajo recomendado.
 - [Architecture](project/architecture.md): arquitectura de módulos, flujo de uso, configuración y dependencias.
 - [Architecture Review Log](project/architecture-review-log.md): decisiones aplicadas y pendientes de diseño retirados del documento principal.
 - [CajaValentia Video-Behavior Synchronization](project/sincronizacion-video-mat-cajavalentia.md): especificación para medir, estimar y reportar el desfase entre señales visuales y eventos conductuales.
@@ -25,6 +26,7 @@
 ## Design
 
 - [Precision Laboratory UI Reference](design/precision-laboratory.md): sistema visual de referencia para la interfaz de escritorio y sus componentes.
+- [Stitch Source Reference](design/stitch_lab_interface_ux_redesign/DESIGN.md): export original de diseño; la implementación activa vive en `src/VideoBatchProcessor.App/WebUi/`.
 
 ## Development
 

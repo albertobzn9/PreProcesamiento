@@ -75,4 +75,4 @@ Status meanings:
 - [Architecture](architecture.md): clean current reference.
 - [Naming Convention](../reference/naming-convention.md): the three file-naming schemes.
 - [MAT Format](../reference/mat-format.md): source behavioral data.
-- [Sound-only event design in CajaValentia](/Users/ab/Documents/GitHub/CajaValentia/docs/idea-eventos-solo-ruido.md): upstream definition of `TipoEvento = 2`.
+- [Sound-only controls in CajaValentia](/Users/ab/Documents/GitHub/CajaValentia/docs/sound-only-controls.md): upstream definition of `TipoEvento = 2`.

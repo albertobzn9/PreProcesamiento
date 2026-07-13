@@ -6,18 +6,20 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 
 ## Estado
 
-Proyecto en fase de backend base + prototipo visual.
+Proyecto en fase de backend base + primera integración de interfaz.
 
 - Producto completo: Video Batch Processor.
 - Prototipo actual: `LightEventDetector`, una app Avalonia que permite abrir un video, marcar ROIs de luces, detectar eventos ON/OFF y exportar una línea de tiempo con CSV.
 - Backend actual: `VideoBatchProcessor.Core`, librería donde vive la lógica reusable del producto.
-- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer` y `LightDetection`.
-- Validación actual: la suite del backend tiene 109 pruebas pasando en macOS con `./scripts/test-macos.sh`. Falta conectar `FrameAnalyzer` con `LightDetection` mediante el adaptador de brillo y construir `LightTimelineBuilder` antes de integrar la UI.
+- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer`, `LightDetection` y la base de `BehavioralData` para CSV V1/MAT histórico.
+- Interfaz: HTML/CSS local dentro de Avalonia ya integrado; valida carga recursiva, filtros de fase y reconocimiento de nomenclaturas en macOS.
+- Validación actual: hay 122 pruebas pasando. Falta conectar `FrameAnalyzer` con `LightDetection` mediante el adaptador de brillo, construir `LightTimelineBuilder` y leer MAT binario real antes de integrar procesamiento completo.
 
 ## Stack
 
 - C# / .NET
 - Avalonia UI
+- HTML/CSS local dentro del WebView oficial de Avalonia para la interfaz final
 - OpenCvSharp para lectura de video y análisis de frames
 - FFmpeg como dependencia prevista para exportación de clips
 
@@ -32,7 +34,8 @@ Proyecto en fase de backend base + prototipo visual.
 │   └── development/                   # Guías de trabajo e implementación
 ├── src/
 │   ├── LightEventDetector/            # Prototipo C# / Avalonia para calibración visual
-│   └── VideoBatchProcessor.Core/      # Librería backend reusable del producto
+│   ├── VideoBatchProcessor.Core/      # Librería backend reusable del producto
+│   └── VideoBatchProcessor.App/       # Aplicación de escritorio e interfaz
 └── VideoBatchProcessor.sln            # Solución C#
 ```
 
@@ -40,6 +43,7 @@ Proyecto en fase de backend base + prototipo visual.
 
 - [Índice de documentación](docs/README.md)
 - [Requisitos de producto](docs/project/product-requirements.md)
+- [Estado actual del proyecto](docs/project/current-status.md)
 - [Protocolo CMC](docs/protocol/cmc-protocol.md)
 - [Formato MAT histórico](docs/reference/mat-format.md)
 - [Nomenclatura](docs/reference/naming-convention.md)

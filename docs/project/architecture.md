@@ -146,7 +146,7 @@ BatchOrchestrator -> coordina todo
 
 | Módulo | Estado | Evidencia o siguiente límite |
 |--------|--------|------------------------------|
-| `NomenclatureParser` | Implementado | 35 pruebas. Lee los tres esquemas y construye nombres de output existentes. |
+| `NomenclatureParser` | Implementado | 40 pruebas. Lee los tres esquemas, distingue sesiones fuente de output, omite F1/CM al cargar lotes y construye nombres de output. |
 | `SessionMetadataResolver` | Implementado | Completa metadata y resuelve una fuente conductual explícita, CSV V1, MAT legacy o ausencia. |
 | `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee CSV V1 y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`. |
 | `VideoReader` | Implementado | 18 pruebas con video sintético y runtime nativo de OpenCV en macOS. |
@@ -575,14 +575,18 @@ transformaciones y `ClipExporter` en la etapa de salida. No depende de
 
 ```
 TransformConfig = {
-  CropRect,
+  CropRect: { x, y, width, height },
   Rotation,
   Flip,
   OutputQuality,
 }
 ```
 
-La UI necesita mostrar crop/rotación/flip como preview, pero el flujo normal de exportación debe aplicar `trim + crop + rotate + flip` en un solo comando FFmpeg por clip cuando sea posible. Así se evita recodificar primero el video completo y después volver a recodificar cada clip.
+La UI necesita mostrar crop/rotación/flip como preview y las coordenadas del
+crop (`x`, `y`, `width`, `height`). El flujo normal de exportación debe aplicar
+los límites del segmento + crop + rotate + flip en un solo comando FFmpeg por
+clip cuando sea posible. Así se evita recodificar primero el video completo y
+después volver a recodificar cada clip.
 
 Un `CameraProfile` agrupa esta transformación, las ROIs y su calibración. El
 usuario puede crear otro perfil desde la primera sesión donde cambió el encuadre
@@ -610,6 +614,17 @@ Export(exportClips[], ffmpegConfig) -> List<FileInfo>
 ```
 
 Cada `ExportClip` incluye video de entrada, segmento, configuración de transformaciones y nombre final. Usa FFmpeg con `-ss`/`-to` y filtros de crop/rotación/flip en un solo paso por clip. Nombra cada archivo según la nomenclatura de output del Video Batch Processor.
+
+Antes de exportar, una capa interna de herramientas de video usa `ffprobe` para
+leer duración, fps y dimensiones. FFmpeg y ffprobe deben ser administrados por
+la aplicación; el usuario no instala ni configura ejecutables. El detalle de
+empaquetado se resuelve por sistema operativo, sin exponerlo como una tarea de
+la interfaz.
+
+El perfil inicial previsto para clips destinados a DLC es H.264 (`libx264`) con
+`CRF 18`, sujeto a validación con videos reales. No se debe aplicar un trim
+global fijo a todas las sesiones: `-ss` y `-to` representan los límites del
+segmento planeado, incluida la decisión explícita sobre habituación final.
 
 Para un evento `SoundOnly`, el exportador no debe inventar `s`, `p` o `na` en
 el campo de tipo. El código corto de output sigue pendiente de acuerdo del lab;
@@ -679,6 +694,20 @@ existen mientras el usuario configura o revisa. Solo pasan a configuración
 reutilizable cuando el usuario los confirma y el backend los guarda. Esto evita
 que la pantalla se convierta en otra fuente de verdad distinta al Core.
 
+### Dirección De Implementación De La Interfaz
+
+El frontend definitivo usa HTML/CSS local como superficie visual dentro del
+`NativeWebView` oficial de Avalonia 12. Avalonia sigue siendo la aplicación de
+escritorio y C# sigue siendo la fuente de lógica: abre selectores nativos,
+llama al Core, procesa video y guarda configuraciones. El HTML solo presenta
+pantallas y envía acciones puntuales a C#.
+
+La primera prueba verificada cubre carga de sesiones: HTML solicita archivos,
+C# abre el selector nativo, `SessionSetupService` interpreta los nombres y la
+lista vuelve a HTML. La interfaz XAML anterior fue retirada: el archivo XAML
+solo aloja el `NativeWebView`, mientras que la presentación vive en
+`WebUi/index.html`.
+
 ### 12. AppShell + SessionSetup
 
 **Función en simple:** Es la puerta de entrada del programa. Presenta el flujo
@@ -698,6 +727,13 @@ indirecta, `BehavioralSourceResolver`.
 **Validación/Pruebas:** cargar nombres legacy, estándar y desconocidos; comprobar
 que los campos manuales se actualizan, que CSV/MAT se muestran correctamente y
 que una fuente ausente o inválida aparece como aviso, no como un bloqueo oculto.
+Si se carga un clip con nomenclatura de output, la UI debe identificarlo pero
+rechazarlo como entrada: es evidencia generada, no el video completo de sesión.
+Al elegir una carpeta, busca de forma recursiva en sus subcarpetas y omite por
+defecto Luz-Comida (`f1`) y Condicionamiento al Miedo (`cm`/`f3`); muestra el
+conteo de sesiones omitidas sin confundirlas con errores de nomenclatura.
+Cuando detecta más de cinco nombres no compatibles, ofrece quitarlos todos de
+la lista del lote. Esa acción nunca borra los archivos físicos del disco.
 
 ### 13. CameraSetup
 

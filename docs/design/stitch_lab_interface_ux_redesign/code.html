@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Video Batch PreProcessor - Main Dashboard</title>
+<!-- Google Fonts & Material Icons -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#7bd0ff",
+                        "primary-fixed-dim": "#bec6e0",
+                        "primary-container": "#131b2e",
+                        "secondary": "#00668a",
+                        "surface-card": "#FFFFFF",
+                        "tertiary-fixed": "#6bff8f",
+                        "surface-container-high": "#e6e8ea",
+                        "inverse-primary": "#bec6e0",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#eceef0",
+                        "on-primary-container": "#7c839b",
+                        "surface-variant": "#e0e3e5",
+                        "input-bg": "#F1F5F9",
+                        "surface": "#f7f9fb",
+                        "text-main": "#1E293B",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005321",
+                        "on-tertiary-container": "#009844",
+                        "outline-variant": "#c6c6cd",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#45464d",
+                        "surface-container-highest": "#e0e3e5",
+                        "inverse-surface": "#2d3133",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dae2fd",
+                        "on-secondary-fixed-variant": "#004c69",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-bright": "#f7f9fb",
+                        "on-surface": "#191c1e",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "tertiary-fixed-dim": "#4ae176",
+                        "secondary-fixed": "#c4e7ff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-background": "#191c1e",
+                        "surface-tint": "#565e74",
+                        "on-secondary-container": "#004d6a",
+                        "primary": "#0F172A",
+                        "border-subtle": "#E2E8F0",
+                        "on-tertiary-fixed": "#002109",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "outline": "#76777d",
+                        "background": "#f7f9fb",
+                        "tertiary-container": "#002109",
+                        "surface-dim": "#d8dadc",
+                        "on-secondary-fixed": "#001e2c",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#40c2fd",
+                        "text-muted": "#64748B",
+                        "tertiary": "#000000",
+                        "scientific-blue": "#38BDF8"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-padding": "24px",
+                        "tight-gap": "8px",
+                        "margin-sm": "12px",
+                        "element-gap": "16px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "label-mono": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "data-display": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-bold": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "label-mono": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "data-display": ["11px", { "lineHeight": "14px", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-bold": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-text-main h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center h-16 px-container-padding w-full bg-surface border-b border-border-subtle shrink-0">
+<div class="flex items-center gap-element-gap">
+<img alt="IFC Logo" class="h-10 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbuA1286BfYo2GiBRecKQuFnRMuCumYCBgi1axjJl1_XyWC86scqVJzuI1gvLw8OiJco5o6JdEaLQuN3Nh7wQ7I92S6yx2KmFPZ0qtxzmDH8UB-TqN774iJnmrxJSRe8JiX2TUzskL2N_cwRcalmx0oqGZg7OsLgeL-EJPyFG5zAl5yvkEBtT1lIOw7YAEo7OJvQLtq4YpjC9XogzMapbSR9bI_LrRyXvTxo0s2J2LSTUSmpMDIDJntxAibwphhz3o0EY"/>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-text-main tracking-tight">Video Batch PreProcessor</h1>
+<p class="font-label-mono text-label-mono text-text-muted">Scientific Video Systems</p>
+</div>
+</div>
+<div class="flex items-center gap-margin-sm"><img alt="UNAM Shield" class="h-8 w-auto opacity-80 hover:opacity-100 transition-opacity mr-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDmQVcbg1NEbdQx6vT13l_7iVnvJ09tbnqXIf1F4cvHQWNTAvXTolv8B0YrT8ZeTSrfIUHOiZgZ7ovNH0A5h2CAXqQUolYPB8ggfTPJaOsdv7MicuFfaY39Z8W-xrSaSre8ShZShnVOGutIikwbsxrM60cNiRpzeYmbfehPUAv3p0-elo2tBlua16i0HLPHdmH8JotEOpezE8AykJn7UulLxfJA6hldZwLQvickwG_3odcyarTAGkHWeuRTaV76qCA0l8"/>
+<button class="p-2 text-text-muted hover:text-primary transition-colors scale-95 active:scale-90 rounded-full hover:bg-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-text-muted hover:text-primary transition-colors scale-95 active:scale-90 rounded-full hover:bg-surface-variant">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+</header><div class="bg-surface border-b border-border-subtle px-container-padding py-3 flex justify-center items-center gap-8">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-data-display" style="background-color: #00215e;">1</span>
+<span class="font-label-bold text-label-bold text-primary" style="color: #00215e;">Sesiones</span>
+</div>
+<div class="h-px w-12 bg-border-subtle"></div>
+<div class="flex items-center gap-2 opacity-50">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-text-muted flex items-center justify-center text-data-display">2</span>
+<span class="font-label-bold text-label-bold text-text-muted">Procesamiento</span>
+</div>
+<div class="h-px w-12 bg-border-subtle"></div>
+<div class="flex items-center gap-2 opacity-50">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-text-muted flex items-center justify-center text-data-display">3</span>
+<span class="font-label-bold text-label-bold text-text-muted">Resultados</span>
+</div>
+</div>
+<!-- Main Content Area -->
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar -->
+<nav class="h-full w-64 flex-shrink-0 bg-surface-container-low border-r border-border-subtle flex flex-col p-margin-sm">
+<div class="mb-element-gap px-3 py-2 flex items-center gap-3 bg-surface-variant rounded-lg">
+<img alt="Lab Technician Profile" class="w-10 h-10 rounded-full object-cover border border-border-subtle" data-alt="A small, professional avatar of a male laboratory technician wearing a white lab coat, clean and clinical style, high resolution, minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4YvKlZ7YCslHLjR05Z9LOMkZmLNtiw5jpTLH51k_89rjlYFaNbqnMAmaDlzqAoVOyBmPyrfkoJJPJGJF5QAkTttsq5DMHxWDWNnoBeynKEUP5_a3ETLwbnlNXWdhleC9dEpahI9KpM3EI_ZILO9mDzT0WmdCECFeb7TibBYUHqMGYPkfuZ-JbpTpgblLp6rQ-VKG_x6T_yQC28LZY_Uw2Wp1r_AxqBLqFuT_Cg6hm5mxpcp7wlkbKxg"/>
+<div>
+<h2 class="font-label-bold text-label-bold text-primary">BatchProcessor</h2>
+<p class="font-data-display text-data-display text-text-muted">V1.0.4-Alpha</p>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-label-bold text-label-bold py-2 rounded-lg mb-element-gap hover:bg-primary/90 transition-colors" style="background-color: #00215e;">
+                New Batch
+            </button>
+<ul class="flex-1 space-y-unit">
+<li>
+<a class="flex items-center gap-3 px-3 py-2 bg-secondary-fixed text-on-secondary-fixed font-label-bold text-label-bold rounded-lg transition-colors duration-150 ease-in-out" href="#" style="background-color: #00215e; color: white;">
+<span class="material-symbols-outlined">folder_open</span>
+                        Files
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors duration-150 ease-in-out rounded-lg font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">memory</span>
+                        Processing
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors duration-150 ease-in-out rounded-lg font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+                        Settings
+                    </a>
+</li>
+</ul>
+</nav>
+<!-- Canvas (Center/Left) & Sidebar (Right) -->
+<main class="flex-1 flex overflow-hidden">
+<!-- Center Canvas: Dropzone & File List -->
+<div class="flex-1 flex flex-col p-container-padding gap-container-padding overflow-y-auto">
+<!-- Dropzone -->
+<div class="border-2 border-dashed border-outline-variant rounded-xl bg-surface-card flex flex-col items-center justify-center p-8 hover:bg-secondary-fixed/10 transition-colors group cursor-pointer h-64 shrink-0">
+<span class="material-symbols-outlined text-4xl text-text-muted mb-4 group-hover:text-scientific-blue transition-colors">upload_file</span>
+<h3 class="font-headline-md text-headline-md text-text-main mb-1">Drag &amp; Drop Laboratory Videos</h3>
+<p class="font-body-sm text-body-sm text-text-muted">Supports MP4, AVI, MOV (Max 10+ files)</p>
+</div>
+<!-- File List -->
+<div class="flex-1 bg-surface-card border border-border-subtle rounded-xl overflow-hidden flex flex-col">
+<div class="px-element-gap py-3 border-b border-border-subtle bg-surface-container flex justify-between items-center">
+<h4 class="font-label-bold text-label-bold text-text-main uppercase">Loaded Files (2)</h4>
+<span class="font-label-bold text-label-bold text-text-muted uppercase mr-32">Metadatos</span><button class="font-label-mono text-label-mono text-text-muted hover:text-primary">Clear All</button>
+</div>
+<ul class="flex-1 overflow-y-auto divide-y divide-border-subtle">
+<!-- File Item 1 -->
+<li class="px-element-gap py-3 flex items-center justify-between hover:bg-surface-variant/50 transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-text-muted">movie</span>
+<span class="font-body-sm text-body-sm text-text-main font-medium">Video_Exp_01.mp4</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1 mr-4">
+<span class="material-symbols-outlined text-sm text-tertiary-fixed-dim fill">check_circle</span>
+<span class="font-data-display text-data-display text-text-muted">Completo</span>
+</div><span class="font-data-display text-data-display text-text-muted">452 MB</span>
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-surface-container-high border border-border-subtle">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<div class="flex items-center gap-1 mr-4">
+<span class="material-symbols-outlined text-sm text-tertiary-fixed-dim fill">check_circle</span>
+<span class="font-data-display text-data-display text-text-muted">Completo</span>
+</div><span class="font-data-display text-data-display text-text-muted">Pending</span>
+</span>
+<button class="text-text-muted hover:text-error transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</li>
+<!-- File Item 2 -->
+<li class="px-element-gap py-3 flex items-center justify-between hover:bg-surface-variant/50 transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-text-muted">movie</span>
+<span class="font-body-sm text-body-sm text-text-main font-medium">Video_Exp_02.mp4</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1 mr-4">
+<span class="material-symbols-outlined text-sm text-error fill">warning</span>
+<span class="font-data-display text-data-display text-error">3 campos vacíos</span>
+</div><span class="font-data-display text-data-display text-text-muted">1.2 GB</span>
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-surface-container-high border border-border-subtle">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<div class="flex items-center gap-1 mr-4">
+<span class="material-symbols-outlined text-sm text-error fill">warning</span>
+<span class="font-data-display text-data-display text-error">3 campos vacíos</span>
+</div><span class="font-data-display text-data-display text-text-muted">Pending</span>
+</span>
+<button class="text-text-muted hover:text-error transition-colors"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<!-- Configuration Sidebar (Right) -->
+<aside class="w-[320px] bg-surface border-l border-border-subtle p-container-padding flex flex-col gap-element-gap overflow-y-auto shrink-0 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.04)]"><div class="flex border-b border-border-subtle mb-4">
+<button class="flex-1 py-2 font-label-bold text-label-bold text-primary border-b-2 border-primary" style="color: #00215e; border-color: #00215e;">Transformación</button>
+<button class="flex-1 py-2 font-label-bold text-label-bold text-text-muted hover:text-primary transition-colors">Metadatos</button>
+</div>
+<div class="flex flex-col gap-element-gap">
+<!-- Transformation Controls (Existing) -->
+<div class="bg-surface-card border border-border-subtle rounded-lg p-element-gap">
+<div class="flex items-center gap-2 mb-4 border-b border-border-subtle pb-2">
+<span class="material-symbols-outlined text-text-muted text-sm">content_cut</span>
+<h4 class="font-label-bold text-label-bold text-text-main uppercase">Trim</h4>
+</div>
+<div class="flex flex-col gap-tight-gap mb-4">
+<label class="font-label-bold text-label-bold text-text-muted">Minutes (Total)</label>
+<input class="w-full bg-input-bg border-border-subtle rounded font-body-sm text-body-sm text-text-main p-2" placeholder="0" type="number"/>
+</div>
+</div>
+<!-- Metadata Fields Section -->
+<div class="bg-surface-card border border-border-subtle rounded-lg p-element-gap">
+<div class="flex items-center gap-2 mb-4 border-b border-border-subtle pb-2">
+<span class="material-symbols-outlined text-text-muted text-sm">description</span>
+<h4 class="font-label-bold text-label-bold text-text-main uppercase">Metadatos Globales</h4>
+</div>
+<div class="space-y-4">
+<div class="flex flex-col gap-1">
+<label class="font-label-bold text-label-bold text-text-muted">ID Rata</label>
+<input class="w-full bg-input-bg border-border-subtle rounded font-body-sm text-body-sm p-2" placeholder="Ex: R-402" type="text"/>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-bold text-label-bold text-text-muted">Sexo</label>
+<select class="w-full bg-input-bg border-border-subtle rounded font-body-sm text-body-sm p-2">
+<option>Macho</option>
+<option>Hembra</option>
+</select>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-bold text-label-bold text-text-muted">Tratamiento</label>
+<input class="w-full bg-input-bg border-border-subtle rounded font-body-sm text-body-sm p-2" placeholder="Control / Fármaco A" type="text"/>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-bold text-label-bold text-text-muted">Fase</label>
+<input class="w-full bg-input-bg border-border-subtle rounded font-body-sm text-body-sm p-2" placeholder="Basal / Post-op" type="text"/>
+</div>
+</div>
+</div>
+</div></aside>
+</main>
+</div>
+<!-- Persistent Status Footer -->
+<footer class="bg-surface-container-high border-t border-border-subtle shrink-0">
+<!-- Global Progress Bar -->
+<div class="w-full h-1 bg-surface-variant">
+<div class="h-full bg-scientific-blue w-0 transition-all duration-500"></div>
+</div>
+<div class="flex items-center justify-between px-container-padding h-16 z-50">
+<div class="flex items-center gap-6">
+<span class="font-label-mono text-label-mono uppercase text-on-surface-variant">
+                    © 2024 Scientific Video Systems. Global Process Status: Idle.
+                </span>
+<div class="hidden md:flex gap-4">
+<a class="font-label-mono text-label-mono uppercase text-text-muted hover:underline opacity-80 hover:opacity-100" href="#">Documentation</a>
+<a class="font-label-mono text-label-mono uppercase text-text-muted hover:underline opacity-80 hover:opacity-100" href="#">System Logs</a>
+<a class="font-label-mono text-label-mono uppercase text-text-muted hover:underline opacity-80 hover:opacity-100" href="#">API Status</a>
+</div>
+</div>
+<button class="bg-primary text-white font-label-bold text-label-bold px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors" style="background-color: #00215e;">
+<span class="material-symbols-outlined text-sm">play_arrow</span>
+                Process Batch
+            </button>
+</div>
+</footer>
+<script>
+        // Simple toggle logic for demo purposes
+        function toggleAsymmetricTrim() {
+            const toggleBtn = document.getElementById('toggle-trim');
+            const knob = document.getElementById('toggle-trim-knob');
+            const inputs = document.getElementById('asymmetric-inputs');
+
+            const isON = toggleBtn.classList.contains('bg-scientific-blue');
+
+            if (isON) {
+                toggleBtn.classList.remove('bg-scientific-blue');
+                toggleBtn.classList.add('bg-surface-variant');
+                knob.style.transform = 'translateX(0)';
+                inputs.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                toggleBtn.classList.add('bg-scientific-blue');
+                toggleBtn.classList.remove('bg-surface-variant');
+                knob.style.transform = 'translateX(16px)';
+                inputs.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function toggleRotate() {
+            const toggleBtn = document.getElementById('toggle-rotate');
+            const knob = document.getElementById('toggle-rotate-knob');
+
+            const isON = toggleBtn.classList.contains('bg-scientific-blue');
+
+            if (isON) {
+                toggleBtn.classList.remove('bg-scientific-blue');
+                toggleBtn.classList.add('bg-surface-variant');
+                knob.style.transform = 'translateX(0)';
+            } else {
+                toggleBtn.classList.add('bg-scientific-blue');
+                toggleBtn.classList.remove('bg-surface-variant');
+                knob.style.transform = 'translateX(16px)';
+            }
+        }
+    </script>
+</body></html>
