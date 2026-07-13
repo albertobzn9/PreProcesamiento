@@ -1,5 +1,6 @@
 using OpenCvSharp;
 using VideoBatchProcessor.Core.VideoReader;
+using VideoBatchProcessor.Core.VideoTransform;
 using Xunit;
 
 namespace VideoBatchProcessor.Tests;
@@ -71,6 +72,113 @@ public class VideoReaderTests : IClassFixture<VideoReaderTests.SyntheticVideoFix
     {
         VideoReader.TryOpen(_fixture.VideoPath, out var reader, out _);
         using (reader) Assert.True(Path.IsPathRooted(reader!.Metadata.FilePath));
+    }
+
+    [Fact]
+    public void TryReadPreview_DevuelveJpegYMetadata()
+    {
+        var ok = VideoReader.TryReadPreview(_fixture.VideoPath, out var preview, out var error);
+
+        Assert.True(ok);
+        Assert.NotNull(preview);
+        Assert.Null(error);
+        Assert.Equal(SyntheticVideoFixture.Width, preview!.Metadata.Width);
+        Assert.Equal(SyntheticVideoFixture.Height, preview.Metadata.Height);
+        Assert.Equal(0, preview.FrameIndex);
+        Assert.True(preview.JpegBytes.Length > 2);
+        Assert.Equal(0xFF, preview.JpegBytes[0]);
+        Assert.Equal(0xD8, preview.JpegBytes[1]);
+    }
+
+    [Fact]
+    public void TryReadPreview_RespetaDimensionMaxima()
+    {
+        var ok = VideoReader.TryReadPreview(_fixture.VideoPath, out var preview, out _, maxDimension: 100);
+
+        Assert.True(ok);
+        Assert.NotNull(preview);
+        Assert.Equal(100, preview!.PreviewWidth);
+        Assert.Equal(75, preview.PreviewHeight);
+    }
+
+    [Fact]
+    public void VideoTransformPreview_AplicaCropRotacionYEspejo()
+    {
+        VideoReader.TryReadPreview(_fixture.VideoPath, out var source, out _);
+        var config = new VideoTransformConfig
+        {
+            Crop = new VideoCropRect(20, 30, 100, 60),
+            Rotation = VideoRotation.UpsideDown,
+            MirrorHorizontally = true,
+        };
+
+        var ok = VideoTransformPreviewRenderer.TryRender(source!, config, out var preview, out var error);
+
+        Assert.True(ok);
+        Assert.NotNull(preview);
+        Assert.Null(error);
+        Assert.Equal(100, preview!.Width);
+        Assert.Equal(60, preview.Height);
+        Assert.Equal(0xFF, preview.JpegBytes[0]);
+        Assert.Equal(0xD8, preview.JpegBytes[1]);
+    }
+
+    [Fact]
+    public void VideoTransformPreview_EspejoHorizontal_IntercambiaLadosSinRotar()
+    {
+        const int width = 80;
+        const int height = 40;
+        using var image = new Mat(height, width, MatType.CV_8UC3, Scalar.Black);
+        using (var leftHalf = image[new Rect(0, 0, width / 2, height)])
+            leftHalf.SetTo(new Scalar(0, 0, 255));
+        using (var rightHalf = image[new Rect(width / 2, 0, width / 2, height)])
+            rightHalf.SetTo(new Scalar(0, 255, 0));
+
+        Cv2.ImEncode(".png", image, out var sourceBytes);
+        var source = new VideoPreview
+        {
+            Metadata = new VideoMetadata { Width = width, Height = height },
+            JpegBytes = sourceBytes,
+            PreviewWidth = width,
+            PreviewHeight = height,
+        };
+
+        var ok = VideoTransformPreviewRenderer.TryRender(
+            source,
+            new VideoTransformConfig { MirrorHorizontally = true },
+            out var preview,
+            out var error);
+
+        Assert.True(ok);
+        Assert.Null(error);
+        Assert.NotNull(preview);
+        Assert.Equal(width, preview!.Width);
+        Assert.Equal(height, preview.Height);
+
+        using var mirrored = Cv2.ImDecode(preview.JpegBytes, ImreadModes.Color);
+        using var outputLeft = mirrored[new Rect(0, 0, width / 2, height)];
+        using var outputRight = mirrored[new Rect(width / 2, 0, width / 2, height)];
+        var leftColor = Cv2.Mean(outputLeft);
+        var rightColor = Cv2.Mean(outputRight);
+
+        Assert.True(leftColor.Val1 > 180 && leftColor.Val2 < 60);
+        Assert.True(rightColor.Val2 > 180 && rightColor.Val1 < 60);
+    }
+
+    [Fact]
+    public void VideoTransformPreview_RechazaCropFueraDelVideoFuente()
+    {
+        VideoReader.TryReadPreview(_fixture.VideoPath, out var source, out _);
+        var config = new VideoTransformConfig
+        {
+            Crop = new VideoCropRect(300, 0, 30, 30),
+        };
+
+        var ok = VideoTransformPreviewRenderer.TryRender(source!, config, out var preview, out var error);
+
+        Assert.False(ok);
+        Assert.Null(preview);
+        Assert.Contains("recorte", error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

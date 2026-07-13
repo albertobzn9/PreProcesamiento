@@ -37,8 +37,9 @@ Desarrollar una aplicación de escritorio nativa (Windows/macOS) para automatiza
 El requerimiento técnico inicial del 01-05-2026 está consolidado aquí, no como
 un documento paralelo. Se conservan estas decisiones: aplicación local para
 Windows y macOS; carga de lotes de 10 o más videos; zona de arrastre; preview
-con crop, rotación y espejo; coordenadas visibles de crop (`x`, `y`, `width`,
-`height`); estado por archivo y progreso global; y exportación sin pedir al
+con crop, rotación y espejo; límites de recorte visibles para el usuario
+(`izquierda`, `arriba`, `derecha`, `abajo`, equivalentes internamente a `x`,
+`y`, `width`, `height`); estado por archivo y progreso global; y exportación sin pedir al
 usuario que instale herramientas de video.
 
 La idea antigua de quitar ciegamente los mismos minutos al inicio y final de
@@ -82,7 +83,10 @@ Antes de procesar, muestra una lista ordenada por protocolo, fase, día y rata. 
 
 ### 2. Recortar La Caja Una Vez Y Aplicar Al Lote
 
-El usuario dibuja un rectángulo sobre la caja donde está la rata. Al confirmarlo, la interfaz muestra las coordenadas `x`, `y`, `width` y `height`. Esa configuración se aplica a los videos que comparten la misma posición de cámara.
+El usuario dibuja un rectángulo sobre la caja donde está la rata. Al confirmarlo,
+la interfaz muestra sus límites izquierdo, superior, derecho e inferior; el
+sistema los convierte internamente a `x`, `y`, `width` y `height`. Esa
+configuración se aplica a los videos que comparten la misma posición de cámara.
 
 La app no asume que todo el protocolo conserva una sola cámara ni que el cambio ocurre exactamente dos veces. Antes de continuar, muestra frames representativos de las sesiones ordenadas. Si el usuario identifica que la cámara se movió, crea otro `CameraProfile`, indica desde qué sesión aplica y vuelve a definir crop, orientación, ROIs y calibración para ese grupo. Esto evita que el LED de ruido quede fuera de su ROI y parezca apagado cuando el problema real es el encuadre.
 

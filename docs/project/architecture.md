@@ -149,7 +149,8 @@ BatchOrchestrator -> coordina todo
 | `NomenclatureParser` | Implementado | 40 pruebas. Lee los tres esquemas, distingue sesiones fuente de output, omite F1/CM al cargar lotes y construye nombres de output. |
 | `SessionMetadataResolver` | Implementado | Completa metadata y resuelve una fuente conductual explícita, CSV V1, MAT legacy o ausencia. |
 | `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee CSV V1 y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`. |
-| `VideoReader` | Implementado | 18 pruebas con video sintético y runtime nativo de OpenCV en macOS. |
+| `VideoReader` | Implementado | 20 pruebas con video sintético y runtime nativo de OpenCV en macOS; incluye preview JPEG reducido, validado manualmente en la UI de macOS. |
+| `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 2 pruebas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. La persistencia de `CameraProfile` queda pendiente. |
 | `FrameAnalyzer` | Implementado | 18 pruebas. Mide brillo de ROI y puede devolver el recorte de esa ROI. |
 | `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
 | Adaptador OpenCV a `LightDetection` | Siguiente entrega | Conectará un `Mat` real con `IFrameBrightnessSource`; no debe duplicar la lógica de brillo. |
@@ -565,7 +566,8 @@ malformado, punto decimal bajo cultura española, `lado=-2`, `tipo_evento=2`,
 
 **Función en simple:** Guardar y previsualizar cómo se debe transformar el video sin generar todavía el clip final.
 
-**Recibe:** decisiones del usuario sobre crop, rotación, flip y calidad.
+**Recibe:** decisiones del usuario sobre crop, giro opcional de 180°, espejo y
+calidad.
 
 **Entrega:** una configuración reutilizable para preview y exportación dentro de un `CameraProfile`.
 
@@ -576,14 +578,16 @@ transformaciones y `ClipExporter` en la etapa de salida. No depende de
 ```
 TransformConfig = {
   CropRect: { x, y, width, height },
-  Rotation,
+  Rotation: None | UpsideDown,
   Flip,
   OutputQuality,
 }
 ```
 
-La UI necesita mostrar crop/rotación/flip como preview y las coordenadas del
-crop (`x`, `y`, `width`, `height`). El flujo normal de exportación debe aplicar
+La UI necesita mostrar crop/giro de 180°/espejo como preview. Internamente el
+crop se conserva como `x`, `y`, `width`, `height`; para el usuario se muestran
+sus dos esquinas mediante los límites izquierda, arriba, derecha y abajo. El
+flujo normal de exportación debe aplicar
 los límites del segmento + crop + rotate + flip en un solo comando FFmpeg por
 clip cuando sea posible. Así se evita recodificar primero el video completo y
 después volver a recodificar cada clip.
@@ -592,6 +596,16 @@ Un `CameraProfile` agrupa esta transformación, las ROIs y su calibración. El
 usuario puede crear otro perfil desde la primera sesión donde cambió el encuadre
 y asignarlo a las sesiones posteriores. No se asume un número fijo de cambios de
 cámara ni que un perfil sirva para todo el protocolo.
+
+**Estado actual:** `VideoTransformConfig` y `VideoTransformPreviewRenderer` ya
+existen en `VideoBatchProcessor.Core`. La configuración conserva el recorte en
+píxeles del video fuente y aplica, en este orden, crop, giro de 180° y espejo a
+un JPEG de preview. La interfaz usa esta misma ruta y no transforma la imagen
+solo con JavaScript. El crop se elige en un modal amplio con Cropper.js 1.6.2
+local: el video se ajusta completo y fijo al área de trabajo, mientras el
+usuario ajusta el marco o los límites de sus dos esquinas. Por ahora cada
+configuración se conserva únicamente mientras el lote está abierto; falta
+guardarla dentro de un `CameraProfile` reutilizable.
 
 Un módulo `VideoCropRotate` puede existir como helper opcional para previews o casos especiales, pero no debe ser el camino principal del batch.
 
@@ -682,8 +696,8 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 
 | Bloque UI y vistas | Función en simple | Recibe | Entrega | Conexión con backend |
 |--------------------|-------------------|--------|---------|----------------------|
-| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta y ayudar al usuario a confirmar qué sesiones se van a procesar. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, fuente conductual resuelta, avisos y grupos de trabajo. | Implementado en `VideoBatchProcessor.App`; usa `NomenclatureParser` y `SessionMetadataResolver`. La visualización detallada de fuente queda para el siguiente ajuste de UI. |
-| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Puede abrir frames con `VideoReader` y validar ROIs con `FrameAnalyzer`. La detección real espera `BrightnessAdapter`. |
+| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
+| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. Faltan persistencia de perfil, ROIs y validación con `FrameAnalyzer`; la detección real espera `BrightnessAdapter`. |
 | `ProcessingReview` (`SegmentTimelineView`, `HabituationView`, `BehavioralFindingsView`) | Mostrar lo que el backend propuso y permitir confirmar o corregir casos importantes. | Segmentos, eventos conductuales, tipo de fuente, advertencias, hallazgos `InterEventCrossing`/`ShortSideChange` y duraciones de habituación. | Decisiones de revisión: aceptar, excluir, ajustar o marcar para revisión manual. | Se diseña ahora; se conecta después a `LightTimelineBuilder`, `IBehavioralSessionReader` y `SegmentPlanner`. |
 | `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Clips confirmados, opciones de salida y progreso. | `BatchReport`, logs y acceso a la carpeta de salida. | Se diseña ahora; se conecta después a `ClipExporter` y `BatchOrchestrator`. |
 
@@ -754,6 +768,23 @@ quede dentro del frame.
 **Validación/Pruebas:** abrir un video de prueba, cambiar orientación y crop,
 confirmar que las coordenadas se conservan y crear dos perfiles para videos con
 encuadres distintos.
+
+**Estado actual:** `VideoTransformConfig` ya guarda giro de 180°, espejo y
+crop; la interfaz permite elegirlos sobre un preview real y C# devuelve el JPEG
+transformado. El recorte se selecciona en un modal amplio: el video se muestra
+completo y fijo; el usuario ajusta el marco o los límites izquierda, arriba,
+derecha y abajo en píxeles fuente. Ninguna acción
+reescribe, renombra o exporta el video fuente. Esta configuración se mantiene
+por sesión mientras el lote está abierto.
+
+**Estado de validación:** el flujo mínimo se aprobó manualmente en macOS el
+12-07-2026 con una sesión real: giro de 180°, espejo, recorte visual, límites
+numéricos y restablecimiento a video completo.
+
+**Siguiente corte de implementación:** marcar las tres ROIs sobre el frame ya
+preparado y construir `LightCalibration`. Después se guardará un
+`CameraProfile` reutilizable; no adelantar la calibración de luces sin
+`FrameAnalyzer` y `BrightnessAdapter` listos para validarla.
 
 ### 14. LightCalibration
 
@@ -861,13 +892,13 @@ Paso 2:  BrightnessAdapter       -> conecta FrameAnalyzer con LightDetection
 
 Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente conductual opcional
          CameraProfile           -> reúne transformaciones, ROIs y calibración por grupo de sesiones
-         VideoTransformConfig    -> requiere VideoReader y preview de transformaciones
+         VideoTransformConfig    -> implementado: usa VideoReader y preview de transformaciones
 
 Paso 4:  ClipExporter            -> depende de SegmentPlanner + VideoTransformConfig
          BatchOrchestrator       -> depende de todo lo anterior
 
-Paso 5:  UI base                 -> carga, lista, preview, ROIs y calibración
-                                  usa módulos Core ya implementados
+Paso 5:  UI base                 -> carga, lista, preview y CameraSetup inicial ya integrados
+                                  ROIs y calibración esperan FrameAnalyzer/BrightnessAdapter
          UI de timeline/export   -> espera LightTimelineBuilder, SegmentPlanner,
                                   ClipExporter y BatchOrchestrator
          Pruebas con datos reales

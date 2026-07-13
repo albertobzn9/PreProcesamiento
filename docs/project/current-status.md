@@ -47,9 +47,11 @@ en la interfaz.
 | Fuente conductual CSV V1 | Implementada y probada | Resolver de rutas, validación estricta y lector de eventos/palanqueos. |
 | MAT histórico | Parcial | Ya normaliza matrices N×8/N×9, pero falta el lector binario real del archivo `.mat`. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
+| Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
+| CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`; todavía no guarda perfiles. |
 
-El estado actual compila y tiene **122 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 122 pruebas.
+El estado actual compila y tiene **126 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 126 pruebas.
 
 ## Interfaz Actual
 
@@ -88,10 +90,26 @@ El 12-07-2026 se verificó en macOS el primer flujo funcional de interfaz:
    conocida.
 5. Ofrecer `Quitar no compatibles (N)` cuando hay más de cinco; solo los retira
    del lote actual, nunca borra archivos físicos.
+6. Abrir una sesión fuente compatible y confirmar que el panel **PREVIEW**
+   muestra un frame útil, resolución, frames totales, FPS y duración coherentes.
 
-La siguiente pantalla no debe rehacer esta configuración: recibe las sesiones
-que sobreviven a esta revisión y añade una vista previa de frame mediante
-`VideoReader`.
+Al seleccionar una sesión fuente compatible, el panel **PREVIEW** abre su primer
+frame mediante `VideoReader` y muestra resolución, frames totales, FPS y
+duración. Esta prueba se aprobó manualmente el 12-07-2026 en macOS.
+
+El panel **CAMERA SETUP** ya permite girar 180°, espejar y abrir una herramienta
+de recorte en modal. El video completo queda fijo dentro del área de trabajo;
+el usuario mueve o redimensiona solo el marco de selección. La interfaz muestra
+los límites `izquierda`, `arriba`, `derecha` y `abajo` de las dos esquinas del
+recorte, aunque C# los conserva internamente como `x`, `y`, ancho y alto. Usa
+una copia local de Cropper.js 1.6.2, de licencia MIT, para que el producto no
+dependa de internet. La interfaz manda la decisión confirmada a C#;
+`VideoTransformPreviewRenderer` aplica crop, giro de 180° y espejo al JPEG de
+preview. Las coordenadas se guardan en píxeles del video fuente, no en píxeles
+de la imagen reducida. Así la decisión podrá reutilizarse al procesar el video
+completo. El flujo, incluidos límites numéricos, recorte completo, giro y
+espejo, se aprobó manualmente el 12-07-2026 en macOS. Esta configuración vive
+por ahora solo durante el lote abierto.
 
 ## Lo Que Falta
 
@@ -106,23 +124,23 @@ que sobreviven a esta revisión y añade una vista previa de frame mediante
 
 ### Backend posterior
 
-1. `VideoTransformConfig` y preview de crop/rotación/espejo.
+1. Guardado y asignación de `CameraProfile` reutilizable para varias sesiones.
 2. `ClipExporter` con FFmpeg/ffprobe internos.
 3. `BatchOrchestrator`, reporte final y decisiones de revisión.
 
-### Frontend inmediato
+### Próxima integración de interfaz y Core
 
-1. Mostrar fuente conductual, avisos y campos faltantes por sesión.
-2. Añadir el primer preview de frame usando `VideoReader`.
-3. Construir `CameraSetup` y `LightCalibration` solo cuando el flujo de frames
-   reales esté conectado.
+1. Marcar las tres ROIs y construir `LightCalibration` sobre el frame ya
+   preparado, cuando `BrightnessAdapter` esté listo para probarlas.
+2. Mostrar fuente conductual, avisos y campos faltantes por sesión cuando el
+   flujo de revisión llegue a necesitarlos; no bloquea `CameraSetup`.
 
 ## Riesgos Y Decisiones Pendientes
 
 - El resultado del módulo de luces todavía se prueba con brillo sintético; falta
   validarlo con videos reales y ROIs marcadas en una caja.
-- No hay todavía segmentación, crop aplicado ni exportación de clips. La app no
-  debe presentarse como procesador completo aún.
+- No hay todavía segmentación, crop aplicado al archivo completo ni exportación
+  de clips. La app no debe presentarse como procesador completo aún.
 - El código de output para `SoundOnly` sigue pendiente de acuerdo del lab.
 - El desfase video-conducta debe medirse por sesión; nunca usar un offset fijo.
 - `docs/design/stitch_lab_interface_ux_redesign/` conserva el export original
@@ -138,10 +156,11 @@ que sobreviven a esta revisión y añade una vista previa de frame mediante
 
 ## Próximo Orden Recomendado
 
-1. Añadir la vista previa del primer frame de una sesión con `VideoReader`.
-2. En paralelo, completar `BrightnessAdapter` y probar luces con un video real.
-3. Después construir `LightTimelineBuilder`; no empezar exportación antes de
-   tener transiciones visuales confiables.
+1. En paralelo, completar `BrightnessAdapter` y probar luces con un video real.
+2. Construir `LightCalibration` y validar las tres ROIs con `FrameAnalyzer`
+   sobre el frame ya preparado por `CameraSetup`.
+3. Con las ROIs y la calibración validadas, construir `LightTimelineBuilder`;
+   no empezar exportación antes de tener transiciones visuales confiables.
 
 ## Lectura Para Retomar
 

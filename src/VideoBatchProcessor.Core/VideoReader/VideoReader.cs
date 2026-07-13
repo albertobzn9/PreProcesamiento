@@ -129,6 +129,70 @@ public sealed class VideoReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Lee el primer frame disponible y lo convierte en JPEG para mostrarlo en
+    /// una interfaz. La imagen se reduce si rebasa <paramref name="maxDimension"/>,
+    /// pero la metadata conserva las dimensiones reales del video.
+    /// </summary>
+    public static bool TryReadPreview(
+        string filePath,
+        out VideoPreview? preview,
+        out string? error,
+        int maxDimension = 1280)
+    {
+        preview = null;
+        error = null;
+
+        if (maxDimension <= 0)
+        {
+            error = "El tamaño máximo del preview debe ser mayor que cero.";
+            return false;
+        }
+
+        if (!TryOpen(filePath, out var reader, out error))
+            return false;
+
+        try
+        {
+            using var openedReader = reader!;
+            if (!openedReader.MoveNext())
+            {
+                error = "No se pudo leer el primer frame del video.";
+                return false;
+            }
+
+            using var source = openedReader.Current.Clone();
+            using var previewFrame = ResizeForPreview(source, maxDimension);
+            Cv2.ImEncode(
+                ".jpg",
+                previewFrame,
+                out var jpegBytes,
+                new ImageEncodingParam(ImwriteFlags.JpegQuality, 85));
+
+            if (jpegBytes.Length == 0)
+            {
+                error = "No se pudo convertir el frame a una imagen de preview.";
+                return false;
+            }
+
+            preview = new VideoPreview
+            {
+                Metadata = openedReader.Metadata,
+                JpegBytes = jpegBytes,
+                PreviewWidth = previewFrame.Width,
+                PreviewHeight = previewFrame.Height,
+                FrameIndex = openedReader.CurrentFrameIndex,
+                Timestamp = openedReader.CurrentTimestamp,
+            };
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"No se pudo generar el preview: {ex.Message}";
+            return false;
+        }
+    }
+
     // ── Lectura secuencial ────────────────────────────────────────────────
 
     /// <summary>
@@ -236,6 +300,20 @@ public sealed class VideoReader : IDisposable
             Codec        = FourCcToString(fourcc),
             FilePath     = Path.GetFullPath(filePath),
         };
+    }
+
+    private static Mat ResizeForPreview(Mat source, int maxDimension)
+    {
+        var largestDimension = Math.Max(source.Width, source.Height);
+        if (largestDimension <= maxDimension)
+            return source.Clone();
+
+        var scale = maxDimension / (double)largestDimension;
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var resized = new Mat();
+        Cv2.Resize(source, resized, new Size(width, height), interpolation: InterpolationFlags.Area);
+        return resized;
     }
 
     private static string FourCcToString(int fourcc)

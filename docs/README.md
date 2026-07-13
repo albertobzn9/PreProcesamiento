@@ -32,7 +32,7 @@
 
 - [Eric Workplan](development/eric-workplan.md): estado verificado, reglas de trabajo y bloque activo a partir del 13 de julio de 2026.
 - [Behavioral Data And Video Synchronization Guide](development/mat-video-synchronization-guide.md): por qué la fuente conductual acompaña al video y cómo se asociarán sus eventos sin forzar una sincronía perfecta.
-- [SessionSetup Manual Test](development/session-setup-manual-test.md): cómo validar el primer módulo del frontend conectado al Core.
+- [SessionSetup And CameraSetup Manual Test](development/session-setup-manual-test.md): cómo validar carga, nomenclatura, preview y configuración visual de cámara conectados al Core.
 
 ## Código
 

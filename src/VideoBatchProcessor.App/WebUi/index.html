@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Video Batch Processor</title>
+  <link rel="stylesheet" href="vendor/cropper-1.6.2.min.css">
   <style>
     :root { --navy:#00215e; --text:#111827; --muted:#64748b; --line:#dbe2ea; --surface:#f7f9fb; --panel:#fff; --sidebar:#f2f4f6; --input:#f1f5f9; --green:#16a34a; --red:#dc2626; }
     * { box-sizing:border-box; }
@@ -52,6 +53,9 @@
     .hidden { display:none; }
     .empty { padding:48px 20px; color:var(--muted); text-align:center; }
     .file-row { display:grid; grid-template-columns:minmax(190px,1.6fr) minmax(100px,1fr) 70px 70px 76px 30px; align-items:center; gap:12px; min-height:70px; padding:10px 20px; border-bottom:1px solid var(--line); }
+    .file-row.selectable { cursor:pointer; }
+    .file-row.selectable:hover, .file-row.selected { background:#eff6ff; }
+    .file-row.selected { box-shadow:inset 3px 0 0 var(--navy); }
     .file-name { display:flex; align-items:center; gap:12px; min-width:0; font-weight:600; }
     .file-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .movie { color:#52647e; font-size:23px; }
@@ -67,6 +71,40 @@
     .tab.active { border-bottom-color:var(--navy); color:var(--navy); }
     .settings-card { margin-bottom:20px; padding:20px; border:1px solid var(--line); border-radius:6px; background:white; }
     .settings-card h3 { display:flex; gap:10px; align-items:center; margin:0 0 22px; padding-bottom:14px; border-bottom:1px solid var(--line); font-size:15px; letter-spacing:.08em; }
+    .preview-empty { color:#64748b; font-size:13px; line-height:1.45; }
+    .preview-stage { position:relative; display:flex; min-height:120px; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:4px; background:#0f172a; overflow:hidden; }
+    .preview-image { display:block; width:auto; max-width:100%; max-height:280px; object-fit:contain; }
+    .preview-details { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+    .preview-details div { padding:9px; border:1px solid var(--line); border-radius:4px; background:var(--input); }
+    .preview-details span { display:block; color:#64748b; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+    .preview-details strong { display:block; margin-top:3px; color:#1e293b; font-size:13px; }
+    .setup-help, .crop-summary { margin:0 0 16px; color:#64748b; font-size:12px; line-height:1.45; }
+    .camera-actions, .crop-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 14px; }
+    .transform-option, .crop-button { min-height:36px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#334155; font-size:12px; font-weight:700; }
+    .transform-option.active { border-color:var(--navy); background:#eaf0ff; color:var(--navy); }
+    .transform-option:disabled, .crop-button:disabled { cursor:not-allowed; opacity:.5; }
+    .crop-button.primary { border-color:var(--navy); background:var(--navy); color:#fff; }
+    .crop-modal { position:fixed; z-index:20; inset:0; display:grid; place-items:center; padding:30px; background:rgba(15,23,42,.58); }
+    .crop-modal.hidden { display:none; }
+    .crop-dialog { display:grid; grid-template-rows:auto minmax(0,1fr) auto; width:min(1120px,94vw); height:min(760px,88vh); border-radius:8px; background:#fff; box-shadow:0 24px 80px rgba(15,23,42,.35); overflow:hidden; }
+    .crop-dialog-head, .crop-dialog-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 22px; border-bottom:1px solid var(--line); }
+    .crop-dialog-head h2 { margin:0; font-size:18px; }
+    .crop-dialog-head p { margin:4px 0 0; color:#64748b; font-size:12px; }
+    .crop-dialog-footer { border-top:1px solid var(--line); border-bottom:0; }
+    .crop-dialog-body { display:grid; min-height:0; grid-template-columns:minmax(0,1fr) 230px; background:#f8fafc; }
+    .cropper-host { display:grid; min-width:0; min-height:0; overflow:hidden; padding:16px; border:2px solid #fff; background:#fff; }
+    .cropper-workspace { position:relative; width:100%; height:100%; min-width:0; min-height:0; background:#111827; }
+    .cropper-workspace img { display:block; max-width:100%; }
+    .crop-sidebar { overflow:auto; padding:22px; border-left:1px solid var(--line); background:#fff; }
+    .crop-sidebar h3 { margin:0 0 6px; font-size:14px; letter-spacing:.05em; }
+    .crop-sidebar p { margin:0 0 18px; color:#64748b; font-size:12px; line-height:1.45; }
+    .coordinate-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .coordinate-grid label { margin:0; font-size:11px; }
+    .coordinate-grid input { min-height:38px; margin:5px 0 0; }
+    .crop-tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:18px; }
+    .modal-button { min-height:38px; padding:0 14px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#334155; font-size:13px; font-weight:700; }
+    .modal-button.primary { border-color:var(--navy); background:var(--navy); color:#fff; }
+    .modal-button.danger { color:#b42318; }
     label { display:block; margin:0 0 8px; color:#52647e; font-size:13px; font-weight:700; letter-spacing:.04em; }
     input, select { width:100%; min-height:44px; margin-bottom:18px; padding:10px; border:1px solid #d8e0ea; border-radius:3px; background:var(--input); color:#334155; }
     input:last-child { margin-bottom:0; }
@@ -92,13 +130,22 @@
         <section class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Agregar videos"><div class="upload-icon">⇧</div><h2>Drag &amp; Drop Laboratory Videos</h2><p>Elige una carpeta con subcarpetas o videos individuales.</p><div class="drop-actions"><button class="drop-action primary" data-action="select-folder">Seleccionar carpeta</button><button class="drop-action" data-action="select-files">Seleccionar archivos</button></div></section>
         <section class="file-card"><div class="file-card-head"><h3 id="file-count">Loaded Files (0)</h3><div class="file-card-actions"><button id="remove-incompatible" class="remove-incompatible hidden" data-action="remove-incompatible"></button><button data-action="clear">Clear All</button></div></div><div id="file-list"><p class="empty">Aún no hay videos. Usa la zona superior para abrir el selector nativo.</p></div></section>
       </main>
-      <aside class="right"><div class="tabs"><button class="tab active">Transformación</button><button class="tab">Metadatos</button></div><section class="settings-card"><h3>✂&nbsp; TRIM</h3><label for="trim">Minutes (Total)</label><input id="trim" type="number" placeholder="0" min="0"></section><section class="settings-card"><h3>▤&nbsp; METADATOS GLOBALES</h3><label for="rat">ID Rata</label><input id="rat" placeholder="Ej.: R-402"><label for="sex">Sexo</label><select id="sex"><option>Macho</option><option>Hembra</option></select><label for="treatment">Tratamiento</label><input id="treatment" placeholder="Control / Fármaco A"><label for="phase">Fase</label><input id="phase" placeholder="Basal / Post-op"></section></aside>
+      <aside class="right"><div class="tabs"><button class="tab active">Transformación</button><button class="tab">Metadatos</button></div><section class="settings-card"><h3>▣&nbsp; PREVIEW</h3><p id="preview-state" class="preview-empty">Selecciona una sesión compatible de la lista para abrir su primer frame.</p><div id="preview-stage" class="preview-stage hidden"><img id="preview-image" class="preview-image" alt="Preview del video seleccionado"></div><div id="preview-details" class="preview-details hidden"><div><span>Fuente</span><strong id="preview-resolution">—</strong></div><div><span>Frames totales</span><strong id="preview-total-frames">—</strong></div><div><span>FPS</span><strong id="preview-fps">—</strong></div><div><span>Duración</span><strong id="preview-duration">—</strong></div></div></section><section class="settings-card"><h3>▧&nbsp; CAMERA SETUP</h3><p id="camera-help" class="setup-help">Abre una sesión para ajustar cómo se ve su caja. Estos cambios no modifican el video fuente.</p><label>Ajustes visuales</label><div class="camera-actions"><button id="toggle-rotation" class="transform-option camera-control" data-action="toggle-rotation" disabled>Girar 180°</button><button id="toggle-mirror" class="transform-option camera-control" data-action="toggle-mirror" disabled>Espejo horizontal</button></div><div class="crop-actions"><button id="open-crop" class="crop-button primary camera-control" data-action="open-crop" disabled>Abrir recorte</button><button id="reset-crop" class="crop-button camera-control" data-action="reset-crop" disabled>Usar video completo</button></div><p id="crop-summary" class="crop-summary">Recorte: video completo.</p></section><section class="settings-card"><h3>▤&nbsp; METADATOS GLOBALES</h3><label for="rat">ID Rata</label><input id="rat" placeholder="Ej.: R-402"><label for="sex">Sexo</label><select id="sex"><option>Macho</option><option>Hembra</option></select><label for="treatment">Tratamiento</label><input id="treatment" placeholder="Control / Fármaco A"><label for="phase">Fase</label><input id="phase" placeholder="Basal / Post-op"></section></aside>
     </div>
     <footer class="footer"><span class="footer-copy">Video Batch Processor. Estado global: sesiones.</span><div class="footer-links"><span>Documentation</span><span>System Logs</span><span>API Status</span></div><button class="process" data-action="process">▷&nbsp; Process Batch</button></footer>
   </div>
   <div class="notice" id="notice" role="status"></div>
+  <div id="crop-modal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="crop-modal-title">
+    <section class="crop-dialog">
+      <header class="crop-dialog-head"><div><h2 id="crop-modal-title">Seleccionar recorte</h2><p>El video siempre se muestra completo. Mueve o redimensiona el marco azul para elegir el área que se conservará.</p></div></header>
+      <div class="crop-dialog-body"><div id="cropper-host" class="cropper-host"><div id="cropper-workspace" class="cropper-workspace"><img id="cropper-image" alt="Imagen fuente para seleccionar el recorte"></div></div><aside class="crop-sidebar"><h3>LÍMITES DEL RECORTE</h3><p>Dos esquinas del video fuente: superior izquierda y inferior derecha. Los valores están en píxeles.</p><div class="coordinate-grid"><label for="crop-left">Izquierda<input id="crop-left" type="number" min="0" step="1"></label><label for="crop-top">Arriba<input id="crop-top" type="number" min="0" step="1"></label><label for="crop-right">Derecha<input id="crop-right" type="number" min="1" step="1"></label><label for="crop-bottom">Abajo<input id="crop-bottom" type="number" min="1" step="1"></label></div><div class="crop-tools"><button class="modal-button danger" data-action="full-crop">Video completo</button></div></aside></div>
+      <footer class="crop-dialog-footer"><span id="crop-modal-status" class="setup-help">La selección solo cambia cuando confirmas.</span><div><button class="modal-button" data-action="cancel-crop">Cancelar</button><button class="modal-button primary" data-action="apply-crop">Aplicar recorte</button></div></footer>
+    </section>
+  </div>
+  <script src="vendor/cropper-1.6.2.min.js"></script>
   <script>
-    const state = { sessions: [] };
+    const state = { sessions: [], selectedSessionId: null, preview: null, sourceImageDataUrl: null, camera: { rotation: 'None', mirrorHorizontally: false, crop: null } };
+    let cropper = null;
     const notice = document.getElementById('notice');
     function showNotice(message) { notice.textContent = message; notice.classList.add('show'); window.setTimeout(() => notice.classList.remove('show'), 3600); }
     function sendToHost(message) {
@@ -111,7 +158,9 @@
     }
     window.receiveFromHost = receiveFromHost;
     function handleHostMessage(message) {
-      if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const suffix = [outputs ? `${outputs} clip(s) de output rechazado(s)` : '', incompatible ? `${incompatible} nombre(s) no compatible(s)` : '', skipped ? `${skipped} sesión(es) F1/CM omitida(s)` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} video(s) analizado(s)${suffix ? `; ${suffix}.` : ' por C#.'}`); }
+      if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; state.selectedSessionId = null; resetPreview(); renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const suffix = [outputs ? `${outputs} clip(s) de output rechazado(s)` : '', incompatible ? `${incompatible} nombre(s) no compatible(s)` : '', skipped ? `${skipped} sesión(es) F1/CM omitida(s)` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} video(s) analizado(s)${suffix ? `; ${suffix}.` : ' por C#.'}`); }
+      if (message.type === 'cameraPreviewLoaded' && message.sessionId === state.selectedSessionId) renderCameraPreview(message);
+      if (message.type === 'previewFailed' || message.type === 'cameraPreviewFailed') showNotice(message.message);
       if (message.type === 'status') showNotice(message.message);
     }
     function renderSessions() {
@@ -127,7 +176,9 @@
         const statusTitle = session.inputMessage || status.label;
         const ready = status.tone;
         const label = status.label;
-        return `<div class="file-row"><div class="file-name"><b class="movie">▣</b><span title="${escapeHtml(session.fileName)}">${escapeHtml(session.fileName)}</span></div><div class="status ${ready}" title="${escapeHtml(statusTitle)}"><i class="dot"></i>${escapeHtml(label)}</div><div class="cell">${escapeHtml(session.phase || '—')}</div><div class="cell">Día ${escapeHtml(session.day || '—')}</div><div class="cell">Rata ${escapeHtml(session.rat || '—')}</div><button class="remove" aria-label="Quitar archivo" data-remove="${index}">×</button></div>`;
+        const selectable = session.isSourceSession ? 'selectable' : '';
+        const selected = session.sessionId === state.selectedSessionId ? 'selected' : '';
+        return `<div class="file-row ${selectable} ${selected}" ${session.isSourceSession ? `data-session-id="${escapeHtml(session.sessionId)}" role="button" tabindex="0"` : ''}><div class="file-name"><b class="movie">▣</b><span title="${escapeHtml(session.fileName)}">${escapeHtml(session.fileName)}</span></div><div class="status ${ready}" title="${escapeHtml(statusTitle)}"><i class="dot"></i>${escapeHtml(label)}</div><div class="cell">${escapeHtml(session.phase || '—')}</div><div class="cell">Día ${escapeHtml(session.day || '—')}</div><div class="cell">Rata ${escapeHtml(session.rat || '—')}</div><button class="remove" aria-label="Quitar archivo" data-remove="${index}">×</button></div>`;
       }).join('');
     }
     function describeNamingScheme(session) {
@@ -137,18 +188,48 @@
       return { label: 'Nombre no compatible', tone: 'warn' };
     }
     function incompatibleSessions() { return state.sessions.filter(session => session.namingScheme === 'Unknown'); }
+    function selectSession(session) { state.selectedSessionId = session.sessionId; renderSessions(); resetPreview(`Abriendo preview de ${session.fileName}...`); sendToHost({ type: 'selectSession', sessionId: session.sessionId }); }
+    function resetPreview(message = 'Selecciona una sesión compatible de la lista para abrir su primer frame.') { closeCropDialog(); state.preview = null; state.sourceImageDataUrl = null; state.camera = { rotation: 'None', mirrorHorizontally: false, crop: null }; const status = document.getElementById('preview-state'); status.textContent = message; status.classList.remove('hidden'); const image = document.getElementById('preview-image'); image.removeAttribute('src'); document.getElementById('preview-stage').classList.add('hidden'); document.getElementById('preview-details').classList.add('hidden'); updateCameraControls(); }
+    function renderCameraPreview(preview) { state.preview = { sourceWidth: Number(preview.width), sourceHeight: Number(preview.height), sourcePreviewWidth: Number(preview.sourcePreviewWidth), sourcePreviewHeight: Number(preview.sourcePreviewHeight) }; state.sourceImageDataUrl = preview.sourceImageDataUrl; state.camera = { rotation: preview.rotation || 'None', mirrorHorizontally: Boolean(preview.mirrorHorizontally), crop: preview.crop || null }; renderSessions(); const image = document.getElementById('preview-image'); image.src = preview.imageDataUrl; document.getElementById('preview-stage').classList.remove('hidden'); document.getElementById('preview-state').classList.add('hidden'); document.getElementById('preview-resolution').textContent = `${preview.width} × ${preview.height}`; document.getElementById('preview-total-frames').textContent = Number(preview.totalFrames).toLocaleString('es-MX'); document.getElementById('preview-fps').textContent = Number(preview.fps).toFixed(2); document.getElementById('preview-duration').textContent = formatDuration(preview.durationSeconds); document.getElementById('preview-details').classList.remove('hidden'); updateCameraControls(); }
+    function updateCameraControls() { const available = Boolean(state.preview); document.querySelectorAll('.camera-control').forEach(control => { control.disabled = !available; }); document.getElementById('toggle-rotation').classList.toggle('active', state.camera.rotation === 'UpsideDown'); document.getElementById('toggle-mirror').classList.toggle('active', state.camera.mirrorHorizontally); const crop = state.camera.crop; document.getElementById('reset-crop').disabled = !available || !crop; document.getElementById('camera-help').textContent = !available ? 'Abre una sesión para ajustar cómo se ve su caja. Estos cambios no modifican el video fuente.' : crop ? 'El preview muestra el recorte aplicado. Puedes abrir el recorte para ajustar sus límites o volver al video completo.' : 'Gira 180° o aplica espejo solo cuando haga falta. Abre el recorte para seleccionar el área útil de la caja.'; document.getElementById('crop-summary').textContent = crop ? `Recorte fuente: izquierda ${crop.x}, arriba ${crop.y}, derecha ${crop.x + crop.width}, abajo ${crop.y + crop.height} px.` : 'Recorte: video completo.'; }
+    function requestCameraPreview() { if (!state.preview || !state.selectedSessionId) return; sendToHost({ type: 'updateCameraSetup', sessionId: state.selectedSessionId, rotation: state.camera.rotation, mirrorHorizontally: state.camera.mirrorHorizontally, crop: state.camera.crop }); }
+    function updateCameraConfig(change) { state.camera = { ...state.camera, ...change }; updateCameraControls(); requestCameraPreview(); }
+    function openCropDialog() { if (!state.preview || !state.sourceImageDataUrl) return; closeCropDialog(); const modal = document.getElementById('crop-modal'); const image = document.getElementById('cropper-image'); image.src = state.sourceImageDataUrl; modal.classList.remove('hidden'); cropper = new Cropper(image, { viewMode: 2, dragMode: 'crop', autoCropArea: .82, responsive: true, restore: false, checkOrientation: false, background: false, movable: false, zoomable: false, zoomOnTouch: false, zoomOnWheel: false, toggleDragModeOnDblclick: false, transition: false, cropBoxMovable: true, cropBoxResizable: true, minCropBoxWidth: 1, minCropBoxHeight: 1, cropend() { syncCropCoordinates(); }, ready() { if (state.camera.crop) setCropperData(state.camera.crop); else syncCropCoordinates(); } }); }
+    function closeCropDialog() { if (cropper) { cropper.destroy(); cropper = null; } document.getElementById('crop-modal').classList.add('hidden'); }
+    function sourceCropToPreview(crop) { return { x: Math.round(crop.x * state.preview.sourcePreviewWidth / state.preview.sourceWidth), y: Math.round(crop.y * state.preview.sourcePreviewHeight / state.preview.sourceHeight), width: Math.round(crop.width * state.preview.sourcePreviewWidth / state.preview.sourceWidth), height: Math.round(crop.height * state.preview.sourcePreviewHeight / state.preview.sourceHeight) }; }
+    function previewCropToSource(data) { const sourceWidth = state.preview.sourceWidth; const sourceHeight = state.preview.sourceHeight; const previewWidth = state.preview.sourcePreviewWidth; const previewHeight = state.preview.sourcePreviewHeight; const left = clamp(Math.round(data.x * sourceWidth / previewWidth), 0, sourceWidth - 1); const top = clamp(Math.round(data.y * sourceHeight / previewHeight), 0, sourceHeight - 1); const right = clamp(Math.round((data.x + data.width) * sourceWidth / previewWidth), left + 1, sourceWidth); const bottom = clamp(Math.round((data.y + data.height) * sourceHeight / previewHeight), top + 1, sourceHeight); return { x: left, y: top, width: right - left, height: bottom - top }; }
+    function syncCropCoordinates() { if (!cropper || !state.preview) return; setCropCoordinateInputs(previewCropToSource(cropper.getData(true))); }
+    function setCropCoordinateInputs(crop) { document.getElementById('crop-left').value = crop.x; document.getElementById('crop-top').value = crop.y; document.getElementById('crop-right').value = crop.x + crop.width; document.getElementById('crop-bottom').value = crop.y + crop.height; }
+    function readCropCoordinateInputs() { const left = Number(document.getElementById('crop-left').value); const top = Number(document.getElementById('crop-top').value); const right = Number(document.getElementById('crop-right').value); const bottom = Number(document.getElementById('crop-bottom').value); if (![left, top, right, bottom].every(Number.isInteger) || left < 0 || top < 0 || right <= left || bottom <= top || right > state.preview.sourceWidth || bottom > state.preview.sourceHeight) return null; return { x: left, y: top, width: right - left, height: bottom - top }; }
+    function setCropperData(crop) { cropper.setData(sourceCropToPreview(crop)); setCropCoordinateInputs(crop); }
+    function updateCropperFromInputs() { if (!cropper) return; const crop = readCropCoordinateInputs(); if (crop) { setCropperData(crop); document.getElementById('crop-modal-status').textContent = 'Límites aplicados al marco.'; } else document.getElementById('crop-modal-status').textContent = 'Los límites deben quedar dentro del video y conservar un área válida.'; }
+    function applyCropFromDialog() { const crop = readCropCoordinateInputs(); if (!crop) { document.getElementById('crop-modal-status').textContent = 'Revisa las coordenadas: el recorte debe quedar dentro del video fuente.'; return; } closeCropDialog(); updateCameraConfig({ crop }); }
+    function formatDuration(seconds) { const total = Math.max(0, Math.round(Number(seconds) || 0)); const minutes = Math.floor(total / 60); const remaining = total % 60; return `${minutes}:${String(remaining).padStart(2, '0')}`; }
     function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]); }
     document.addEventListener('click', event => {
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (action === 'select-files') sendToHost({ type: 'selectFiles' });
       if (action === 'select-folder') sendToHost({ type: 'selectFolder' });
-      if (action === 'clear') { state.sessions = []; renderSessions(); }
+      if (action === 'toggle-rotation' && state.preview) updateCameraConfig({ rotation: state.camera.rotation === 'UpsideDown' ? 'None' : 'UpsideDown' });
+      if (action === 'toggle-mirror' && state.preview) updateCameraConfig({ mirrorHorizontally: !state.camera.mirrorHorizontally });
+      if (action === 'open-crop') openCropDialog();
+      if (action === 'reset-crop' && state.preview && state.camera.crop) updateCameraConfig({ crop: null });
+      if (action === 'cancel-crop') closeCropDialog();
+      if (action === 'apply-crop') applyCropFromDialog();
+      if (action === 'full-crop' && cropper) { const crop = { x: 0, y: 0, width: state.preview.sourceWidth, height: state.preview.sourceHeight }; setCropperData(crop); document.getElementById('crop-modal-status').textContent = 'Se usará el video completo al confirmar.'; }
+      if (action === 'clear') { state.sessions = []; state.selectedSessionId = null; resetPreview(); renderSessions(); }
       if (action === 'remove-incompatible') { const removed = incompatibleSessions().length; state.sessions = state.sessions.filter(session => session.namingScheme !== 'Unknown'); renderSessions(); showNotice(`${removed} video(s) quitado(s) de este lote. Los archivos siguen intactos en disco.`); }
-      if (action === 'new-batch') { state.sessions = []; renderSessions(); showNotice('Lote reiniciado.'); }
+      if (action === 'new-batch') { state.sessions = []; state.selectedSessionId = null; resetPreview(); renderSessions(); showNotice('Lote reiniciado.'); }
       if (action === 'process') showNotice('El procesamiento se conectará cuando estén listos los módulos posteriores.');
       const remove = event.target.closest('[data-remove]');
-      if (remove) { state.sessions.splice(Number(remove.dataset.remove), 1); renderSessions(); }
+      if (remove) { const removed = state.sessions.splice(Number(remove.dataset.remove), 1)[0]; if (removed?.sessionId === state.selectedSessionId) { state.selectedSessionId = null; resetPreview(); } renderSessions(); return; }
+      const sessionRow = event.target.closest('[data-session-id]');
+      if (sessionRow) { const session = state.sessions.find(item => item.sessionId === sessionRow.dataset.sessionId); if (session) selectSession(session); }
     });
+    document.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { const sessionRow = event.target.closest?.('[data-session-id]'); if (sessionRow) { event.preventDefault(); const session = state.sessions.find(item => item.sessionId === sessionRow.dataset.sessionId); if (session) selectSession(session); } } });
+    ['crop-left', 'crop-top', 'crop-right', 'crop-bottom'].forEach(id => document.getElementById(id).addEventListener('change', updateCropperFromInputs));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !document.getElementById('crop-modal').classList.contains('hidden')) closeCropDialog(); });
+    function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
     const dropzone = document.getElementById('dropzone');
     dropzone.addEventListener('click', event => { if (!event.target.closest('[data-action]')) sendToHost({ type: 'selectFiles' }); });
     dropzone.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') sendToHost({ type: 'selectFiles' }); });
