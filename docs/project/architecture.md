@@ -143,7 +143,7 @@ VideoTransformConfig -----------------------------------------------> ClipExport
 BatchOrchestrator -> coordina todo
 ```
 
-### Estado Verificado Del Backend (10 De Julio De 2026)
+### Estado Verificado Del Backend (13 De Julio De 2026)
 
 | Módulo | Estado | Evidencia o siguiente límite |
 |--------|--------|------------------------------|
@@ -156,7 +156,8 @@ BatchOrchestrator -> coordina todo
 | `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
-| `LightTimelineBuilder`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
+| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 7 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. |
+| `SegmentPlanner`, exportación y orquestación | Planeados | Se implementarán y probarán después de validar la timeline con un video real. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -358,20 +359,23 @@ caja y referencias OFF/ON elegidas por el investigador.
 
 **Función en simple:** Convierte muchas lecturas frame por frame en una historia más estable de encendidos y apagados reales.
 
-**Recibe:** una secuencia de `LightSample`.
+**Recibe:** una secuencia ordenada de `LightSample`. `LightTimelineScanner` es
+el adaptador que abre un video, aplica la configuración de cámara y produce
+esas muestras reales antes de llamar al builder.
 
 **Entrega:** un `LightTimeline`, que es un resumen ordenado de transiciones relevantes.
 
 **Depende de:** `LightDetection`.
 
 ```
-Build(samples[], detectionConfig) -> LightTimeline
+LightTimelineBuilder.Build(samples[]) -> LightTimeline
+
+LightTimelineScanner.Scan(video, transformConfig, lightConfig)
+  -> LightTimelineScanResult
 
 LightTimeline = {
-  Samples:     LightSample[],
-  Transitions: LightTransition[],
-  Warnings:    LightTransition[]   // NoiseLed
-  FoodLights:  LightTransition[]   // FoodLeft/FoodRight
+  SamplesAnalyzed: int,
+  Transitions:     LightTransition[]
 }
 ```
 
@@ -382,7 +386,20 @@ La idea práctica es esta:
 
 Eso evita que un frame brillante aislado se interprete como un evento real.
 
-**Prueba aislada:** Sí. Con secuencias sintéticas de `LightSample`.
+Cada `LightTransition` conserva el frame y tiempo donde comenzó el cambio
+candidato, además del frame que confirmó su estabilidad. Así no desplaza el
+inicio visual artificialmente tres frames hacia adelante solo por esperar la
+confirmación.
+
+**Estado actual:** implementado. El builder tiene pruebas aisladas para ON/OFF,
+artefactos de un frame, independencia de las tres luces y orden de muestras.
+El scanner tiene una prueba con video MJPEG sintético que confirma transiciones
+reales después de aplicar las mismas transformaciones usadas por la calibración.
+La interfaz ya permite ejecutar el escaneo una vez que ROIs y calibración están
+guardadas; la validación con un video CMC real queda pendiente.
+
+**Prueba aislada:** Sí. Con secuencias sintéticas de `LightSample` y un video
+sintético pequeño.
 
 ---
 

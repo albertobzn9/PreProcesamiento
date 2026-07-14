@@ -28,10 +28,9 @@ project work, not by this handoff.
 
 AB is now responsible for the project's remaining backend and frontend work:
 
-1. `LightTimelineBuilder` and its tests.
-2. `SegmentPlanner`, behavioral-source integration, and review findings.
-3. Reusable `CameraProfile` persistence.
-4. Timeline/review UI, export, batch orchestration, and validation with real
+1. `SegmentPlanner`, behavioral-source integration, and review findings.
+2. Reusable `CameraProfile` persistence.
+3. Review UI, export, batch orchestration, and validation with real
    CMC sessions.
 
 ## Verification Baseline
@@ -43,15 +42,17 @@ dotnet build VideoBatchProcessor.sln
 dotnet test VideoBatchProcessor.sln
 ```
 
-The accepted baseline on 13 July 2026 is **139 passing tests**. The manual
+The accepted baseline after the timeline implementation is **146 passing tests**. The manual
 CameraSetup, ROI, and calibration checks are in
 [SessionSetup, CameraSetup, LightMarker And Calibration Manual Test](session-setup-manual-test.md).
 
-## Next Module
+## Work Completed After The Handoff
 
-The next implementation is `LightTimelineBuilder`: it receives many
-`LightSample` values and emits stable ON/OFF transitions while ignoring isolated
-visual artifacts. It does not decide trials, ITIs, habituation, or export clips.
+`LightTimelineBuilder` and `LightTimelineScanner` are now implemented by the
+active project work. They convert `LightSample` values into stable ON/OFF
+transitions, ignore isolated artifacts and scan a prepared video using the same
+camera configuration and ROIs as calibration. They still do not decide trials,
+ITIs, habituation or export clips.
 
 ## References
 

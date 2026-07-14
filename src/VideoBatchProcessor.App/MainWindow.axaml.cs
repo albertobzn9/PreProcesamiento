@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, LightDetectionConfig> _lightConfigs = [];
     private readonly Dictionary<string, CalibrationFrameMeasurement> _calibrationFrames = [];
     private readonly Dictionary<string, SessionLightCalibration> _lightCalibrations = [];
+    private readonly Dictionary<string, LightTimelineScanResult> _lightTimelines = [];
 
     public MainWindow()
     {
@@ -68,6 +69,9 @@ public sealed partial class MainWindow : Window
                     break;
                 case "saveLightCalibration":
                     await SaveLightCalibrationAsync(document.RootElement);
+                    break;
+                case "analyzeLightTimeline":
+                    await AnalyzeLightTimelineAsync(document.RootElement);
                     break;
             }
         }
@@ -142,6 +146,7 @@ public sealed partial class MainWindow : Window
         _lightConfigs.Clear();
         _calibrationFrames.Clear();
         _lightCalibrations.Clear();
+        _lightTimelines.Clear();
         var sessions = entries
             .Except(skipped)
             .Select(entry =>
@@ -214,6 +219,7 @@ public sealed partial class MainWindow : Window
         {
             _lightConfigs.Remove(sessionId);
             ClearCalibrationState(sessionId);
+            _lightTimelines.Remove(sessionId);
         }
 
         if (!await SendCameraPreviewAsync(sessionId, sourcePreview, config))
@@ -262,6 +268,7 @@ public sealed partial class MainWindow : Window
         var previousCalibration = _lightCalibrations.GetValueOrDefault(sessionId);
         _lightConfigs[sessionId] = lightConfig;
         ClearCalibrationState(sessionId);
+        _lightTimelines.Remove(sessionId);
 
         object? restoredCalibration = null;
         var updateMessage = "Las tres regiones quedaron validadas para este video preparado.";
@@ -397,6 +404,7 @@ public sealed partial class MainWindow : Window
             var rebuilt = BuildCalibration(previousConfig, offFrame, activeFrame, foodSide);
             _lightConfigs[sessionId] = rebuilt.Config;
             _lightCalibrations[sessionId] = rebuilt.Calibration;
+            _lightTimelines.Remove(sessionId);
             await SendToWebAsync(new
             {
                 type = "lightCalibrationSaved",
@@ -409,6 +417,68 @@ public sealed partial class MainWindow : Window
         catch (ArgumentException exception)
         {
             await SendToWebAsync(new { type = "lightCalibrationRejected", message = exception.Message });
+        }
+    }
+
+    private async Task AnalyzeLightTimelineAsync(JsonElement message)
+    {
+        if (!TryGetSessionPreview(message, out var sessionId, out _)
+            || !_loadedSessions.TryGetValue(sessionId, out var entry))
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineRejected",
+                message = "Abre una sesión fuente antes de analizar sus luces.",
+            });
+            return;
+        }
+
+        if (!_lightConfigs.TryGetValue(sessionId, out var lightConfig)
+            || !_lightCalibrations.ContainsKey(sessionId))
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineRejected",
+                sessionId,
+                message = "Marca, guarda y calibra las tres luces antes de analizar el video.",
+            });
+            return;
+        }
+
+        var cameraConfig = _cameraConfigs.GetValueOrDefault(sessionId) ?? new VideoTransformConfig();
+        try
+        {
+            var result = await Task.Run(() => new LightTimelineScanner().Scan(
+                entry.Metadata.SourceVideoPath,
+                cameraConfig,
+                lightConfig));
+            _lightTimelines[sessionId] = result;
+
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineReady",
+                sessionId,
+                samplesAnalyzed = result.Timeline.SamplesAnalyzed,
+                transitions = result.Timeline.Transitions.Select(transition => new
+                {
+                    light = transition.Light.ToString(),
+                    wasOn = transition.WasOn,
+                    isOn = transition.IsOn,
+                    frameIndex = transition.FrameIndex,
+                    timeSeconds = transition.TimeSeconds,
+                    confirmedAtFrameIndex = transition.ConfirmedAtFrameIndex,
+                }),
+                message = $"Se analizaron {result.Timeline.SamplesAnalyzed:N0} frames y se detectaron {result.Timeline.Transitions.Count} cambios estables.",
+            });
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineRejected",
+                sessionId,
+                message = $"No se pudo analizar este video: {exception.Message}",
+            });
         }
     }
 

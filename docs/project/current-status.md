@@ -58,8 +58,8 @@ en la interfaz.
 | Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Guarda un frame OFF y otro de comida + `NoiseLed` ON; mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **139 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 139 pruebas.
+El estado actual compila y tiene **146 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 146 pruebas.
 
 ## Interfaz Actual
 
@@ -125,15 +125,20 @@ ROIs sobre un frame ON/OFF, guardar la calibración y volver a abrirla sin perde
 los frames elegidos. Si ajusta una ROI, el programa relee los mismos frames con
 la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visual.
 
+`LightTimelineBuilder` y `LightTimelineScanner` ya están conectados a una
+tarjeta pequeña de interfaz. Después de guardar la calibración, **Analizar
+luces** recorre el video completo en segundo plano, aplica la misma
+transformación/ROIs usadas al calibrar y muestra los primeros cambios ON/OFF
+estables. El backend pasó pruebas con secuencias y video sintéticos; falta la
+prueba manual con una sesión CMC real.
+
 ## Lo Que Falta
 
 ### Backend inmediato
 
-1. `LightTimelineBuilder`: recorrer un video ya calibrado, convertir lecturas
-   por frame en transiciones estables y descartar parpadeos aislados.
-2. Lector binario real de MAT histórico, manteniendo la normalización N×8/N×9
+1. Lector binario real de MAT histórico, manteniendo la normalización N×8/N×9
    ya existente.
-3. `SegmentPlanner`: proponer eventos, ITIs, habituación y hallazgos conductuales.
+2. `SegmentPlanner`: proponer eventos, ITIs, habituación y hallazgos conductuales.
 
 ### Backend posterior
 
@@ -148,8 +153,9 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
 1. Probar la calibración con una sesión donde se encienda el lado de comida
    opuesto al ya usado. Eso decide con evidencia si la referencia compartida
    provisional es suficiente o se requieren referencias directas separadas.
-2. Mostrar fuente conductual, avisos y campos faltantes por sesión cuando el
-   flujo de revisión llegue a necesitarlos; no bloquea `CameraSetup`.
+2. Ejecutar **Analizar luces** con una sesión CP o DIS conocida y comparar los
+   primeros encendidos/apagados mostrados con el video. Confirmar que crop,
+   giro y espejo no alteran las ROIs medidas.
 
 ## Riesgos Y Decisiones Pendientes
 
@@ -177,11 +183,10 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
 
 ## Próximo Orden Recomendado
 
-1. Hacer una prueba focalizada del lado de comida opuesto; no bloquea el diseño
-   del siguiente backend.
-2. Construir y probar `LightTimelineBuilder` sobre la calibración ya validada.
-   Su primera salida debe ser una lista revisable de encendidos y apagados
-   estables; todavía no necesita crear clips ni una pantalla nueva.
+1. Hacer una prueba focalizada del lado de comida opuesto.
+2. Ejecutar y revisar la timeline con una sesión CMC real conocida.
+3. Construir `SegmentPlanner` solo después de aceptar esas transiciones como
+   evidencia visual útil.
 
 ## Lectura Para Retomar
 
