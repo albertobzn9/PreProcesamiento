@@ -297,6 +297,8 @@ public sealed partial class MainWindow : Window
                     activeReference = ToWebCalibrationReference(activeFrame, activeToken, restoration.ActiveFrame.Preview!),
                     thresholds = ToWebThresholds(restoration.Rebuilt.Calibration),
                     directFoodSide = restoration.Rebuilt.Calibration.DirectFoodSide.ToString(),
+                    mode = restoration.Rebuilt.Calibration.Mode.ToString(),
+                    noiseLedEnabled = restoration.Rebuilt.Calibration.NoiseLed is not null,
                 };
                 updateMessage = "Las ROIs se actualizaron y los mismos frames OFF/ON se volvieron a medir con las nuevas regiones.";
             }
@@ -379,7 +381,7 @@ public sealed partial class MainWindow : Window
 
     private async Task SaveLightCalibrationAsync(JsonElement message)
     {
-        if (!TryReadCalibrationSave(message, out var sessionId, out var offToken, out var activeToken, out var foodSide, out var error))
+        if (!TryReadCalibrationSave(message, out var sessionId, out var offToken, out var activeToken, out var foodSide, out var mode, out var error))
         {
             await SendToWebAsync(new { type = "lightCalibrationRejected", message = error });
             return;
@@ -401,7 +403,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var rebuilt = BuildCalibration(previousConfig, offFrame, activeFrame, foodSide);
+            var rebuilt = BuildCalibration(previousConfig, offFrame, activeFrame, foodSide, mode);
             _lightConfigs[sessionId] = rebuilt.Config;
             _lightCalibrations[sessionId] = rebuilt.Calibration;
             _lightTimelines.Remove(sessionId);
@@ -411,7 +413,11 @@ public sealed partial class MainWindow : Window
                 sessionId,
                 thresholds = ToWebThresholds(rebuilt.Calibration),
                 directFoodSide = foodSide.ToString(),
-                message = "Calibración guardada para este lote. La otra luz de comida usa una referencia compartida provisional.",
+                mode = mode.ToString(),
+                noiseLedEnabled = rebuilt.Calibration.NoiseLed is not null,
+                message = mode == LightCalibrationMode.FoodOnly
+                    ? "Calibración segura guardada. El LED de ruido queda desactivado para esta sesión."
+                    : "Calibración guardada para este lote. La otra luz de comida usa una referencia compartida provisional.",
             });
         }
         catch (ArgumentException exception)
@@ -542,7 +548,12 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var rebuilt = BuildCalibration(lightConfig, offFrame.Measurement, activeFrame.Measurement, previousCalibration.DirectFoodSide);
+            var rebuilt = BuildCalibration(
+                lightConfig,
+                offFrame.Measurement,
+                activeFrame.Measurement,
+                previousCalibration.DirectFoodSide,
+                previousCalibration.Mode);
             return CalibrationRestorationResult.Succeeded(offFrame, activeFrame, rebuilt);
         }
         catch (ArgumentException exception)
@@ -555,19 +566,22 @@ public sealed partial class MainWindow : Window
         LightDetectionConfig lightConfig,
         CalibrationFrameMeasurement offFrame,
         CalibrationFrameMeasurement activeFrame,
-        LightId foodSide)
+        LightId foodSide,
+        LightCalibrationMode mode)
     {
         var foodDirect = CreateCalibration(foodSide, offFrame, activeFrame);
         var otherFoodSide = foodSide == LightId.FoodLeft ? LightId.FoodRight : LightId.FoodLeft;
         var sharedFood = CreateSharedFoodCalibration(otherFoodSide, offFrame, activeFrame, foodDirect);
-        var noise = CreateCalibration(LightId.NoiseLed, offFrame, activeFrame);
+        var noise = mode == LightCalibrationMode.FoodAndNoise
+            ? CreateCalibration(LightId.NoiseLed, offFrame, activeFrame)
+            : null;
         var left = foodSide == LightId.FoodLeft ? foodDirect : sharedFood;
         var right = foodSide == LightId.FoodRight ? foodDirect : sharedFood;
         var config = new LightDetectionConfig(
             WithThreshold(lightConfig.FoodLeft, left.AcceptedThreshold),
             WithThreshold(lightConfig.FoodRight, right.AcceptedThreshold),
-            WithThreshold(lightConfig.NoiseLed, noise.AcceptedThreshold));
-        return new RebuiltCalibration(config, new SessionLightCalibration(left, right, noise, foodSide));
+            WithThreshold(lightConfig.NoiseLed, noise?.AcceptedThreshold ?? double.MaxValue));
+        return new RebuiltCalibration(config, new SessionLightCalibration(left, right, noise, foodSide, mode));
     }
 
     private static bool TryReadCalibrationRequest(
@@ -602,12 +616,14 @@ public sealed partial class MainWindow : Window
         out string offToken,
         out string activeToken,
         out LightId foodSide,
+        out LightCalibrationMode mode,
         out string error)
     {
         sessionId = string.Empty;
         offToken = string.Empty;
         activeToken = string.Empty;
         foodSide = LightId.FoodLeft;
+        mode = LightCalibrationMode.FoodAndNoise;
         error = "La calibración no contiene las referencias necesarias.";
 
         if (!message.TryGetProperty("sessionId", out var sessionIdProperty) ||
@@ -616,13 +632,21 @@ public sealed partial class MainWindow : Window
             string.IsNullOrWhiteSpace(offTokenProperty.GetString()) ||
             !message.TryGetProperty("activeFrameToken", out var activeTokenProperty) ||
             string.IsNullOrWhiteSpace(activeTokenProperty.GetString()) ||
-            !message.TryGetProperty("foodSide", out var foodSideProperty))
+            !message.TryGetProperty("foodSide", out var foodSideProperty) ||
+            !message.TryGetProperty("mode", out var modeProperty))
             return false;
 
         if (!Enum.TryParse(foodSideProperty.GetString(), ignoreCase: true, out foodSide) ||
             foodSide is not (LightId.FoodLeft or LightId.FoodRight))
         {
             error = "Selecciona cuál luz de comida está encendida en la referencia activa.";
+            return false;
+        }
+
+        if (!Enum.TryParse(modeProperty.GetString(), ignoreCase: true, out mode) ||
+            !Enum.IsDefined(mode))
+        {
+            error = "Selecciona un modo de calibración válido.";
             return false;
         }
 
@@ -885,7 +909,7 @@ public sealed partial class MainWindow : Window
     {
         foodLeft = calibration.FoodLeft.AcceptedThreshold,
         foodRight = calibration.FoodRight.AcceptedThreshold,
-        noiseLed = calibration.NoiseLed.AcceptedThreshold,
+        noiseLed = calibration.NoiseLed?.AcceptedThreshold,
     };
 
     private Task<string?> SendToWebAsync(object message)
@@ -988,6 +1012,7 @@ public sealed partial class MainWindow : Window
     private sealed record SessionLightCalibration(
         LightCalibration FoodLeft,
         LightCalibration FoodRight,
-        LightCalibration NoiseLed,
-        LightId DirectFoodSide);
+        LightCalibration? NoiseLed,
+        LightId DirectFoodSide,
+        LightCalibrationMode Mode);
 }

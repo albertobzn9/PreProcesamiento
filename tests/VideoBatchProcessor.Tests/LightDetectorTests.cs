@@ -45,6 +45,20 @@ public class LightDetectorTests
     }
 
     [Fact]
+    public void CruceSeguro_LedDesactivado_NoGeneraEventosDeRuido()
+    {
+        var config = new LightDetectionConfig(
+            new LightRoi(LightId.FoodLeft, 10, 10, 30, 30, threshold: 180),
+            new LightRoi(LightId.FoodRight, 280, 10, 30, 30, threshold: 180),
+            new LightRoi(LightId.NoiseLed, 145, 10, 30, 30, threshold: double.MaxValue));
+
+        var sample = new LightDetector(config).Analyze(new FakeFrame(220, 10, 255), 0, 0.0);
+
+        Assert.True(sample.IsFoodLeftOn);
+        Assert.False(sample.IsNoiseLedOn);
+    }
+
+    [Fact]
     public void EnsayoPeligroso_FoodLeftYNoiseOn()
     {
         var s = DefaultDetector().Analyze(new FakeFrame(220,10,220), 0, 0.0);

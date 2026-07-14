@@ -153,7 +153,7 @@ BatchOrchestrator -> coordina todo
 | `VideoReader` | Implementado | 20 pruebas con video sintético y runtime nativo de OpenCV en macOS; incluye preview JPEG reducido, validado manualmente en la UI de macOS. |
 | `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 2 pruebas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. La persistencia de `CameraProfile` queda pendiente. |
 | `FrameAnalyzer` | Implementado | 20 pruebas. Mide brillo de ROI rectangular o circular y puede devolver el recorte de esa ROI. |
-| `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
+| `LightDetection` | Implementado | 21 pruebas. Convierte brillo ya medido en estados ON/OFF, incluida la desactivación explícita de `NoiseLed` durante `CS`. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
 | `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 7 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. |
@@ -333,11 +333,14 @@ El brillo puede venir de un adaptador como `IFrameBrightnessSource`, que permite
 
 La UI no debe pedir un único frame con las tres luces ON: `FoodLeft` y
 `FoodRight` no se encienden al mismo tiempo. Para la primera calibración basta
-con dos referencias: un frame donde las tres luces estén OFF y un frame de CP o
-DIS donde estén ON una luz de comida y `NoiseLed`. El usuario indica cuál lado
-de comida está encendido. Esa luz y el LED reciben una referencia directa; la
-otra luz de comida usa provisionalmente el mismo umbral y se etiqueta como
-referencia compartida hasta validarla con video real.
+con dos referencias: un frame donde las tres luces estén OFF y un frame activo.
+En `CS` (`FoodOnly`), el frame activo requiere una luz de comida; el LED queda
+desactivado para esa sesión y no produce transiciones. En `CP` o `DIS`
+(`FoodAndNoise`), el frame activo requiere una luz de comida y `NoiseLed`.
+El usuario indica cuál lado de comida está encendido. Esa luz y, cuando aplica,
+el LED reciben una referencia directa; la otra luz de comida usa
+provisionalmente el mismo umbral y se etiqueta como referencia compartida hasta
+validarla con video real.
 
 `LightCalibration` propone un umbral entre las medianas de brillo de ambos
 grupos. La primera interfaz lo guarda como umbral inicial; el ajuste manual del
@@ -889,20 +892,23 @@ de encendido/apagado con ejemplos visuales. Su trabajo termina al guardar una
 calibración revisable; no decide ensayos ni exporta clips.
 
 **Recibe:** frames ya preparados por `CameraSetup`, tres ROIs, un ejemplo OFF y
-un ejemplo ON de comida + `NoiseLed`.
+un ejemplo activo: solo comida para `CS`, o comida + `NoiseLed` para `CP`/`DIS`.
 
-**Entrega:** ROIs y `LightCalibration` por `FoodLeft`, `FoodRight` y `NoiseLed`,
-incluidas las referencias usadas para justificar cada umbral. La luz de comida
-sin ejemplo ON directo queda marcada como calibración compartida provisional.
+**Entrega:** ROIs y `LightCalibration` por `FoodLeft`, `FoodRight` y, cuando
+aplica, `NoiseLed`, incluidas las referencias usadas para justificar cada
+umbral. En `CS`, la ROI del LED se conserva como referencia espacial pero su
+lectura queda desactivada. La luz de comida sin ejemplo ON directo queda marcada
+como calibración compartida provisional.
 
 **Depende de:** `FrameAnalyzer` para medir las ROIs y `LightDetector` para
 probar el umbral. La lectura continua desde video real espera
 `BrightnessAdapter`; esta vista no debe recrear esa lógica.
 
-**Validación/Pruebas:** verificar que la barra muestre el frame seleccionado,
-que el frame OFF tenga las tres luces apagadas y que el frame activo tenga la
-luz de comida elegida junto con el LED. Probar después ambos lados de comida
-para decidir si la referencia compartida basta o requiere referencias separadas.
+**Validación/Pruebas:** verificar que la barra muestre el frame seleccionado y
+que el frame OFF tenga las tres luces apagadas. Para `CS`, confirmar una luz de
+comida activa sin exigir LED; para `CP`/`DIS`, confirmar comida y LED activos.
+Probar después ambos lados de comida para decidir si la referencia compartida
+basta o requiere referencias separadas.
 
 ---
 
