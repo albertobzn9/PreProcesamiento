@@ -19,6 +19,12 @@ El repositorio activo y canónico es:
 Drive conserva antecedentes, ejemplos y archivo histórico. No debe funcionar
 como una segunda copia activa del código o de los requisitos.
 
+## Responsabilidad Actual
+
+Desde el 13-07-2026, AB continúa el backend, frontend, pruebas e integración.
+La contribución de Eric terminó con el módulo de luces; su antiguo plan se
+conserva solo como [handoff histórico](../development/eric-workplan.md).
+
 ## Foto Del Proyecto
 
 El producto final es una aplicación de escritorio para transformar sesiones CMC
@@ -44,7 +50,7 @@ en la interfaz.
 | Lectura de video | Implementada y probada | `VideoReader` usa OpenCvSharp para metadata y frames. |
 | Medición de ROIs | Implementada y probada | `FrameAnalyzer` calcula brillo y valida ROIs. |
 | Detección de luces | Implementada y probada con datos sintéticos | `LightDetector` compara brillo contra umbrales. |
-| Fuente conductual CSV V1 | Implementada y probada | Resolver de rutas, validación estricta y lector de eventos/palanqueos. |
+| Fuente conductual CSV V1 | Implementada para contrato histórico de 9 columnas | Resolver de rutas, validación estricta y lector de eventos/palanqueos. Antes de automatizar CajaValentia falta aceptar su CSV actual de 10 columnas con `ensayo_cruce`. |
 | MAT histórico | Parcial | Ya normaliza matrices N×8/N×9, pero falta el lector binario real del archivo `.mat`. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
@@ -134,6 +140,8 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
 1. Guardado y asignación de `CameraProfile` reutilizable para varias sesiones.
 2. `ClipExporter` con FFmpeg/ffprobe internos.
 3. `BatchOrchestrator`, reporte final y decisiones de revisión.
+4. Lector del manifiesto de captura de CajaValentia y compatibilidad del CSV
+   actual de 10 columnas antes de habilitar procesamiento automático.
 
 ### Próxima validación focalizada
 
@@ -153,6 +161,9 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
   de clips. La app no debe presentarse como procesador completo aún.
 - El código de output para `SoundOnly` sigue pendiente de acuerdo del lab.
 - El desfase video-conducta debe medirse por sesión; nunca usar un offset fijo.
+- La integración futura con CajaValentia ya tiene contrato: OBS confirma la
+  grabación antes de crear `R0`, y un manifiesto une video, CSV y sesión. Falta
+  implementarla y validarla fuera de esta aplicación.
 - `docs/design/stitch_lab_interface_ux_redesign/` conserva el export original
   de Stitch como referencia trazable. `WebUi/index.html` es la implementación
   activa; no se deben editar ambas versiones como si fueran dos interfaces.
@@ -177,4 +188,4 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
 1. [Product Requirements](product-requirements.md)
 2. [Architecture](architecture.md)
 3. [Current synchronization rules](sincronizacion-video-mat-cajavalentia.md)
-4. [Eric Workplan](../development/eric-workplan.md)
+4. [Light Module Handoff](../development/eric-workplan.md)

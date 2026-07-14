@@ -14,7 +14,9 @@ Este documento reúne los requisitos y decisiones de uso del Video Batch Process
 
 **Objetivo:** Normalizar videos (crop, rotación, detección de luces, segmentación y exportación de clips) antes de DeepLabCut (DLC).
 
-**Desarrolladores:** Eric (backend por módulos) + AB (documentación, revisión, integración y frontend)
+**Responsabilidad actual:** AB (definición, desarrollo, revisión, integración y
+frontend). La contribución de Eric al módulo inicial de detección de luces quedó
+cerrada el 13-07-2026.
 
 **Fecha Inicial:** 01-05-2026
 
@@ -199,7 +201,10 @@ Para no hacer todo de golpe, dividimos el programa en partes chiquitas e indepen
 7. **Exportar clips** como videos individuales
 8. **Juntar todo** en una interfaz fácil de usar
 
-Cada parte se puede hacer y probar por separado. Esto permite que un ayudante (Eric, servicio social) haga varias de estas partes durante junio, y después yo pueda continuar integrando.
+Cada parte se puede hacer y probar por separado. El módulo inicial de detección
+de luces se entregó como una contribución independiente; el desarrollo restante
+continúa bajo la responsabilidad actual del proyecto, sin depender de otro
+desarrollador.
 
 ## Fuera De Alcance
 

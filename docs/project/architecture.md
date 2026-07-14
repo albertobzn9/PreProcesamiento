@@ -76,11 +76,12 @@ Piensa en esta sección como un inventario de preguntas que el sistema debe pode
 |--------|----------------|--------------|
 | `SessionMetadata` | Identidad de una sesión completa. | `scheme`, `initials`, `dateCode`, `phaseCode`, `day`, `rat`, `sex`, `treatment`, `sourceVideoPath`, `sourceBehavioralPath`, tipo de fuente y avisos. |
 | `BatchManifest` | Archivo/configuración que completa datos que no vienen en nombres legacy. | `metadataDefaults`, overrides por archivo, ruta conductual explícita, treatment, sex, initials. |
+| `SessionCaptureManifest` | Paquete externo futuro `session_manifest_v1.csv`, creado por CajaValentia al coordinar OBS y una sesión conductual. No sustituye el `BatchManifest` interno del lote. | `schemaVersion`, `sessionId`, estado, video, CSV principal, CSV de palanqueos opcional, confirmación OBS, inicio `R0` y fin de sesión. |
 | `CameraProfile` | Configuración visual reutilizable para un grupo de sesiones con el mismo encuadre. | `profileId`, sesiones asignadas, crop, rotation, flip, ROIs y calibración. |
 | `LightCalibration` | Evidencia usada para escoger y confirmar el umbral de una luz. | `lightId`, frames OFF/ON, medianas de brillo, umbral sugerido, umbral aceptado. |
 | `LightSample` | Estado de las tres luces en un frame o tiempo específico. | `frameIndex`, `timeSeconds`, `foodLeft`, `foodRight`, `noiseLed`, brillo por ROI. |
 | `LightTransition` | Cambio estable de una luz entre OFF y ON o entre ON y OFF. | `lightId`, `from`, `to`, `frameIndex`, `timeSeconds`, confianza. |
-| `BehavioralEvent` | Un evento/fila leído desde CSV V1 o MAT histórico. | `eventIndex`, `side`, `stim`, `eventType`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`. |
+| `BehavioralEvent` | Un evento/fila leído desde CSV V1 o MAT histórico. | `eventIndex`, `side`, `stim`, `eventType`, `leverLatency`, `absoluteTime`, `leftLeverPresses`, `rightLeverPresses`, `crossingLatency`, `crossingTrialIndex` opcional en el CSV actual de CajaValentia. |
 | `BehavioralPressEvent` | Presión individual opcional leída de `stem_palanqueos.csv`. | evento de sesión, tiempo, fase, ensayo nullable, tipo textual, lado y contadores raw. |
 | `VideoSegment` | Parte lógica de una sesión que el programa propone revisar o exportar como clip. | `segmentCode`, límites visuales, `warningStart`, `foodLightStart`, `matEventIndex`, estimación de desfase, confianza, tipo y resultado. |
 | `ExportClip` | Instrucción final para generar un archivo de salida. | `inputVideoPath`, `outputPath`, `segment`, `transformConfig`, `namingMetadata`. |
@@ -148,14 +149,14 @@ BatchOrchestrator -> coordina todo
 |--------|--------|------------------------------|
 | `NomenclatureParser` | Implementado | 40 pruebas. Lee los tres esquemas, distingue sesiones fuente de output, omite F1/CM al cargar lotes y construye nombres de output. |
 | `SessionMetadataResolver` | Implementado | Completa metadata y resuelve una fuente conductual explícita, CSV V1, MAT legacy o ausencia. |
-| `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee CSV V1 y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`. |
+| `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee el CSV V1 histórico de 9 columnas y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`, aceptar el CSV actual de CajaValentia de 10 columnas y leer el manifiesto externo de captura. |
 | `VideoReader` | Implementado | 20 pruebas con video sintético y runtime nativo de OpenCV en macOS; incluye preview JPEG reducido, validado manualmente en la UI de macOS. |
 | `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 2 pruebas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. La persistencia de `CameraProfile` queda pendiente. |
 | `FrameAnalyzer` | Implementado | 20 pruebas. Mide brillo de ROI rectangular o circular y puede devolver el recorte de esa ROI. |
 | `LightDetection` | Implementado | 20 pruebas. Convierte brillo ya medido en estados ON/OFF. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
-| `LightTimelineBuilder`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. |
+| `LightTimelineBuilder`, `SegmentPlanner`, transformaciones, exportación y orquestación | Planeados | Se implementarán y probarán por separado después de la ruta frame-a-luz. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -673,7 +674,8 @@ Run(config) -> BatchReport
     InputDir,
     OutputDir,
     CameraProfiles: CameraProfile[],
-    ManifestPath,
+    BatchManifestPath,            // configuración interna de este producto
+    SessionCaptureManifestPath?,  // paquete externo futuro de CajaValentia
     HabituationConfig: { TargetFinal, WarnShortFinal },
     UseBehavioralSource: bool,
   }
@@ -693,6 +695,58 @@ Flujo:
 11. genera `BatchReport` con resumen, warnings y discrepancias
 
 **Prueba aislada:** Parcial. Se puede validar con mocks, pero su valor real aparece al integrar todo.
+
+---
+
+### Integración Futura: CajaValentia, OBS Y Sesión Capturada
+
+**Función en simple:** Recibir una sesión que CajaValentia ya terminó de
+grabar, comprobar que sus archivos pertenecen juntos y entregarla al pipeline
+normal. Este producto no controla OBS ni la caja; solo consume el paquete
+cerrado.
+
+**Recibe:** una ruta explícita a `session_manifest_v1.csv`, más el perfil de
+cámara que se aplicará a ese video.
+
+**Entrega:** una entrada validada para `BatchOrchestrator`: identidad de sesión,
+video, CSV conductual principal, CSV de palanqueos opcional y timestamps que
+permiten auditar el orden de captura.
+
+**Depende de:** `SessionMetadataResolver`, `BehavioralData`, `VideoReader` y,
+después, `BatchOrchestrator`. La futura clase propuesta es
+`SessionCaptureManifestReader`; no está implementada todavía.
+
+```text
+CajaValentia crea session_id y manifiesto
+  -> OBS confirma grabación
+  -> CajaValentia crea R0 y ejecuta la tarea
+  -> video + CSV + manifiesto status=completed
+  -> SessionCaptureManifestReader valida el paquete
+  -> BatchOrchestrator ejecuta el pipeline normal
+```
+
+Reglas que toda actualización de arquitectura debe conservar:
+
+1. `BatchManifest` es configuración interna del lote; `SessionCaptureManifest`
+   es evidencia externa de una sola sesión. Nunca se intercambian ni se usan
+   como si fueran el mismo archivo.
+2. Solo se procesa automáticamente un manifiesto con `status=completed`, video
+   existente y CSV principal existente. Rutas explícitas del manifiesto ganan a
+   cualquier búsqueda por nombre.
+3. `toc(R0)` y los timestamps visuales se conservan raw. El programa calcula
+   diferencias para revisión, pero no reescribe los tiempos conductuales.
+4. El lector debe identificar la versión del CSV: mantener soporte histórico
+   de 9 columnas y añadir el formato actual de CajaValentia de 10 columnas,
+   incluyendo `ensayo_cruce`.
+5. Un fallo de OBS, ruta faltante o manifiesto incompleto produce un error
+   revisable; nunca un lote que adivina qué video corresponde a qué CSV.
+
+**Prueba aislada:** Sí. Fixtures de manifiesto válido, incompleto, fallido,
+rutas cruzadas, CSV de 9/10 columnas y video ausente. Las pruebas iniciales se
+harán sin animales.
+
+La especificación completa de este límite entre repositorios vive en
+[CajaValentia Session Capture Integration](cajavalentia-session-capture-integration.md).
 
 ---
 
@@ -915,7 +969,8 @@ Paso 1:  NomenclatureParser      -> independiente
 Paso 2:  BrightnessAdapter       -> conecta FrameAnalyzer con LightDetection
          LightDetection          -> depende de BrightnessAdapter solo cuando se conecta a frames reales
          LightTimelineBuilder    -> depende de LightDetection
-         BehavioralData          -> resolución y CSV V1 ya implementados; falta lector binario MAT
+         BehavioralData          -> resolución y CSV V1 histórico ya implementados; falta lector binario MAT
+                                  y compatibilidad con el CSV actual de 10 columnas
 
 Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente conductual opcional
          CameraProfile           -> reúne transformaciones, ROIs y calibración por grupo de sesiones
@@ -923,6 +978,8 @@ Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente con
 
 Paso 4:  ClipExporter            -> depende de SegmentPlanner + VideoTransformConfig
          BatchOrchestrator       -> depende de todo lo anterior
+         SessionCaptureManifestReader -> valida una sesión terminada de CajaValentia
+                                          antes de entregarla a BatchOrchestrator
 
 Paso 5:  UI base                 -> carga, lista, preview, CameraSetup, ROIs y calibración inicial integrados y validados
                                   falta validar la referencia compartida con el lado opuesto
@@ -945,7 +1002,9 @@ El programa guarda/lee un archivo YAML o JSON con la configuración de cada lote
 # config_video_batch.yaml
 input_dir: "/videos/exp_0126_dis/"
 output_dir: "/videos/procesados/"
-manifest_path: "/videos/exp_0126_dis/batch_manifest.yaml"
+batch_manifest_path: "/videos/exp_0126_dis/batch_manifest.yaml"
+# Futuro: ruta explícita al paquete de una sesión terminada por CajaValentia.
+# session_capture_manifest_path: "/sesiones/cv-20260713/session_manifest_v1.csv"
 metadata_defaults:
   initials: "abs"
   sex: "m"

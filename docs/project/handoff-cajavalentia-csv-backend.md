@@ -58,6 +58,13 @@ debe descubrir como archivo conductual principal.
 
 ### `stem.csv`: Eventos/Resultados
 
+> **Estado histórico del handoff:** esta sección documenta el contrato V1 de
+> nueve columnas que el lector actual implementó. CajaValentia validó después
+> un CSV actual de diez columnas con `ensayo_cruce`. Antes de integrar sesiones
+> automáticas, usar el contrato versionado de
+> [captura de sesión](cajavalentia-session-capture-integration.md); no tratar
+> este encabezado V1 como la exportación actual de CajaValentia.
+
 Una fila por resultado registrado, en orden cronologico de MATLAB. Encabezado
 exacto:
 

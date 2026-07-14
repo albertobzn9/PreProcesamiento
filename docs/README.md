@@ -10,6 +10,7 @@
 - [Architecture Review Log](project/architecture-review-log.md): decisiones aplicadas y pendientes de diseño retirados del documento principal.
 - [CajaValentia Video-Behavior Synchronization](project/sincronizacion-video-mat-cajavalentia.md): especificación para medir, estimar y reportar el desfase entre señales visuales y eventos conductuales.
 - [CajaValentia CSV Backend Handoff](project/handoff-cajavalentia-csv-backend.md): contrato de transición para leer CSV nuevos sin perder soporte a `.mat` históricos.
+- [CajaValentia Session Capture Integration](project/cajavalentia-session-capture-integration.md): contrato futuro para coordinar OBS, reloj conductual, manifiesto de sesión y análisis posterior.
 - [Future Integration Context](project/future-integration-context.md): horizonte compartido con CajaValentia y reglas de sesión que este proyecto debe respetar desde ahora.
 
 ## Protocol
@@ -30,7 +31,7 @@
 
 ## Development
 
-- [Eric Workplan](development/eric-workplan.md): estado verificado, reglas de trabajo y bloque activo a partir del 13 de julio de 2026.
+- [Light Module Handoff](development/eric-workplan.md): cierre de la contribución de Eric y punto de partida para el desarrollo restante.
 - [Behavioral Data And Video Synchronization Guide](development/mat-video-synchronization-guide.md): por qué la fuente conductual acompaña al video y cómo se asociarán sus eventos sin forzar una sincronía perfecta.
 - [SessionSetup, CameraSetup, LightMarker And Calibration Manual Test](development/session-setup-manual-test.md): cómo validar carga, nomenclatura, preview, configuración de cámara, marcado de luces y calibración ON/OFF conectados al Core.
 

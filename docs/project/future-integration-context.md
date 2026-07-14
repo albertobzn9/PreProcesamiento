@@ -3,8 +3,9 @@
 ## Purpose
 
 This document records the one-to-two-year context shared by CajaValentia and
-Video Batch Processor. It guides present design decisions, but it is **not** a
-request to integrate both applications during the current semester.
+Video Batch Processor. It guides present design decisions. The session-capture
+contract is now defined, but its runtime implementation remains a later,
+validated integration phase.
 
 The source planning document is maintained in:
 
@@ -20,9 +21,11 @@ This semester, both projects advance separately:
 - **Video Batch Processor** reads video, metadata, and behavioral sources (CSV V1 or historical `.mat`) to plan and
   export reviewable video segments.
 
-Neither project should start, control, or depend on the other at runtime yet.
-The immediate goal for this repository is a reviewable processing pipeline, not
-a unified application.
+Neither project has a runtime dependency today. The immediate goal for this
+repository is a reviewable processing pipeline, not a unified application.
+The approved future direction is that CajaValentia coordinates OBS first and
+then starts its behavioral clock, leaving a manifest that this application can
+process after the session.
 
 ## Future Outcome
 
@@ -56,7 +59,7 @@ The backend should preserve these capabilities while it is built:
 
 ## What Is Deliberately Out Of Scope Now
 
-- A runtime dependency on CajaValentia.
+- Implementing the CajaValentia/OBS runtime dependency inside this repository.
 - A production database or a shared live service.
 - A new hardware controller or a replacement of the current MATLAB system.
 - Premature assumptions about the final orchestrator technology.
@@ -79,5 +82,6 @@ At the end of this semester, the useful shared foundation is:
 - [Historical MAT Format](../reference/mat-format.md): historical behavioral data available
   to the processor alongside CSV V1.
 - [CajaValentia Video-Behavior Synchronization](sincronizacion-video-mat-cajavalentia.md): current rule for matching visual and MATLAB time references.
+- [CajaValentia Session Capture Integration](cajavalentia-session-capture-integration.md): approved future contract for OBS confirmation, `R0`, manifest and automatic handoff.
 - [Operational Terms](../reference/operational-terms.md): shared operational
   meanings used by parsers, segmenters, and exporters.

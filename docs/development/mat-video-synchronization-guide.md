@@ -148,4 +148,4 @@ video-to-event associations.
 - [Operational Terms](../reference/operational-terms.md)
 - [Architecture](../project/architecture.md)
 - [CajaValentia Video-Behavior Synchronization](../project/sincronizacion-video-mat-cajavalentia.md)
-- [Eric Workplan](eric-workplan.md)
+- [Light Module Handoff](eric-workplan.md)

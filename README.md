@@ -51,7 +51,7 @@ Proyecto en fase de backend base + primera integración de interfaz.
 - [Arquitectura](docs/project/architecture.md)
 - [Sincronización video-conducta con CajaValentia](docs/project/sincronizacion-video-mat-cajavalentia.md)
 - [Contexto de integración futura](docs/project/future-integration-context.md)
-- [Plan de trabajo activo de Eric](docs/development/eric-workplan.md)
+- [Handoff del módulo de luces](docs/development/eric-workplan.md)
 
 ## Archivo Paralelo En Drive
 

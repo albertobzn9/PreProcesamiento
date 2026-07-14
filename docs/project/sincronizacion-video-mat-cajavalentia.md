@@ -33,8 +33,12 @@ Los `.mat` históricos siguen siendo fuente legacy. Las sesiones nuevas de
 de evento conductual. El contrato completo del CSV está en el
 [handoff de backend](handoff-cajavalentia-csv-backend.md).
 
-El CSV principal conserva las nueve columnas de `Resultados` con encabezados
-explícitos. La equivalencia temporal es:
+El CSV actual de CajaValentia conserva diez columnas de `Resultados`, incluida
+`ensayo_cruce`. El backend de esta aplicación todavía acepta la versión previa
+de nueve columnas; antes de automatizar sesiones nuevas debe incorporar un
+lector versionado de diez columnas. Esta diferencia se controla en el
+[contrato de captura de sesión](cajavalentia-session-capture-integration.md).
+La equivalencia temporal de las primeras nueve columnas es:
 
 ```text
 TiempoAbs  -> tiempo_absoluto_s
@@ -280,10 +284,13 @@ medida. No debe reducir todo a un solo delay global.
 ## Por Qué La Integración Futura Lo Resolverá Mejor
 
 Hoy video y CajaValentia empiezan con relojes separados, por lo que el programa
-debe reconstruir la relación a partir de los datos. En una integración futura,
-la captura de video y la tarea conductual podrán recibir la misma identidad de
-sesión y timestamps compartidos. Entonces estas diferencias se podrán medir
-desde el origen, sin hacer esta reconstrucción posterior.
+debe reconstruir la relación a partir de los datos. En la integración futura,
+CajaValentia pedirá a OBS confirmar que ya graba y solo entonces creará `R0`.
+Un manifiesto de sesión conservará esa identidad, orden y rutas de archivos.
+Esto elimina las adivinanzas de asociación y permite medir desde el origen las
+diferencias residuales; no promete una sincronía de frame perfecta por sí sola.
+El contrato completo está en
+[CajaValentia Session Capture Integration](cajavalentia-session-capture-integration.md).
 
 ## Fuente Técnica
 
