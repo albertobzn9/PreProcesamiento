@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using VideoBatchProcessor.Core.FrameAnalyzer;
 using VideoBatchProcessor.Core.LightDetection;
 using VideoBatchProcessor.Core.Nomenclature;
@@ -428,7 +429,7 @@ public sealed partial class MainWindow : Window
 
     private async Task AnalyzeLightTimelineAsync(JsonElement message)
     {
-        if (!TryGetSessionPreview(message, out var sessionId, out _)
+        if (!TryGetSessionPreview(message, out var sessionId, out var sourcePreview)
             || !_loadedSessions.TryGetValue(sessionId, out var entry))
         {
             await SendToWebAsync(new
@@ -451,13 +452,38 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!TryReadTimelineRange(message, sourcePreview.Metadata.TotalFrames, out var scanRange, out var rangeError))
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineRejected",
+                sessionId,
+                message = rangeError,
+            });
+            return;
+        }
+
         var cameraConfig = _cameraConfigs.GetValueOrDefault(sessionId) ?? new VideoTransformConfig();
         try
         {
+            var progress = new Progress<LightTimelineScanProgress>(update =>
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    await SendToWebAsync(new
+                    {
+                        type = "lightTimelineProgress",
+                        sessionId,
+                        framesProcessed = update.FramesProcessed,
+                        totalFrames = update.TotalFrames,
+                        percent = update.Percent,
+                    });
+                }));
             var result = await Task.Run(() => new LightTimelineScanner().Scan(
                 entry.Metadata.SourceVideoPath,
                 cameraConfig,
-                lightConfig));
+                lightConfig,
+                scanRange: scanRange,
+                progress: progress));
             _lightTimelines[sessionId] = result;
 
             await SendToWebAsync(new
@@ -465,6 +491,8 @@ public sealed partial class MainWindow : Window
                 type = "lightTimelineReady",
                 sessionId,
                 samplesAnalyzed = result.Timeline.SamplesAnalyzed,
+                startFrame = scanRange.StartFrame,
+                endFrame = scanRange.EndFrame,
                 transitions = result.Timeline.Transitions.Select(transition => new
                 {
                     light = transition.Light.ToString(),
@@ -485,6 +513,49 @@ public sealed partial class MainWindow : Window
                 sessionId,
                 message = $"No se pudo analizar este video: {exception.Message}",
             });
+        }
+    }
+
+    private static bool TryReadTimelineRange(
+        JsonElement message,
+        long totalFrames,
+        out LightTimelineScanRange range,
+        out string error)
+    {
+        range = null!;
+        error = "El intervalo de análisis no es válido.";
+
+        if (totalFrames is <= 0 or > int.MaxValue)
+        {
+            error = "La duración del video no permite elegir un intervalo de frames válido.";
+            return false;
+        }
+
+        var availableFrames = (int)totalFrames;
+        if (!message.TryGetProperty("scanRange", out var rangeProperty) || rangeProperty.ValueKind == JsonValueKind.Null)
+        {
+            range = new LightTimelineScanRange(0, availableFrames - 1);
+            return true;
+        }
+
+        if (rangeProperty.ValueKind != JsonValueKind.Object ||
+            !rangeProperty.TryGetProperty("startFrame", out var startProperty) || !startProperty.TryGetInt32(out var startFrame) ||
+            !rangeProperty.TryGetProperty("endFrame", out var endProperty) || !endProperty.TryGetInt32(out var endFrame))
+        {
+            error = "El intervalo debe indicar un frame inicial y un frame final enteros.";
+            return false;
+        }
+
+        range = new LightTimelineScanRange(startFrame, endFrame);
+        try
+        {
+            range.Validate(availableFrames);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            error = exception.Message;
+            return false;
         }
     }
 

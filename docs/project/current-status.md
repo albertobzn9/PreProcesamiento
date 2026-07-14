@@ -55,11 +55,11 @@ en la interfaz.
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
 | CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`; todavía no guarda perfiles. |
-| Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado. |
+| Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **147 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 147 pruebas.
+El estado actual compila y tiene **149 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 149 pruebas.
 
 ## Interfaz Actual
 
@@ -127,8 +127,9 @@ la nueva región y actualiza los umbrales; no le pide repetir la búsqueda visua
 
 `LightTimelineBuilder` y `LightTimelineScanner` ya están conectados a una
 tarjeta pequeña de interfaz. Después de guardar la calibración, **Analizar
-luces** recorre el video completo en segundo plano, aplica la misma
-transformación/ROIs usadas al calibrar y muestra los primeros cambios ON/OFF
+luces** puede recorrer el video completo o un intervalo elegido por tiempo o
+por frames. Aplica la misma transformación/ROIs usadas al calibrar, muestra
+progreso real por frames procesados y presenta los primeros cambios ON/OFF
 estables. El backend pasó pruebas con secuencias y video sintéticos; falta la
 prueba manual con una sesión CMC real.
 

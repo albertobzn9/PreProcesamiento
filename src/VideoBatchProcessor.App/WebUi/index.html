@@ -163,6 +163,18 @@
     .timeline-events { margin-top:12px; border-top:1px solid var(--line); color:#475569; font-size:12px; line-height:1.45; }
     .timeline-event { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #eef2f6; }
     .timeline-event strong { color:#1e293b; }
+    .timeline-progress { margin-top:12px; }
+    .timeline-progress-meta { display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; color:#52647e; font-size:12px; font-variant-numeric:tabular-nums; }
+    .timeline-progress-track { height:7px; overflow:hidden; border-radius:999px; background:#dce5f0; }
+    .timeline-progress-fill { width:0; height:100%; border-radius:inherit; background:var(--navy); transition:width .16s linear; }
+    .timeline-range { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+    .timeline-range-modes { display:flex; gap:7px; margin-bottom:9px; }
+    .timeline-range-modes button { flex:1; min-height:32px; border:1px solid #b8c7db; border-radius:4px; background:#fff; color:#52647e; font-size:12px; font-weight:700; }
+    .timeline-range-modes button.active { border-color:var(--navy); background:#eaf0ff; color:var(--navy); }
+    .timeline-range-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+    .timeline-range-grid label { margin:0; font-size:11px; }
+    .timeline-range-grid input { min-height:34px; margin:4px 0 0; padding:6px 8px; font-size:13px; }
+    .timeline-range-hint { margin:8px 0 0; color:#64748b; font-size:11px; line-height:1.35; }
     label { display:block; margin:0 0 8px; color:#52647e; font-size:13px; font-weight:700; letter-spacing:.04em; }
     input, select { width:100%; min-height:44px; margin-bottom:18px; padding:10px; border:1px solid #d8e0ea; border-radius:3px; background:var(--input); color:#334155; }
     input:last-child { margin-bottom:0; }
@@ -216,7 +228,7 @@
   </div>
   <script src="vendor/cropper-1.6.2.min.js"></script>
   <script>
-    const state = { sessions: [], selectedSessionId: null, preview: null, sourceImageDataUrl: null, imageDataUrl: null, camera: { rotation: 'None', mirrorHorizontally: false, crop: null }, lightRois: null, draftLightRois: null, roiDisplay: null, activeLight: 'foodLeft', roiZoom: 1, roiPan: { x: 0, y: 0 }, roiPanMode: false, calibration: { frame: null, offReference: null, activeReference: null, foodSide: 'FoodLeft', saved: null, requestId: 0 }, lightTimeline: null, timelineRunning: false };
+    const state = { sessions: [], selectedSessionId: null, preview: null, sourceImageDataUrl: null, imageDataUrl: null, camera: { rotation: 'None', mirrorHorizontally: false, crop: null }, lightRois: null, draftLightRois: null, roiDisplay: null, activeLight: 'foodLeft', roiZoom: 1, roiPan: { x: 0, y: 0 }, roiPanMode: false, calibration: { frame: null, offReference: null, activeReference: null, foodSide: 'FoodLeft', saved: null, requestId: 0 }, lightTimeline: null, timelineRunning: false, timelineProgress: null, timelineRangeMode: 'time' };
     let cropper = null;
     let roiInteraction = null;
     let calibrationRequestTimer = null;
@@ -235,7 +247,7 @@
     function installTimelineCard() {
       const calibrationCard = document.getElementById('open-calibration')?.closest('.settings-card');
       if (!calibrationCard || document.getElementById('analyze-light-timeline')) return;
-      calibrationCard.insertAdjacentHTML('afterend', '<section class="settings-card"><h3>◒&nbsp; TIMELINE DE LUCES</h3><p id="timeline-help" class="setup-help">Cuando la calibración esté lista, analiza el video completo para detectar encendidos y apagados estables.</p><button id="analyze-light-timeline" class="crop-button primary" data-action="analyze-light-timeline" disabled>Analizar luces</button><p id="timeline-summary" class="crop-summary">Timeline: pendiente.</p><div id="timeline-events" class="timeline-events hidden"></div></section>');
+      calibrationCard.insertAdjacentHTML('afterend', '<section class="settings-card"><h3>◒&nbsp; TIMELINE DE LUCES</h3><p id="timeline-help" class="setup-help">Cuando la calibración esté lista, analiza el video completo para detectar encendidos y apagados estables.</p><div class="timeline-range"><label>Intervalo a analizar</label><div class="timeline-range-modes"><button class="timeline-range-control active" data-action="timeline-range-time">Por tiempo</button><button class="timeline-range-control" data-action="timeline-range-frames">Por frames</button></div><div id="timeline-time-range" class="timeline-range-grid"><label>Inicio min<input id="timeline-start-minutes" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Inicio seg<input id="timeline-start-seconds" class="timeline-range-control" type="number" min="0" max="59" step="1" value="0"></label><label>Fin min<input id="timeline-end-minutes" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Fin seg<input id="timeline-end-seconds" class="timeline-range-control" type="number" min="0" max="59" step="1" value="0"></label></div><div id="timeline-frame-range" class="timeline-range-grid hidden"><label>Frame inicial<input id="timeline-start-frame" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Frame final<input id="timeline-end-frame" class="timeline-range-control" type="number" min="0" step="1" value="0"></label></div><p id="timeline-range-hint" class="timeline-range-hint">El rango inicia en 0:00 y termina al final del video.</p></div><button id="analyze-light-timeline" class="crop-button primary" data-action="analyze-light-timeline" disabled>Analizar luces</button><p id="timeline-summary" class="crop-summary">Timeline: pendiente.</p><div id="timeline-progress" class="timeline-progress hidden" aria-live="polite"><div class="timeline-progress-meta"><span id="timeline-progress-label">Analizando: 0%</span><span id="timeline-progress-frames">0 frames</span></div><div class="timeline-progress-track"><div id="timeline-progress-fill" class="timeline-progress-fill"></div></div></div><div id="timeline-events" class="timeline-events hidden"></div></section>');
     }
     installTimelineCard();
     function receiveFromHost(value) {
@@ -246,14 +258,15 @@
     function handleHostMessage(message) {
       if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; state.selectedSessionId = null; resetPreview(); renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const suffix = [outputs ? `${outputs} clip(s) de output rechazado(s)` : '', incompatible ? `${incompatible} nombre(s) no compatible(s)` : '', skipped ? `${skipped} sesión(es) F1/CM omitida(s)` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} video(s) analizado(s)${suffix ? `; ${suffix}.` : ' por C#.'}`); }
       if (message.type === 'cameraPreviewLoaded' && message.sessionId === state.selectedSessionId) renderCameraPreview(message);
-      if (message.type === 'lightRoisUpdated' && message.sessionId === state.selectedSessionId) { state.lightRois = message.lightRois; state.draftLightRois = null; state.lightTimeline = null; state.timelineRunning = false; if (message.calibration) restoreCalibrationAfterRoiUpdate(message.calibration); else resetCalibrationState(); closeRoiDialog(); updateCameraControls(); showNotice(message.message); }
+      if (message.type === 'lightRoisUpdated' && message.sessionId === state.selectedSessionId) { state.lightRois = message.lightRois; state.draftLightRois = null; state.lightTimeline = null; state.timelineRunning = false; state.timelineProgress = null; if (message.calibration) restoreCalibrationAfterRoiUpdate(message.calibration); else resetCalibrationState(); closeRoiDialog(); updateCameraControls(); showNotice(message.message); }
       if (message.type === 'lightRoisRejected') { document.getElementById('roi-modal-status').textContent = message.message; showNotice(message.message); }
       if (message.type === 'calibrationFrameLoaded' && message.sessionId === state.selectedSessionId) receiveCalibrationFrame(message);
       if (message.type === 'calibrationFrameRejected') { document.getElementById('calibration-modal-status').textContent = message.message; showNotice(message.message); }
-      if (message.type === 'lightCalibrationSaved') { state.calibration.mode = message.mode || state.calibration.mode; state.calibration.saved = message; state.lightTimeline = null; state.timelineRunning = false; closeCalibrationDialog(); updateCameraControls(); showNotice(message.message); }
+      if (message.type === 'lightCalibrationSaved') { state.calibration.mode = message.mode || state.calibration.mode; state.calibration.saved = message; state.lightTimeline = null; state.timelineRunning = false; state.timelineProgress = null; closeCalibrationDialog(); updateCameraControls(); showNotice(message.message); }
       if (message.type === 'lightCalibrationRejected') { document.getElementById('calibration-modal-status').textContent = message.message; showNotice(message.message); }
-      if (message.type === 'lightTimelineReady' && message.sessionId === state.selectedSessionId) { state.lightTimeline = { samplesAnalyzed: Number(message.samplesAnalyzed), transitions: message.transitions || [] }; state.timelineRunning = false; updateCameraControls(); showNotice(message.message); }
-      if (message.type === 'lightTimelineRejected') { state.timelineRunning = false; updateCameraControls(); showNotice(message.message); }
+      if (message.type === 'lightTimelineProgress' && message.sessionId === state.selectedSessionId && state.timelineRunning) { state.timelineProgress = { framesProcessed: Number(message.framesProcessed), totalFrames: Number(message.totalFrames), percent: Number(message.percent) }; updateCameraControls(); }
+      if (message.type === 'lightTimelineReady' && message.sessionId === state.selectedSessionId) { state.lightTimeline = { samplesAnalyzed: Number(message.samplesAnalyzed), transitions: message.transitions || [] }; state.timelineRunning = false; state.timelineProgress = null; updateCameraControls(); showNotice(message.message); }
+      if (message.type === 'lightTimelineRejected') { state.timelineRunning = false; state.timelineProgress = null; updateCameraControls(); showNotice(message.message); }
       if (message.type === 'previewFailed' || message.type === 'cameraPreviewFailed') showNotice(message.message);
       if (message.type === 'status') showNotice(message.message);
     }
@@ -284,8 +297,69 @@
     function incompatibleSessions() { return state.sessions.filter(session => session.namingScheme === 'Unknown'); }
     function calibrationModeForSession(session) { return String(session?.phase || '').toUpperCase() === 'CS' ? 'FoodOnly' : 'FoodAndNoise'; }
     function selectSession(session) { state.selectedSessionId = session.sessionId; renderSessions(); resetPreview(`Abriendo preview de ${session.fileName}...`, calibrationModeForSession(session)); sendToHost({ type: 'selectSession', sessionId: session.sessionId }); }
-    function resetPreview(message = 'Selecciona una sesión compatible de la lista para abrir su primer frame.', calibrationMode = 'FoodAndNoise') { closeCropDialog(); closeRoiDialog(); closeCalibrationDialog(); state.preview = null; state.sourceImageDataUrl = null; state.imageDataUrl = null; state.lightRois = null; state.draftLightRois = null; state.lightTimeline = null; state.timelineRunning = false; state.camera = { rotation: 'None', mirrorHorizontally: false, crop: null }; resetCalibrationState(calibrationMode); const status = document.getElementById('preview-state'); status.textContent = message; status.classList.remove('hidden'); const image = document.getElementById('preview-image'); image.removeAttribute('src'); document.getElementById('preview-stage').classList.add('hidden'); document.getElementById('preview-details').classList.add('hidden'); updateCameraControls(); }
-    function renderCameraPreview(preview) { state.preview = { sourceWidth: Number(preview.width), sourceHeight: Number(preview.height), sourcePreviewWidth: Number(preview.sourcePreviewWidth), sourcePreviewHeight: Number(preview.sourcePreviewHeight), previewWidth: Number(preview.previewWidth), previewHeight: Number(preview.previewHeight), fps: Number(preview.fps), totalFrames: Number(preview.totalFrames), durationSeconds: Number(preview.durationSeconds) }; state.sourceImageDataUrl = preview.sourceImageDataUrl; state.imageDataUrl = preview.imageDataUrl; state.camera = { rotation: preview.rotation || 'None', mirrorHorizontally: Boolean(preview.mirrorHorizontally), crop: preview.crop || null }; state.lightRois = preview.lightRois || null; renderSessions(); const image = document.getElementById('preview-image'); image.src = preview.imageDataUrl; document.getElementById('preview-stage').classList.remove('hidden'); document.getElementById('preview-state').classList.add('hidden'); document.getElementById('preview-resolution').textContent = `${preview.width} × ${preview.height}`; document.getElementById('preview-total-frames').textContent = Number(preview.totalFrames).toLocaleString('es-MX'); document.getElementById('preview-fps').textContent = Number(preview.fps).toFixed(2); document.getElementById('preview-duration').textContent = formatDuration(preview.durationSeconds); document.getElementById('preview-details').classList.remove('hidden'); updateCameraControls(); }
+    function resetPreview(message = 'Selecciona una sesión compatible de la lista para abrir su primer frame.', calibrationMode = 'FoodAndNoise') { closeCropDialog(); closeRoiDialog(); closeCalibrationDialog(); state.preview = null; state.sourceImageDataUrl = null; state.imageDataUrl = null; state.lightRois = null; state.draftLightRois = null; state.lightTimeline = null; state.timelineRunning = false; state.timelineProgress = null; state.camera = { rotation: 'None', mirrorHorizontally: false, crop: null }; resetCalibrationState(calibrationMode); const status = document.getElementById('preview-state'); status.textContent = message; status.classList.remove('hidden'); const image = document.getElementById('preview-image'); image.removeAttribute('src'); document.getElementById('preview-stage').classList.add('hidden'); document.getElementById('preview-details').classList.add('hidden'); updateCameraControls(); }
+    function renderCameraPreview(preview) {
+      state.preview = { sourceWidth: Number(preview.width), sourceHeight: Number(preview.height), sourcePreviewWidth: Number(preview.sourcePreviewWidth), sourcePreviewHeight: Number(preview.sourcePreviewHeight), previewWidth: Number(preview.previewWidth), previewHeight: Number(preview.previewHeight), fps: Number(preview.fps), totalFrames: Number(preview.totalFrames), durationSeconds: Number(preview.durationSeconds) };
+      state.sourceImageDataUrl = preview.sourceImageDataUrl;
+      state.imageDataUrl = preview.imageDataUrl;
+      state.camera = { rotation: preview.rotation || 'None', mirrorHorizontally: Boolean(preview.mirrorHorizontally), crop: preview.crop || null };
+      state.lightRois = preview.lightRois || null;
+      initializeTimelineRangeInputs();
+      renderSessions();
+      const image = document.getElementById('preview-image');
+      image.src = preview.imageDataUrl;
+      document.getElementById('preview-stage').classList.remove('hidden');
+      document.getElementById('preview-state').classList.add('hidden');
+      document.getElementById('preview-resolution').textContent = `${preview.width} × ${preview.height}`;
+      document.getElementById('preview-total-frames').textContent = Number(preview.totalFrames).toLocaleString('es-MX');
+      document.getElementById('preview-fps').textContent = Number(preview.fps).toFixed(2);
+      document.getElementById('preview-duration').textContent = formatDuration(preview.durationSeconds);
+      document.getElementById('preview-details').classList.remove('hidden');
+      updateCameraControls();
+    }
+    function initializeTimelineRangeInputs() {
+      const totalFrames = Math.max(0, Number(state.preview?.totalFrames || 0));
+      const durationSeconds = Math.max(0, Number(state.preview?.durationSeconds || 0));
+      const endSeconds = Math.floor(durationSeconds % 60);
+      document.getElementById('timeline-start-minutes').value = 0;
+      document.getElementById('timeline-start-seconds').value = 0;
+      document.getElementById('timeline-end-minutes').value = Math.floor(durationSeconds / 60);
+      document.getElementById('timeline-end-seconds').value = endSeconds;
+      document.getElementById('timeline-start-frame').value = 0;
+      document.getElementById('timeline-end-frame').value = Math.max(0, totalFrames - 1);
+    }
+    function renderTimelineRangeMode() {
+      const byTime = state.timelineRangeMode === 'time';
+      document.getElementById('timeline-time-range').classList.toggle('hidden', !byTime);
+      document.getElementById('timeline-frame-range').classList.toggle('hidden', byTime);
+      document.querySelector('[data-action="timeline-range-time"]').classList.toggle('active', byTime);
+      document.querySelector('[data-action="timeline-range-frames"]').classList.toggle('active', !byTime);
+      document.getElementById('timeline-range-hint').textContent = byTime ? 'Usa minutos y segundos desde el inicio del video.' : 'Los frames empiezan en 0; el frame final también se analiza.';
+    }
+    function readTimelineRange() {
+      const totalFrames = Number(state.preview?.totalFrames || 0);
+      const fps = Number(state.preview?.fps || 0);
+      const value = id => Number(document.getElementById(id).value);
+      const validInteger = number => Number.isInteger(number) && number >= 0;
+      let startFrame;
+      let endFrame;
+      if (state.timelineRangeMode === 'time') {
+        const startMinutes = value('timeline-start-minutes');
+        const startSeconds = value('timeline-start-seconds');
+        const endMinutes = value('timeline-end-minutes');
+        const endSeconds = value('timeline-end-seconds');
+        if (![startMinutes, startSeconds, endMinutes, endSeconds].every(validInteger) || startSeconds > 59 || endSeconds > 59 || fps <= 0) return { error: 'Escribe minutos y segundos válidos para el intervalo.' };
+        startFrame = Math.floor((startMinutes * 60 + startSeconds) * fps);
+        endFrame = Math.floor((endMinutes * 60 + endSeconds) * fps);
+      } else {
+        startFrame = value('timeline-start-frame');
+        endFrame = value('timeline-end-frame');
+        if (![startFrame, endFrame].every(validInteger)) return { error: 'Escribe frames inicial y final como enteros no negativos.' };
+      }
+      if (totalFrames <= 0 || startFrame >= totalFrames || endFrame >= totalFrames) return { error: 'El intervalo debe quedar dentro de la duración real del video.' };
+      if (endFrame < startFrame) return { error: 'El final del intervalo debe ser igual o posterior al inicio.' };
+      return { startFrame, endFrame };
+    }
     function updateCameraControls() {
       const available = Boolean(state.preview);
       document.querySelectorAll('.camera-control').forEach(control => { control.disabled = !available; });
@@ -311,7 +385,22 @@
       const canAnalyzeTimeline = calibrationReady && Boolean(state.calibration.saved);
       const timelineButton = document.getElementById('analyze-light-timeline');
       timelineButton.disabled = !canAnalyzeTimeline || state.timelineRunning;
+      document.querySelectorAll('.timeline-range-control').forEach(control => { control.disabled = !available || state.timelineRunning; });
+      renderTimelineRangeMode();
       document.getElementById('timeline-help').textContent = !canAnalyzeTimeline ? 'Marca, guarda y calibra las tres luces antes de analizar el video.' : state.timelineRunning ? 'Analizando el video completo. La ventana puede seguir abierta.' : 'Recorre todos los frames con la configuración y umbrales guardados.';
+      const timelineProgress = document.getElementById('timeline-progress');
+      const progress = state.timelineProgress;
+      if (state.timelineRunning) {
+        const percent = clamp(Math.round(progress?.percent || 0), 0, 100);
+        const framesProcessed = Number(progress?.framesProcessed || 0);
+        const totalFrames = Number(progress?.totalFrames || state.preview?.totalFrames || 0);
+        document.getElementById('timeline-progress-fill').style.width = `${percent}%`;
+        document.getElementById('timeline-progress-label').textContent = `Analizando: ${percent}%`;
+        document.getElementById('timeline-progress-frames').textContent = totalFrames > 0 ? `${framesProcessed.toLocaleString('es-MX')} de ${totalFrames.toLocaleString('es-MX')} frames` : `${framesProcessed.toLocaleString('es-MX')} frames`;
+        timelineProgress.classList.remove('hidden');
+      } else {
+        timelineProgress.classList.add('hidden');
+      }
       const timelineSummary = document.getElementById('timeline-summary');
       const events = document.getElementById('timeline-events');
       if (state.lightTimeline) {
@@ -327,7 +416,7 @@
     }
     function renderLightTimeline(container, transitions) { const labels = { FoodLeft: 'Comida izquierda', FoodRight: 'Comida derecha', NoiseLed: 'LED de ruido' }; const visible = transitions.slice(0, 8); const rows = visible.map(transition => `<div class="timeline-event"><span><strong>${labels[transition.light] || transition.light}</strong> ${transition.isOn ? 'ON' : 'OFF'}</span><span>${formatDuration(transition.timeSeconds)} · f${Number(transition.frameIndex).toLocaleString('es-MX')}</span></div>`); if (transitions.length > visible.length) rows.push(`<div class="timeline-event"><span>+ ${transitions.length - visible.length} cambios más</span><span>revisión completa pendiente</span></div>`); container.innerHTML = rows.join(''); container.classList.toggle('hidden', !rows.length); }
     function requestCameraPreview() { if (!state.preview || !state.selectedSessionId) return; sendToHost({ type: 'updateCameraSetup', sessionId: state.selectedSessionId, rotation: state.camera.rotation, mirrorHorizontally: state.camera.mirrorHorizontally, crop: state.camera.crop }); }
-    function updateCameraConfig(change) { const updated = { ...state.camera, ...change }; if (JSON.stringify(updated) !== JSON.stringify(state.camera)) { state.lightRois = null; state.lightTimeline = null; state.timelineRunning = false; resetCalibrationState(); } state.camera = updated; updateCameraControls(); requestCameraPreview(); }
+    function updateCameraConfig(change) { const updated = { ...state.camera, ...change }; if (JSON.stringify(updated) !== JSON.stringify(state.camera)) { state.lightRois = null; state.lightTimeline = null; state.timelineRunning = false; state.timelineProgress = null; resetCalibrationState(); } state.camera = updated; updateCameraControls(); requestCameraPreview(); }
     function openCropDialog() { if (!state.preview || !state.sourceImageDataUrl) return; closeCropDialog(); const modal = document.getElementById('crop-modal'); const image = document.getElementById('cropper-image'); image.src = state.sourceImageDataUrl; modal.classList.remove('hidden'); cropper = new Cropper(image, { viewMode: 2, dragMode: 'crop', autoCropArea: .82, responsive: true, restore: false, checkOrientation: false, background: false, movable: false, zoomable: false, zoomOnTouch: false, zoomOnWheel: false, toggleDragModeOnDblclick: false, transition: false, cropBoxMovable: true, cropBoxResizable: true, minCropBoxWidth: 1, minCropBoxHeight: 1, cropend() { syncCropCoordinates(); }, ready() { if (state.camera.crop) setCropperData(state.camera.crop); else syncCropCoordinates(); } }); }
     function closeCropDialog() { if (cropper) { cropper.destroy(); cropper = null; } document.getElementById('crop-modal').classList.add('hidden'); }
     function sourceCropToPreview(crop) { return { x: Math.round(crop.x * state.preview.sourcePreviewWidth / state.preview.sourceWidth), y: Math.round(crop.y * state.preview.sourcePreviewHeight / state.preview.sourceHeight), width: Math.round(crop.width * state.preview.sourcePreviewWidth / state.preview.sourceWidth), height: Math.round(crop.height * state.preview.sourcePreviewHeight / state.preview.sourceHeight) }; }
@@ -353,7 +442,8 @@
     function isPanningGesture(event) { return state.roiPanMode || event.button === 1; }
     function beginRoiInteraction(event) { if (!state.preview || !state.draftLightRois) return; const overlay = document.getElementById('roi-overlay'); if (isPanningGesture(event)) { roiInteraction = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, panStart: { ...state.roiPan } }; overlay.setPointerCapture(event.pointerId); document.getElementById('roi-workspace').classList.add('panning'); event.preventDefault(); return; } const point = roiPointerPosition(event); const handle = event.target.closest('[data-roi-handle]'); const box = event.target.closest('[data-roi-box]'); const key = handle?.dataset.roiHandle || box?.dataset.roiBox || state.activeLight; state.activeLight = key; const existing = state.draftLightRois[key] ? preparedRoiToPreview(state.draftLightRois[key]) : null; roiInteraction = { key, mode: handle ? 'resize' : box ? 'move' : 'draw', start: point, original: existing, center: existing ? { x: existing.x + existing.width / 2, y: existing.y + existing.height / 2 } : point }; if (!existing) state.draftLightRois[key] = previewCircleToPrepared(makePreviewCircle(point, 1)); overlay.setPointerCapture(event.pointerId); event.preventDefault(); renderRoiOverlay(); renderRoiSidebar(); }
     function moveRoiInteraction(event) { if (!roiInteraction || !state.preview || !state.draftLightRois) return; if (roiInteraction.mode === 'pan') { state.roiPan = clampRoiPan({ x: roiInteraction.panStart.x + event.clientX - roiInteraction.startClient.x, y: roiInteraction.panStart.y + event.clientY - roiInteraction.startClient.y }); applyRoiViewport(); return; } const point = roiPointerPosition(event); let next; if (roiInteraction.mode === 'draw' || roiInteraction.mode === 'resize') { const radius = Math.hypot(point.x - roiInteraction.center.x, point.y - roiInteraction.center.y); next = makePreviewCircle(roiInteraction.center, radius); } else { const display = roiPreviewSize(); const radius = roiInteraction.original.width / 2; const center = { x: clamp(roiInteraction.center.x + point.x - roiInteraction.start.x, radius, display.width - radius), y: clamp(roiInteraction.center.y + point.y - roiInteraction.start.y, radius, display.height - radius) }; next = makePreviewCircle(center, radius); } state.draftLightRois[roiInteraction.key] = previewCircleToPrepared(next); renderRoiOverlay(); renderRoiSidebar(); }
-    function endRoiInteraction(event) { if (!roiInteraction) return; const wasPanning = roiInteraction.mode === 'pan'; const overlay = document.getElementById('roi-overlay'); if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId); roiInteraction = null; document.getElementById('roi-workspace').classList.remove('panning'); document.getElementById('roi-modal-status').textContent = wasPanning ? 'Vista desplazada. Pulsa Espacio o la mano para volver a marcar.' : 'Puedes elegir otra luz o ajustar la región marcada.'; }
+    function nextPendingRoi(currentKey) { const keys = Object.keys(roiDefinitions()); const currentIndex = keys.indexOf(currentKey); return [...keys.slice(currentIndex + 1), ...keys.slice(0, currentIndex)].find(key => !state.draftLightRois?.[key]); }
+    function endRoiInteraction(event) { if (!roiInteraction) return; const interaction = roiInteraction; const wasPanning = interaction.mode === 'pan'; const overlay = document.getElementById('roi-overlay'); if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId); roiInteraction = null; document.getElementById('roi-workspace').classList.remove('panning'); if (wasPanning) { document.getElementById('roi-modal-status').textContent = 'Vista desplazada. Pulsa Espacio o la mano para volver a marcar.'; return; } if (interaction.mode === 'draw') { const next = nextPendingRoi(interaction.key); if (next) { state.activeLight = next; const label = roiDefinitions()[next].label; document.getElementById('roi-modal-status').textContent = `Región guardada. Ahora marca: ${label}.`; renderRoiOverlay(); renderRoiSidebar(); return; } document.getElementById('roi-modal-status').textContent = 'Las tres regiones están marcadas. Puedes ajustar alguna o guardarlas.'; renderRoiOverlay(); renderRoiSidebar(); return; } document.getElementById('roi-modal-status').textContent = 'Región ajustada. Puedes elegir otra luz o guardar las regiones.'; }
     function clearActiveRoi() { if (!state.draftLightRois) return; delete state.draftLightRois[state.activeLight]; renderRoiOverlay(); renderRoiSidebar(); }
     function applyLightRois() { const rois = state.draftLightRois || {}; if (!rois.foodLeft || !rois.foodRight || !rois.noiseLed) { document.getElementById('roi-modal-status').textContent = 'Falta marcar al menos una de las tres luces.'; return; } sendToHost({ type: 'updateLightRois', sessionId: state.selectedSessionId, lightRois: rois }); document.getElementById('roi-modal-status').textContent = 'Validando regiones con el backend...'; }
     function clampRoiPan(pan) { const workspace = document.getElementById('roi-workspace'); const image = document.getElementById('roi-image'); const maxX = Math.max(0, (image.clientWidth * state.roiZoom - workspace.clientWidth) / 2); const maxY = Math.max(0, (image.clientHeight * state.roiZoom - workspace.clientHeight) / 2); return { x: clamp(pan.x, -maxX, maxX), y: clamp(pan.y, -maxY, maxY) }; }
@@ -414,7 +504,7 @@
       slider.title = 'Arrastra para buscar otro frame. Se carga solo la última posición elegida.';
     }
     function saveCalibration() { const calibration = state.calibration; if (!calibration.offReference || !calibration.activeReference || !state.selectedSessionId) return; document.getElementById('calibration-modal-status').textContent = 'Calculando umbrales con las referencias elegidas...'; sendToHost({ type: 'saveLightCalibration', sessionId: state.selectedSessionId, offFrameToken: calibration.offReference.token, activeFrameToken: calibration.activeReference.token, foodSide: calibration.foodSide, mode: calibration.mode }); }
-    function analyzeLightTimeline() { if (!state.selectedSessionId || !state.calibration.saved || state.timelineRunning) return; state.timelineRunning = true; state.lightTimeline = null; updateCameraControls(); sendToHost({ type: 'analyzeLightTimeline', sessionId: state.selectedSessionId }); }
+    function analyzeLightTimeline() { if (!state.selectedSessionId || !state.calibration.saved || state.timelineRunning) return; const range = readTimelineRange(); if (range.error) { showNotice(range.error); return; } state.timelineRunning = true; state.lightTimeline = null; state.timelineProgress = { framesProcessed: 0, totalFrames: range.endFrame - range.startFrame + 1, percent: 0 }; updateCameraControls(); sendToHost({ type: 'analyzeLightTimeline', sessionId: state.selectedSessionId, scanRange: range }); }
     function formatDuration(seconds) { const total = Math.max(0, Math.round(Number(seconds) || 0)); const minutes = Math.floor(total / 60); const remaining = total % 60; return `${minutes}:${String(remaining).padStart(2, '0')}`; }
     function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]); }
     document.addEventListener('click', event => {
@@ -444,6 +534,8 @@
       if (action === 'calibration-forward-second' && state.preview) requestCalibrationFrame(calibrationFrameIndex() + Math.max(1, Math.round(state.preview.fps)));
       if (action === 'save-calibration') saveCalibration();
       if (action === 'analyze-light-timeline') analyzeLightTimeline();
+      if (action === 'timeline-range-time') { state.timelineRangeMode = 'time'; updateCameraControls(); }
+      if (action === 'timeline-range-frames') { state.timelineRangeMode = 'frames'; updateCameraControls(); }
       if (action === 'clear-roi') clearActiveRoi();
       if (action === 'zoom-out') zoomRoiBy(1 / 1.25);
       if (action === 'zoom-in') zoomRoiBy(1.25);

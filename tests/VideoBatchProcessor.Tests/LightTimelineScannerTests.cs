@@ -74,6 +74,40 @@ public sealed class LightTimelineScannerTests : IDisposable
         Assert.DoesNotContain(result.Timeline.Transitions, transition => transition.Light == LightId.FoodLeft);
     }
 
+    [Fact]
+    public void Scan_RespetaElIntervaloDeFramesElegido()
+    {
+        CreateVideo();
+
+        var result = new LightTimelineScanner().Scan(
+            _videoPath,
+            new VideoTransformConfig(),
+            CreateConfig(),
+            scanRange: new LightTimelineScanRange(StartFrame: 3, EndFrame: 7));
+
+        Assert.Equal(5, result.Timeline.SamplesAnalyzed);
+        Assert.All(result.Timeline.Transitions, transition =>
+            Assert.InRange(transition.FrameIndex, 3, 7));
+    }
+
+    [Fact]
+    public void Scan_ReportaProgresoRealHastaElFinalDelIntervalo()
+    {
+        CreateVideo();
+        var updates = new List<LightTimelineScanProgress>();
+
+        _ = new LightTimelineScanner().Scan(
+            _videoPath,
+            new VideoTransformConfig(),
+            CreateConfig(),
+            scanRange: new LightTimelineScanRange(StartFrame: 3, EndFrame: 7),
+            progress: new CapturingProgress(updates));
+
+        Assert.NotEmpty(updates);
+        Assert.Equal((0, 5, 0), (updates[0].FramesProcessed, updates[0].TotalFrames, updates[0].Percent));
+        Assert.Equal((5, 5, 100), (updates[^1].FramesProcessed, updates[^1].TotalFrames, updates[^1].Percent));
+    }
+
     public void Dispose()
     {
         try
@@ -110,4 +144,10 @@ public sealed class LightTimelineScannerTests : IDisposable
         new LightRoi(LightId.FoodLeft, 13, 13, 24, 24, 120, RoiShape.Circle),
         new LightRoi(LightId.FoodRight, 123, 13, 24, 24, 120, RoiShape.Circle),
         new LightRoi(LightId.NoiseLed, 68, 13, 24, 24, 120, RoiShape.Circle));
+
+    private sealed class CapturingProgress(List<LightTimelineScanProgress> updates)
+        : IProgress<LightTimelineScanProgress>
+    {
+        public void Report(LightTimelineScanProgress value) => updates.Add(value);
+    }
 }

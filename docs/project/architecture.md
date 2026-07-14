@@ -156,7 +156,7 @@ BatchOrchestrator -> coordina todo
 | `LightDetection` | Implementado | 21 pruebas. Convierte brillo ya medido en estados ON/OFF, incluida la desactivación explícita de `NoiseLed` durante `CS`. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
-| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 7 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. |
+| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 9 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. Puede limitarse a un intervalo de frames y reporta progreso real. |
 | `SegmentPlanner`, exportación y orquestación | Planeados | Se implementarán y probarán después de validar la timeline con un video real. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
@@ -373,7 +373,7 @@ esas muestras reales antes de llamar al builder.
 ```
 LightTimelineBuilder.Build(samples[]) -> LightTimeline
 
-LightTimelineScanner.Scan(video, transformConfig, lightConfig)
+LightTimelineScanner.Scan(video, transformConfig, lightConfig, scanRange?)
   -> LightTimelineScanResult
 
 LightTimeline = {
@@ -396,10 +396,12 @@ confirmación.
 
 **Estado actual:** implementado. El builder tiene pruebas aisladas para ON/OFF,
 artefactos de un frame, independencia de las tres luces y orden de muestras.
-El scanner tiene una prueba con video MJPEG sintético que confirma transiciones
-reales después de aplicar las mismas transformaciones usadas por la calibración.
-La interfaz ya permite ejecutar el escaneo una vez que ROIs y calibración están
-guardadas; la validación con un video CMC real queda pendiente.
+El scanner tiene pruebas con video MJPEG sintético que confirman transiciones
+reales después de aplicar las mismas transformaciones usadas por la calibración,
+el respeto de un intervalo seleccionado y el progreso hasta 100%. La interfaz
+ya permite ejecutar el escaneo una vez que ROIs y calibración están guardadas,
+seleccionando el intervalo por tiempo o por frames; la validación con un video
+CMC real queda pendiente.
 
 **Prueba aislada:** Sí. Con secuencias sintéticas de `LightSample` y un video
 sintético pequeño.
