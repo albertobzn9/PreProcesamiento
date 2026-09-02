@@ -196,7 +196,8 @@ public sealed class SegmentPlanner
                 itiStart,
                 itiEnd,
                 FrameTime(input.Video.Fps, itiStart),
-                FrameTime(input.Video.Fps, itiEnd)));
+                FrameTime(input.Video.Fps, itiEnd),
+                current.BehavioralEventNumber));
         }
     }
 
@@ -295,7 +296,8 @@ public sealed class SegmentPlanner
         int startFrame,
         int endFrame,
         double startSeconds,
-        double endSeconds) =>
+        double endSeconds,
+        int? behavioralEventNumber = null) =>
         new(
             kind,
             sequence,
@@ -305,7 +307,7 @@ public sealed class SegmentPlanner
             endSeconds,
             null,
             PlannedBehavioralResult.NotApplicable,
-            null,
+            behavioralEventNumber,
             null,
             null,
             null,

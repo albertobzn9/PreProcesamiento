@@ -2,11 +2,12 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 16-07-2026
+**Fecha de revisión:** 02-09-2026
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
-Todavía no procesa ni exporta sesiones completas.
+Ya puede coordinar y exportar sesiones completas de Cruces Seguros desde Core;
+falta exponer ese recorrido en la interfaz y validarlo con un lote real.
 
 ## Fuente Activa
 
@@ -52,16 +53,17 @@ en la interfaz.
 | Detección de luces | Implementada y probada con datos sintéticos | `LightDetector` compara brillo contra umbrales. |
 | Fuente conductual CSV V1 | Implementada para contrato histórico de 9 columnas | Resolver de rutas, validación estricta y lector de eventos/palanqueos. Antes de automatizar CajaValentia falta aceptar su CSV actual de 10 columnas con `ensayo_cruce`. |
 | MAT histórico | Implementado para MAT Level-5 N×8/N×9 | `MatV5MatrixReader` lee la matriz binaria sin MATLAB ni modificar el archivo; se comprobó con `exp_0526_cs_d4r4.mat` (67×8). MAT HDF5/v7.3 todavía no está cubierto. |
-| Sincronización video-conducta por sesión | Implementada y probada | `BehavioralVideoSynchronizer` estima desfase por sesión y devuelve listo/aviso/bloqueo sin cambiar archivos. El coordinador que lo aplique a toda una carpeta sigue pendiente. |
-| SegmentPlanner inicial | Implementado, probado y validado con CS completo | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En `exp_0526_cs_d4r4` empató 67/67 eventos y planeó 135 segmentos. Para cada evento posterior al primero, mismo lado es no cruce y cambio de lado es cruce; `Desplaz` se conserva raw sin bloquear el lote. Falta exportación, `SoundOnly`, UI de resumen y validación CP/DIS. |
+| Sincronización video-conducta por sesión | Implementada y probada | `BehavioralVideoSynchronizer` estima desfase por sesión y devuelve listo/aviso/bloqueo sin cambiar archivos. `BatchOrchestrator` ya la aplica antes de exportar cada sesión CS. |
+| SegmentPlanner inicial | Implementado, probado y validado con CS completo | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En `exp_0526_cs_d4r4` empató 67/67 eventos y planeó 135 segmentos. Para cada evento posterior al primero, mismo lado es no cruce y cambio de lado es cruce; `Desplaz` se conserva raw sin bloquear el lote. Los ITIs mantienen el número del evento anterior (`iti1`, `iti2`, etc.). Falta `SoundOnly`, UI de resumen y validación CP/DIS. |
+| Procesamiento por lote CS | Implementado; pendiente de validación real | `BatchOrchestrator` recorre subcarpetas, toma solo videos CS fuente, empareja el MAT exacto, escanea luces, sincroniza, guarda un Excel diagnóstico y exporta clips con FFmpeg. Bloquea sesiones sin MAT, metadata suficiente o sincronización válida; no sobrescribe una salida existente. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
 | CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`. Junto con las ROIs se guarda un perfil local, asociado a la ruta del video, en coordenadas del video fuente; al reabrirlo se convierte al frame preparado que usa el escáner. |
 | Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado y los conserva en el perfil local del video. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **166 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 166 pruebas.
+El estado actual compila y tiene **171 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 171 pruebas.
 
 ## Interfaz Actual
 

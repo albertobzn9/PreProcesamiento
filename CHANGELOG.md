@@ -10,6 +10,12 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Added
 
+- `BatchOrchestrator` inicial para Cruces Seguros: recorre subcarpetas, toma
+  solo sesiones fuente CS, exige el MAT correspondiente, sincroniza video-MAT,
+  genera el XLSX diagnóstico y exporta habituación, eventos e ITIs con FFmpeg.
+- Reporte por sesión y clip para distinguir resultados exportados, con avisos,
+  bloqueados, fallidos u omitidos, sin detener el lote completo.
+
 - Lector binario `MatV5MatrixReader` para matrices MAT Level-5 históricas
   N×8/N×9, sin requerir MATLAB ni modificar el archivo fuente.
 - Exportación XLSX de diagnóstico de luces: resumen de video, intervalos ON→OFF,
@@ -36,6 +42,8 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
   límites de frame exactos, crop/giro/espejo y archivo temporal seguro.
 - Pruebas para lectura MAT, intervalos de luz, Excel diagnóstico, perfil de
   cámara y emparejamiento diagnóstico.
+- Pruebas para descubrimiento recursivo de candidatos del lote CS y para
+  conservar el identificador correcto del ITI (`itiN`).
 
 ### Changed
 

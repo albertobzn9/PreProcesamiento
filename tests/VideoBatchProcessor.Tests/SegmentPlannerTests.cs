@@ -28,7 +28,11 @@ public sealed class SegmentPlannerTests
                 Assert.Equal(PlannedBehavioralResult.NotApplicable, segment.Result);
                 Assert.Equal(1, segment.BehavioralEventNumber);
             },
-            segment => Assert.Equal(PlannedSegmentKind.InterTrialInterval, segment.Kind),
+            segment =>
+            {
+                Assert.Equal(PlannedSegmentKind.InterTrialInterval, segment.Kind);
+                Assert.Equal(1, segment.BehavioralEventNumber);
+            },
             segment =>
             {
                 Assert.Equal(PlannedSegmentKind.Event, segment.Kind);

@@ -6,8 +6,8 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 
 ## Estado
 
-Proyecto en fase de detección visual validada y preprocesamiento completo aún
-pendiente.
+El primer flujo completo de Cruces Seguros ya existe en backend; falta exponerlo
+en la interfaz y validarlo con un lote real antes de ampliar fases.
 
 - Producto activo: `VideoBatchProcessor.App`; `LightEventDetector` permanece
   como prototipo histórico.
@@ -17,15 +17,17 @@ pendiente.
 - Interfaz: HTML/CSS local dentro de Avalonia con carga recursiva, preview,
   giro, espejo, crop, ROIs circulares, calibración, rango de análisis y
   exportación XLSX de diagnóstico.
-- Validación: 169 pruebas pasan. En una sesión real de Cruces Seguros (CS), el
+- Validación: 171 pruebas pasan. En una sesión real de Cruces Seguros (CS), el
   diagnóstico completo empató los 67 eventos MAT con video y planeó 1
   habituación inicial, 67 eventos, 66 ITIs y 1 habituación final. Cuatro
   señales visuales extra quedaron como avisos para revisión, no como eventos.
   El XLSX incluye perfil de cámara, comparación y segmentos planeados. Un
   `ClipExporter` ya genera un clip individual con FFmpeg y transformaciones.
-- Pendiente: coordinador de sincronización por lote, conexión de exportación a
-  la interfaz, perfiles reutilizables por grupo, orquestación de lotes, validación CP/DIS y
-  compatibilidad con el CSV actual de 10 columnas de CajaValentia.
+  `BatchOrchestrator` ya coordina el lote CS: MAT del mismo stem,
+  sincronización, diagnóstico XLSX y exportación de clips.
+- Pendiente: conexión de exportación a la interfaz, perfiles reutilizables por
+  grupo, validación de un lote CS real, validación CP/DIS y compatibilidad con
+  el CSV actual de 10 columnas de CajaValentia.
 
 ## Stack
 

@@ -777,7 +777,8 @@ lugar de exportarlo con una etiqueta falsa.
 
 **Estado actual:** listo para exportar un clip CS individual. Se comprobó con
 un video de tres segundos: exportó exactamente 30 frames (1 s) y aplicó un
-crop de 160×120 píxeles junto con giro/espejo.
+crop de 160×120 píxeles junto con giro/espejo. `BatchOrchestrator` ya lo llama
+para cada segmento validado de una sesión CS.
 
 **Prueba aislada:** Sí. Hay pruebas para límites exactos, filtros de cámara y
 limpieza de salida parcial si FFmpeg falla.
@@ -786,7 +787,9 @@ limpieza de salida parcial si FFmpeg falla.
 
 ### 12. BatchOrchestrator
 
-**Función en simple:** Coordina todo el pipeline de principio a fin para una carpeta de videos.
+**Función en simple:** Procesa una carpeta de sesiones de Cruces Seguros de
+principio a fin, sin que el investigador tenga que repetir el mismo flujo video
+por video.
 
 **Recibe:** una configuración de procesamiento por lote.
 
@@ -799,10 +802,10 @@ Run(config) -> BatchReport
   config = {
     InputDir,
     OutputDir,
-    CameraProfiles: CameraProfile[],
-    BatchManifestPath,            // configuración interna de este producto
-    SessionCaptureManifestPath?,  // paquete externo futuro de CajaValentia
-    HabituationConfig: { TargetFinal, WarnShortFinal },
+    Transform,                    // crop, giro y espejo ya confirmados
+    LightConfig,                  // ROIs y umbrales ya calibrados
+    BatchManifest,                // datos faltantes de sesiones legacy
+    ClipOptions,                  // ruta/opciones internas de FFmpeg
   }
 ```
 
@@ -810,22 +813,36 @@ Flujo:
 1. escanea la carpeta y encuentra videos CS candidatos
 2. parsea nombres con `NomenclatureParser` y completa metadata con
    `SessionMetadataResolver` y `BatchManifest`
-3. resuelve exactamente una fuente conductual por video: una ruta explícita
-   gana; si no existe, busca el stem correspondiente. Sin fuente o con más de
-   una candidata, marca la sesión `Blocked`; nunca adivina una pareja.
-4. asigna el `CameraProfile` confirmado y lee metadata con `VideoReader`
+3. resuelve el MAT exacto por video: un override explícito gana; si no existe,
+   busca `stem.mat` junto al video. Sin MAT marca la sesión `Blocked`; nunca
+   adivina una pareja. El CSV y el manifiesto de captura de CajaValentia se
+   incorporarán después de validar este primer lote CS.
+4. recibe la transformación y configuración de luces ya confirmadas y lee
+   metadata con `VideoReader`
 5. obtiene brillo por ROI con `FrameAnalyzer`, lo entrega mediante el
    `BrightnessAdapter` y detecta luces con `LightDetection`
-6. construye transiciones estables con `LightTimelineBuilder` y lee el MAT/CSV
-   con `IBehavioralSessionReader`
+6. construye transiciones estables con `LightTimelineBuilder` y lee el MAT con
+   `IBehavioralSessionReader`
 7. usa `BehavioralVideoSynchronizer` como puerta de calidad: conserva warnings
    y bloquea asociaciones sin evidencia suficiente
 8. planea segmentos con `SegmentPlanner` solo para sesiones no bloqueadas
 9. exporta automáticamente los segmentos CS planeados con `ClipExporter`
-10. continúa con la siguiente sesión si una falla y genera un `BatchReport`
+10. guarda además un `diagnostico_luces.xlsx` dentro de cada carpeta de sesión
+    para conservar la evidencia MAT-video usada antes del corte
+11. continúa con la siguiente sesión si una falla y genera un `BatchReport`
     con estados `Exported`, `ExportedWithWarnings`, `Blocked` o `Failed`
 
-**Prueba aislada:** Parcial. Se puede validar con mocks, pero su valor real aparece al integrar todo.
+**Estado actual:** Implementado para CS. Recorre subcarpetas, acepta MP4/MKV/
+AVI/MOV/M4V, omite clips de output y fases ajenas, conserva una carpeta de
+salida por sesión y no sobrescribe una salida existente. Requiere que el lote
+reciba una transformación, ROIs/umbrales y metadata completa (el `BatchManifest`
+completa iniciales, sexo y tratamiento de nombres legacy). Falta conectarlo al
+botón de procesamiento de la interfaz y validarlo con un lote real de varias
+sesiones CS antes de extenderlo a CP/DIS.
+
+**Prueba aislada:** Sí para el descubrimiento recursivo y selección exclusiva
+de sesiones CS. La prueba integral con videos/MAT reales queda como la siguiente
+validación manual.
 
 ---
 
