@@ -6,14 +6,26 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 
 ## Estado
 
-Proyecto en fase de backend base + primera integración de interfaz.
+Proyecto en fase de detección visual validada y preprocesamiento completo aún
+pendiente.
 
-- Producto completo: Video Batch Processor.
-- Prototipo actual: `LightEventDetector`, una app Avalonia que permite abrir un video, marcar ROIs de luces, detectar eventos ON/OFF y exportar una línea de tiempo con CSV.
-- Backend actual: `VideoBatchProcessor.Core`, librería donde vive la lógica reusable del producto.
-- Módulos backend ya implementados: `NomenclatureParser`, `SessionMetadataResolver`, `VideoReader`, `FrameAnalyzer`, `BrightnessAdapter`, `LightDetection`, `LightCalibration` y la base de `BehavioralData` para CSV V1/MAT histórico.
-- Interfaz: HTML/CSS local dentro de Avalonia ya integrado y validado manualmente en macOS; cubre carga recursiva, filtros de fase, nomenclaturas, preview real, `CameraSetup`, marcado de las tres ROIs y una primera calibración ON/OFF por frame.
-- Validación actual: hay 139 pruebas pasando. El flujo de calibración ya pasó su prueba manual con video real; falta decidir si ambas luces de comida comparten referencia, guardar `CameraProfile`, construir `LightTimelineBuilder` y leer MAT binario real antes de integrar procesamiento completo.
+- Producto activo: `VideoBatchProcessor.App`; `LightEventDetector` permanece
+  como prototipo histórico.
+- Backend: `VideoBatchProcessor.Core` ya incluye nomenclaturas, metadata,
+  lectura de video, ROI/brillo, detección y calibración de luces, timeline,
+  MAT/CSV y una puerta de sincronización video-conducta por sesión.
+- Interfaz: HTML/CSS local dentro de Avalonia con carga recursiva, preview,
+  giro, espejo, crop, ROIs circulares, calibración, rango de análisis y
+  exportación XLSX de diagnóstico.
+- Validación: 169 pruebas pasan. En una sesión real de Cruces Seguros (CS), el
+  diagnóstico completo empató los 67 eventos MAT con video y planeó 1
+  habituación inicial, 67 eventos, 66 ITIs y 1 habituación final. Cuatro
+  señales visuales extra quedaron como avisos para revisión, no como eventos.
+  El XLSX incluye perfil de cámara, comparación y segmentos planeados. Un
+  `ClipExporter` ya genera un clip individual con FFmpeg y transformaciones.
+- Pendiente: coordinador de sincronización por lote, conexión de exportación a
+  la interfaz, perfiles reutilizables por grupo, orquestación de lotes, validación CP/DIS y
+  compatibilidad con el CSV actual de 10 columnas de CajaValentia.
 
 ## Stack
 
@@ -42,6 +54,7 @@ Proyecto en fase de backend base + primera integración de interfaz.
 ## Documentación
 
 - [Índice de documentación](docs/README.md)
+- [Historial de cambios](CHANGELOG.md)
 - [Requisitos de producto](docs/project/product-requirements.md)
 - [Estado actual del proyecto](docs/project/current-status.md)
 - [Protocolo CMC](docs/protocol/cmc-protocol.md)
@@ -85,7 +98,13 @@ En macOS, usar este wrapper para pruebas con OpenCV:
 
 Ese script detecta si la Mac es Apple Silicon o Intel y resuelve la ruta nativa que OpenCvSharp necesita.
 
-El prototipo visual se puede ejecutar con:
+La aplicación activa se puede ejecutar con:
+
+```bash
+dotnet run --project src/VideoBatchProcessor.App/VideoBatchProcessor.App.csproj
+```
+
+El prototipo histórico se puede ejecutar con:
 
 ```bash
 dotnet run --project src/LightEventDetector/LightEventDetector.csproj

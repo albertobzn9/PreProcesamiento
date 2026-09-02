@@ -14,6 +14,16 @@ visualmente el tiempo de desplazamiento. Lo que sí puede comparar es:
 La meta no es fingir que video y MATLAB están sincronizados. Es medir sus
 diferencias, reportarlas y después comparar si cambian entre tipos de evento.
 
+## Implementación Actual En Este Repositorio
+
+`BehavioralVideoSynchronizer` aplica esta regla a una sesión ya leída: recibe
+intervalos de luces, eventos normalizados de MAT/CSV, el rango de video que se
+analizó y su FPS. Estima el desfase de esa sesión por coincidencias repetidas de
+lado y tiempo, sin usar una constante global. Entrega `Ready`, `Warning` o
+`Blocked`; los avisos quedan para revisión y un bloqueo nunca intercambia
+automáticamente video, MAT o CSV. El futuro coordinador por lote reutilizará
+esta misma pieza antes de permitir el recorte.
+
 ## Los Dos Registros
 
 ```text
@@ -86,7 +96,7 @@ Reglas para el backend:
 | `TiempoAbs` | Segundos desde que MATLAB crea su reloj interno `R0`. En `ValentiaE`, `R0` se crea antes de los mensajes modales y antes de la habituación inicial; no equivale automáticamente al primer estímulo visible en video. En un evento con palanqueo, es el momento en que MATLAB registra ese evento. |
 | `Latencia` | Segundos que transcurrieron desde que MATLAB inició el evento hasta que la rata palanqueó. Es una duración, no un timestamp absoluto. |
 | `Lado` / `lado` | **1 = izquierda**, **0 = derecha**, `-2` = timeout/no cruce. Esta codificación se validó físicamente con pruebas de izquierda y derecha el 11-jul-2026; no invertirla en el parser. |
-| `Desplaz` | Latencia asociada al sensor de desplazamiento. Con cambio de `Lado`, `> 1 s` confirma un cruce completo. Si se repite con `> 1 s`, emitir `InterEventCrossing` para decisión del investigador. Si cambia de lado pero dura `<= 1 s`, emitir `ShortSideChange` y revisar video porque la rata pudo estar en medio de la caja. No equivale a un tiempo que este programa pueda medir desde video. |
+| `Desplaz` | Latencia asociada al sensor de desplazamiento. Se conserva raw para trazabilidad, pero la etiqueta del lote se decide solo comparando `Lado` con el evento anterior válido. No equivale a un tiempo que este programa pueda medir desde video. |
 | `TipoEvento` / `tipo_evento` | Novena columna en sesiones nuevas: `0` seguro, `1` riesgo con comida, `2` solo sonido. Preferirla sobre `Estim` / `estimulo` al clasificar el evento. |
 
 Para un evento con palanqueo, el programa puede obtener una estimación del
@@ -221,13 +231,9 @@ eventos:
 
 La latencia de palanqueo puede dar una pista útil: en los datos del laboratorio,
 los eventos de mismo lado suelen ser cortos (por ejemplo ~3-8 s), mientras que
-un cruce puede tardar más de 10 s. Es una señal para revisar patrones, no una
-regla fija para clasificar el resultado. Cambio de `Lado` con `Desplaz > 1 s`
-confirma un cruce. Los dos patrones excepcionales se reportan para decisión del
-investigador: `InterEventCrossing` cuando el lado se repite con
-`Desplaz > 1 s`, y `ShortSideChange` cuando el lado cambia con
-`Desplaz <= 1 s`. El programa muestra la evidencia, pero no decide si esos
-eventos cuentan como cruces en un análisis concreto.
+un cruce puede tardar más de 10 s. Sin embargo, no es una regla de clasificación
+del lote. Con un lado anterior válido, mismo `Lado` se exporta como no cruce y
+cambio de `Lado` como cruce; `Desplaz` permanece como evidencia raw.
 
 ## Qué Debe Guardar El Programa
 
@@ -268,10 +274,9 @@ medida. No debe reducir todo a un solo delay global.
 
 1. No fijar en código un delay universal de 4 s ni de cualquier otro valor.
 2. No usar la duración visual de la luz como sustituto directo de `Latencia`.
-3. Clasificar automáticamente como cruce solo cambio de `Lado` +
-   `Desplaz > 1 s`. Emitir `InterEventCrossing` o `ShortSideChange` para
-   decisión del investigador en los dos patrones excepcionales; no sustituir
-   estas reglas con latencia de palanqueo corta/larga.
+3. Clasificar por comparación de `Lado`: mismo lado = no cruce, cambio de lado
+   = cruce. Conservar `Desplaz` y latencia de palanqueo raw, sin usarlos para
+   modificar la etiqueta automática.
 4. Conservar por separado el periodo de advertencia, el desfase inicial y la
    cola posterior al palanqueo.
 5. Los clips pueden iniciar en el LED de ruido para conservar contexto, aunque
@@ -312,4 +317,5 @@ Archivos relevantes:
 
 Documento upstream de estado y pruebas:
 
-- [Cambios reutilizables de Discriminacion a CP](/Users/ab/Documents/GitHub/CajaValentia/docs/architecture/06_cambios_reutilizables_discriminacion_a_cp.md)
+- `docs/architecture/06_cambios_reutilizables_discriminacion_a_cp.md` en el
+  checkout local de CajaValentia descrito en el handoff de backend.

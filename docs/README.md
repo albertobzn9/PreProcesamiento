@@ -2,6 +2,10 @@
 
 Índice principal de documentación del Video Batch Processor.
 
+## Repository
+
+- [Change Log](../CHANGELOG.md): historial conciso de cambios relevantes y validaciones.
+
 ## Project
 
 - [Product Requirements](project/product-requirements.md): requisitos de producto, decisiones actuales y especificación de usuario fusionadas sin resumir.

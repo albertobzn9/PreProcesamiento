@@ -133,7 +133,7 @@ El programa corta cada ensayo o segmento relevante en su propio video, usando la
 - ...
 - También corta los ensayos donde la rata **no cruzó** (esos son importantes para el análisis).
 
-> Decisión tomada: los clips de salida agregan el campo `resultado`, usando `cr` para cruce, `nc` para no cruce, `to` para timeout, `rv` para una excepción pendiente de revisión y `na` cuando no aplica.
+> Decisión tomada: los clips de salida agregan el campo `resultado`, usando `cr` para cruce, `nc` para no cruce, `to` para timeout y `na` cuando no aplica. `rv` solo se conserva para reconocer outputs históricos.
 
 ### 6. Saber Si La Rata Cruzó O No
 
@@ -141,7 +141,7 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 
 **Por la luz:** si en el ensayo anterior la luz se encendió del mismo lado, la rata ya está en ese lado, así que no necesita cruzar. Pero esto no siempre funciona (a veces la rata no cruzó y se quedó donde estaba). Esta inferencia puede servir como heurística inicial.
 
-**Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y tipo de evento. El programa lo usa para determinar cruce, no cruce o timeout cuando el registro existe; en los dos patrones excepcionales definidos abajo, genera una alerta `rv` para decisión humana.
+**Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y tipo de evento. Para el lote, el programa determina cruce/no cruce comparando el lado con el evento anterior válido; `Desplaz` permanece como dato raw y no genera una alerta manual.
 
 Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y la fuente conductual define las etiquetas. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
 
@@ -151,22 +151,13 @@ Al inicio y al final de cada sesión hay unos minutos donde la rata se acostumbr
 
 Con los valores iniciales del proyecto, la app solo destaca las excepciones útiles para revisión: habituación final mayor a 5 min o menor a 3 min. Para las sesiones mayores a 5 min presenta una tabla con duración y una palomita por sesión; el usuario puede seleccionar cuáles recortar a 5 min o dejar todas intactas. Para las menores a 3 min muestra una advertencia informativa, porque no hay material suficiente para llegar a 5 min y esa diferencia debe considerarse después en el análisis. Las sesiones entre esos límites no generan ruido visual innecesario. Ambos límites deben poder configurarse por lote.
 
-### 8. Alertas De Revisión Conductual
+### 8. Clasificación Conductual Por Lote
 
-La app debe señalar patrones que no puede decidir automáticamente y entregar la
-evidencia para que el investigador defina su criterio de análisis. En concreto:
-
-- `InterEventCrossing`: el `Lado` se repite, pero `Desplaz > 1 s`; la rata pudo
-  haberse cruzado durante el ITI.
-- `ShortSideChange`: `Lado` cambia, pero `Desplaz <= 1 s`; la rata pudo haber
-  iniciado desde la zona media de la caja.
-
-Por cada alerta, mostrar protocolo, fase, rata, día, número de evento, valores
-raw de `Lado` y `Desplaz`, referencia al clip/video y a la fuente conductual. El reporte del
-lote debe agruparlas por rata y sesión, por ejemplo: "protocolo 0126, rata 2,
-CS: tres hallazgos `InterEventCrossing` en los días 1, 2 y 3". La aplicación no
-decide si se cuentan o excluyen; conserva la decisión del investigador como
-parte de la revisión.
+La app clasifica automáticamente cada evento con comida comparando `Lado` con
+el evento anterior válido: mismo lado = no cruce; cambio de lado = cruce.
+El primer evento queda como `No aplica` porque no existe un lado anterior, y
+`Lado=-2` se conserva como timeout. `Desplaz` sigue disponible en el reporte
+raw, pero no cambia la clasificación ni obliga a revisar video por video.
 
 ### 9. Herramientas De Video Y Calidad De Exportación
 

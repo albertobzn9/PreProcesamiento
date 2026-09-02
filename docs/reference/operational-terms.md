@@ -22,11 +22,10 @@ Those documents own experimental detail, column definitions, and module design.
 | **`LightTimeline`** | Data object built from video frames. It records stable ON/OFF transitions of `FoodLeft`, `FoodRight`, and `NoiseLed`. |
 | **`VideoSegment`** | Proposed interval of the source video, with start/end frames and an operational label, ready for review or export. |
 | **Same-side event** | The food light appears on the side where the rat already is. It can include lever pressing without a crossing. |
-| **Crossing** | Complete displacement from one end to the opposite side. The normal automatic case requires a `Lado` change and `Desplaz > 1 s`. |
-| **No crossing** | Lever pressing on the same known side with `Desplaz <= 1 s`. It is different from a timeout. |
-| **Short side-change discrepancy** | `Lado` changes but `Desplaz <= 1 s`. This can happen when the rat was already in the middle of the alley. It is not automatically a complete crossing and requires video review. |
-| **`InterEventCrossing`** | `Lado` remains the same but `Desplaz > 1 s`. The rat may have crossed during the short ITI and was back on the same side when the next event was recorded. It is a review finding, not an automatic final decision to count the event as a crossing. |
-| **Behavioral review finding** | Exception detected from behavioral data and video evidence that needs the investigator's decision. The program reports the pattern and preserves its evidence; it does not decide the experimental inclusion criterion. |
+| **Crossing** | Event whose `Lado` differs from the previous valid event (`0 -> 1` or `1 -> 0`). |
+| **No crossing** | Event whose `Lado` is the same as the previous valid event. It is different from a timeout. |
+| **First event** | The first event has no previous valid side, so its crossing label is `N/A`. |
+| **`Desplaz`** | Raw displacement latency retained for traceability. It does not change the batch crossing label. |
 | **Timeout** | Event where the rat does not complete the required behavior before the phase limit. Historical `.mat` data usually has `Lado = -2` and values near that limit. |
 | **ITI** | Interval between events, with no relevant food light or noise LED active. It may be short in CS/DIS and long in CP. |
 | **Initial habituation** | Beginning of the session without relevant signals. The original protocol uses five minutes. |
@@ -72,12 +71,8 @@ reading.
    normal crossing/no-crossing/timeout rules.
 9. When video and behavioral data disagree, preserve the discrepancy as a warning for
    review instead of silently forcing a match.
-10. A normal automatic crossing requires `Lado` to change (`0 -> 1` or
-    `1 -> 0`) and `Desplaz > 1 s`. If `Lado` stays the same with
-    `Desplaz > 1 s`, emit an `InterEventCrossing` review finding. If `Lado`
-    changes but `Desplaz <= 1 s`, emit a `ShortSideChange` review finding; the
-    rat may have started from the middle of the alley. The program must not
-    decide whether either exception counts in a particular analysis. A short
-    or long lever latency never replaces these rules or other behavioral fields.
-11. A timeout or a missing/unknown previous side breaks the side sequence. Do
-    not infer a complete crossing from the next event without review.
+10. After the first valid side, a `Lado` change (`0 -> 1` or `1 -> 0`) is a
+    crossing and the same `Lado` is no crossing. `Desplaz` and lever latency
+    remain raw evidence; they do not alter this batch rule.
+11. A timeout does not replace the last valid side. The first event remains
+    `N/A` because no prior side exists.

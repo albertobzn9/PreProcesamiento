@@ -104,7 +104,7 @@ public sealed class VideoReader : IDisposable
 
             if (!capture.IsOpened())
             {
-                error = "No se pudo abrir el video. Verifica que el formato sea compatible (mp4, avi, mov).";
+                error = "No se pudo abrir el video. Verifica que el formato sea compatible (mp4, mkv, avi, mov o m4v).";
                 capture.Dispose();
                 return false;
             }

@@ -9,6 +9,8 @@
 
     <ItemGroup>
         <PackageReference Include="OpenCvSharp4" Version="$(OpenCvSharpVersion)" />
+        <PackageReference Include="ClosedXML" Version="0.105.0" />
+        <PackageReference Include="MathNet.Numerics.Data.Matlab" Version="5.0.0" />
     </ItemGroup>
 
     <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64'">

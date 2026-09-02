@@ -36,10 +36,14 @@ Repositorio canonico:
 
 Lectura recomendada antes de cambiar backend:
 
-- [Cambios reutilizables de Discriminacion a CP](/Users/ab/Documents/GitHub/CajaValentia/docs/architecture/06_cambios_reutilizables_discriminacion_a_cp.md): estado, reglas conductuales, pruebas y pendientes fisicos.
-- [Exportador de resultados CSV](/Users/ab/Documents/GitHub/CajaValentia/matlab/cmc_escribir_csv_resultados.m): encabezado y formato exacto de `stem.csv`.
-- [Exportador de palanqueos CSV](/Users/ab/Documents/GitHub/CajaValentia/matlab/cmc_escribir_csv_palanqueos.m): encabezado y reglas `NA` de `stem_palanqueos.csv`.
-- [Flujo de Discriminacion](/Users/ab/Documents/GitHub/CajaValentia/matlab/OA_ValentiaCuatroE.m): semantica de resultados, sonido solo, habituacion y guardado.
+- `docs/architecture/06_cambios_reutilizables_discriminacion_a_cp.md`: estado, reglas conductuales, pruebas y pendientes físicos.
+- `matlab/cmc_escribir_csv_resultados.m`: encabezado y formato exacto de `stem.csv`.
+- `matlab/cmc_escribir_csv_palanqueos.m`: encabezado y reglas `NA` de `stem_palanqueos.csv`.
+- `matlab/OA_ValentiaCuatroE.m`: semántica de resultados, sonido solo, habituación y guardado.
+
+Estas rutas pertenecen al checkout local del repositorio upstream indicado
+arriba; se dejan como texto para no publicar enlaces absolutos que GitHub no
+puede resolver desde este repositorio.
 
 No modificar CajaValentia desde este repositorio. Si el contrato CSV cambia,
 actualizar primero los documentos upstream y despues este handoff.
@@ -89,9 +93,9 @@ Reglas conductuales que el parser debe preservar, no reinterpretar:
 - `tipo_evento=2` es sonido + LED marcador + parrilla, sin luz de comida ni
   pellet. Dura 180 s aunque la rata cruce.
 - `lado=-2` es un timeout/no cruce registrado.
-- Las excepciones `Lado`/`Desplazamiento` siguen requiriendo la politica de
-  revision ya documentada (`InterEventCrossing`, `ShortSideChange`); el parser
-  solo entrega los valores raw.
+- Para clasificar el lote, comparar solo `lado` con el evento anterior válido:
+  mismo lado = no cruce y cambio de lado = cruce. `desplazamiento_s` se entrega
+  raw para trazabilidad, sin bloquear ni cambiar esa clasificación.
 - Para clasificar tipo, preferir `tipo_evento` sobre `estimulo`.
 
 ### `stem_palanqueos.csv`: Presiones Individuales

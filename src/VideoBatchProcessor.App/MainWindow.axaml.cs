@@ -2,6 +2,9 @@ using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using VideoBatchProcessor.Core.BehavioralData;
+using VideoBatchProcessor.Core.CameraProfiles;
+using VideoBatchProcessor.Core.Diagnostics;
 using VideoBatchProcessor.Core.FrameAnalyzer;
 using VideoBatchProcessor.Core.LightDetection;
 using VideoBatchProcessor.Core.Nomenclature;
@@ -22,6 +25,8 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, CalibrationFrameMeasurement> _calibrationFrames = [];
     private readonly Dictionary<string, SessionLightCalibration> _lightCalibrations = [];
     private readonly Dictionary<string, LightTimelineScanResult> _lightTimelines = [];
+    private readonly Dictionary<string, LightTimelineScanRange> _lightTimelineRanges = [];
+    private readonly CameraSetupProfileStore _cameraProfileStore = new();
 
     public MainWindow()
     {
@@ -73,6 +78,9 @@ public sealed partial class MainWindow : Window
                     break;
                 case "analyzeLightTimeline":
                     await AnalyzeLightTimelineAsync(document.RootElement);
+                    break;
+                case "exportLightTimelineDiagnostic":
+                    await ExportLightTimelineDiagnosticAsync(document.RootElement);
                     break;
             }
         }
@@ -148,6 +156,7 @@ public sealed partial class MainWindow : Window
         _calibrationFrames.Clear();
         _lightCalibrations.Clear();
         _lightTimelines.Clear();
+        _lightTimelineRanges.Clear();
         var sessions = entries
             .Except(skipped)
             .Select(entry =>
@@ -197,7 +206,16 @@ public sealed partial class MainWindow : Window
         var sessionId = sessionIdProperty.GetString()!;
         _loadedPreviews[sessionId] = result.preview;
         _cameraConfigs[sessionId] = new VideoTransformConfig();
+        if (TryRestoreCameraProfile(entry.Metadata.SourceVideoPath, result.preview, out var restoredProfile, out var profileError))
+        {
+            _cameraConfigs[sessionId] = restoredProfile!.Transform;
+            _lightConfigs[sessionId] = restoredProfile.Lights;
+        }
         await SendCameraPreviewAsync(sessionId, result.preview, _cameraConfigs[sessionId]);
+        if (restoredProfile is not null)
+            await SendToWebAsync(new { type = "status", message = "Se recuperaron el recorte, orientación y las tres ROIs guardadas para este video. Solo falta volver a calibrar las luces." });
+        else if (!string.IsNullOrWhiteSpace(profileError))
+            await SendToWebAsync(new { type = "status", message = profileError });
     }
 
     private async Task UpdateCameraSetupAsync(JsonElement message)
@@ -221,6 +239,9 @@ public sealed partial class MainWindow : Window
             _lightConfigs.Remove(sessionId);
             ClearCalibrationState(sessionId);
             _lightTimelines.Remove(sessionId);
+            _lightTimelineRanges.Remove(sessionId);
+            if (_loadedSessions.TryGetValue(sessionId, out var session))
+                _cameraProfileStore.Delete(session.Metadata.SourceVideoPath);
         }
 
         if (!await SendCameraPreviewAsync(sessionId, sourcePreview, config))
@@ -270,9 +291,22 @@ public sealed partial class MainWindow : Window
         _lightConfigs[sessionId] = lightConfig;
         ClearCalibrationState(sessionId);
         _lightTimelines.Remove(sessionId);
+        _lightTimelineRanges.Remove(sessionId);
+        var profileSaveError = _loadedSessions.TryGetValue(sessionId, out var profileSession) &&
+            !_cameraProfileStore.TrySave(
+                profileSession.Metadata.SourceVideoPath,
+                preview.Metadata.Width,
+                preview.Metadata.Height,
+                cameraConfig,
+                lightConfig,
+                out var savedProfileError)
+            ? savedProfileError
+            : null;
 
         object? restoredCalibration = null;
-        var updateMessage = "Las tres regiones quedaron validadas para este video preparado.";
+        var updateMessage = profileSaveError is null
+            ? "Las tres regiones quedaron validadas y guardadas para este video preparado."
+            : $"Las tres regiones quedaron validadas, pero no se pudieron guardar para reabrir el video: {profileSaveError}";
         if (previousCalibration is not null && _loadedSessions.TryGetValue(sessionId, out var entry))
         {
             var restoration = await Task.Run(() => TryRestoreCalibration(
@@ -408,6 +442,7 @@ public sealed partial class MainWindow : Window
             _lightConfigs[sessionId] = rebuilt.Config;
             _lightCalibrations[sessionId] = rebuilt.Calibration;
             _lightTimelines.Remove(sessionId);
+            _lightTimelineRanges.Remove(sessionId);
             await SendToWebAsync(new
             {
                 type = "lightCalibrationSaved",
@@ -485,12 +520,15 @@ public sealed partial class MainWindow : Window
                 scanRange: scanRange,
                 progress: progress));
             _lightTimelines[sessionId] = result;
+            _lightTimelineRanges[sessionId] = scanRange;
+            var intervals = LightEventIntervalBuilder.Build(result.Timeline);
 
             await SendToWebAsync(new
             {
                 type = "lightTimelineReady",
                 sessionId,
                 samplesAnalyzed = result.Timeline.SamplesAnalyzed,
+                intervalCount = intervals.Count,
                 startFrame = scanRange.StartFrame,
                 endFrame = scanRange.EndFrame,
                 transitions = result.Timeline.Transitions.Select(transition => new
@@ -514,6 +552,152 @@ public sealed partial class MainWindow : Window
                 message = $"No se pudo analizar este video: {exception.Message}",
             });
         }
+    }
+
+    private async Task ExportLightTimelineDiagnosticAsync(JsonElement message)
+    {
+        if (!TryGetSessionPreview(message, out var sessionId, out _)
+            || !_loadedSessions.TryGetValue(sessionId, out var entry)
+            || !_lightTimelines.TryGetValue(sessionId, out var scanResult)
+            || !_lightTimelineRanges.TryGetValue(sessionId, out var scanRange)
+            || !_lightConfigs.TryGetValue(sessionId, out var lightConfig))
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineExportRejected",
+                message = "Analiza primero las luces de esta sesión para poder exportar su evidencia.",
+            });
+            return;
+        }
+
+        var suggestedName = $"{Path.GetFileNameWithoutExtension(entry.Metadata.SourceVideoPath)}_diagnostico_luces.xlsx";
+        var output = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Guardar diagnóstico de luces",
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "xlsx",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Libro de Excel")
+                {
+                    Patterns = ["*.xlsx"],
+                },
+            ],
+        });
+
+        if (output is null)
+            return;
+
+        try
+        {
+            var behavioralEvidence = ReadBehavioralEvidence(entry.Metadata);
+            var cameraConfig = _cameraConfigs.GetValueOrDefault(sessionId) ?? new VideoTransformConfig();
+            var report = new LightTimelineDiagnosticReport(
+                scanResult.Metadata,
+                scanRange,
+                cameraConfig,
+                scanResult.Timeline,
+                LightEventIntervalBuilder.Build(scanResult.Timeline),
+                lightConfig,
+                behavioralEvidence.Events,
+                behavioralEvidence.SourcePath,
+                behavioralEvidence.Error);
+
+            await Task.Run(() => new LightTimelineDiagnosticExcelExporter().Export(report, output.Path.LocalPath));
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineExported",
+                sessionId,
+                filePath = output.Path.LocalPath,
+                message = "Se guardó el Excel de diagnóstico. Compáralo con el video y con la hoja MAT conductual.",
+            });
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new
+            {
+                type = "lightTimelineExportRejected",
+                sessionId,
+                message = $"No se pudo exportar el diagnóstico: {exception.Message}",
+            });
+        }
+    }
+
+    private static (IReadOnlyList<BehavioralEvent> Events, string? SourcePath, string? Error) ReadBehavioralEvidence(
+        SessionMetadata metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata.SourceBehavioralPath))
+            return ([], null, metadata.BehavioralSourceError ?? "No se encontró un CSV o MAT junto al video.");
+
+        if (!Enum.TryParse<BehavioralSourceKind>(metadata.SourceBehavioralKind, out var sourceKind) ||
+            sourceKind == BehavioralSourceKind.None)
+        {
+            return ([], metadata.SourceBehavioralPath, "La fuente conductual no tiene un formato reconocido.");
+        }
+
+        var source = new BehavioralSourceResolution
+        {
+            SourcePath = metadata.SourceBehavioralPath,
+            PressesPath = metadata.SourcePressesPath,
+            SourceKind = sourceKind,
+            Warnings = metadata.BehavioralSourceWarnings,
+            Error = metadata.BehavioralSourceError,
+        };
+
+        try
+        {
+            var reader = sourceKind switch
+            {
+                BehavioralSourceKind.LegacyMat => (IBehavioralSessionReader)new LegacyMatBehavioralSessionReader(new MatV5MatrixReader()),
+                BehavioralSourceKind.CsvV1 => new CsvV1BehavioralSessionReader(),
+                _ => throw new BehavioralDataFormatException("La fuente conductual no tiene un lector disponible."),
+            };
+            return (reader.Read(source).Events, source.SourcePath, null);
+        }
+        catch (Exception exception)
+        {
+            return ([], source.SourcePath, exception.Message);
+        }
+    }
+
+    private bool TryRestoreCameraProfile(
+        string videoPath,
+        VideoPreview preview,
+        out SavedCameraSetupProfile? profile,
+        out string? error)
+    {
+        profile = null;
+        error = null;
+        if (!_cameraProfileStore.TryLoad(
+                videoPath,
+                preview.Metadata.Width,
+                preview.Metadata.Height,
+                out var saved,
+                out var loadError))
+        {
+            error = loadError;
+            return false;
+        }
+
+        if (saved is null)
+            return false;
+
+        if (!saved.Transform.TryValidateFor(preview.Metadata.Width, preview.Metadata.Height, out var transformError))
+        {
+            error = $"Se ignoró un perfil de cámara que ya no coincide con las dimensiones del video: {transformError}";
+            return false;
+        }
+
+        var preparedWidth = saved.Transform.Crop?.Width ?? preview.Metadata.Width;
+        var preparedHeight = saved.Transform.Crop?.Height ?? preview.Metadata.Height;
+        if (!AreRoisFullyInside(saved.Lights, preparedWidth, preparedHeight))
+        {
+            error = "Se ignoró un perfil de cámara cuyas ROIs ya no caben dentro del video preparado.";
+            return false;
+        }
+
+        profile = saved;
+        return true;
     }
 
     private static bool TryReadTimelineRange(
@@ -833,31 +1017,41 @@ public sealed partial class MainWindow : Window
         var result = await Task.Run(() =>
         {
             var success = VideoTransformPreviewRenderer.TryRender(sourcePreview, config, out var preview, out var error);
-            return (success, preview, error);
+            if (!success || preview is null)
+                return (success, preview, error, cropEditor: (VideoTransformPreview?)null, cropEditorError: (string?)null);
+
+            var cropEditorConfig = config with { Crop = null };
+            var cropEditorSuccess = VideoTransformPreviewRenderer.TryRender(
+                sourcePreview,
+                cropEditorConfig,
+                out var cropEditor,
+                out var cropEditorError);
+            return (success, preview, error, cropEditor, cropEditorError);
         });
 
-        if (!result.success || result.preview is null)
+        if (!result.success || result.preview is null || result.cropEditor is null)
         {
             await SendToWebAsync(new
             {
                 type = "cameraPreviewFailed",
                 sessionId,
-                message = result.error ?? "No se pudo aplicar la configuración de cámara.",
+                message = result.error ?? result.cropEditorError ?? "No se pudo aplicar la configuración de cámara.",
             });
             return false;
         }
 
         var preview = result.preview;
+        var cropEditor = result.cropEditor;
         await SendToWebAsync(new
         {
             type = "cameraPreviewLoaded",
             sessionId,
             imageDataUrl = $"data:image/jpeg;base64,{Convert.ToBase64String(preview.JpegBytes)}",
-            sourceImageDataUrl = $"data:image/jpeg;base64,{Convert.ToBase64String(sourcePreview.JpegBytes)}",
+            cropEditorImageDataUrl = $"data:image/jpeg;base64,{Convert.ToBase64String(cropEditor.JpegBytes)}",
             width = sourcePreview.Metadata.Width,
             height = sourcePreview.Metadata.Height,
-            sourcePreviewWidth = sourcePreview.PreviewWidth,
-            sourcePreviewHeight = sourcePreview.PreviewHeight,
+            cropEditorWidth = cropEditor.Width,
+            cropEditorHeight = cropEditor.Height,
             previewWidth = preview.Width,
             previewHeight = preview.Height,
             fps = sourcePreview.Metadata.Fps,

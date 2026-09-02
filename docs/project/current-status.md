@@ -2,7 +2,7 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 13-07-2026
+**Fecha de revisión:** 16-07-2026
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
@@ -51,15 +51,17 @@ en la interfaz.
 | Medición de ROIs | Implementada y probada | `FrameAnalyzer` calcula brillo y valida ROIs. |
 | Detección de luces | Implementada y probada con datos sintéticos | `LightDetector` compara brillo contra umbrales. |
 | Fuente conductual CSV V1 | Implementada para contrato histórico de 9 columnas | Resolver de rutas, validación estricta y lector de eventos/palanqueos. Antes de automatizar CajaValentia falta aceptar su CSV actual de 10 columnas con `ensayo_cruce`. |
-| MAT histórico | Parcial | Ya normaliza matrices N×8/N×9, pero falta el lector binario real del archivo `.mat`. |
+| MAT histórico | Implementado para MAT Level-5 N×8/N×9 | `MatV5MatrixReader` lee la matriz binaria sin MATLAB ni modificar el archivo; se comprobó con `exp_0526_cs_d4r4.mat` (67×8). MAT HDF5/v7.3 todavía no está cubierto. |
+| Sincronización video-conducta por sesión | Implementada y probada | `BehavioralVideoSynchronizer` estima desfase por sesión y devuelve listo/aviso/bloqueo sin cambiar archivos. El coordinador que lo aplique a toda una carpeta sigue pendiente. |
+| SegmentPlanner inicial | Implementado, probado y validado con CS completo | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En `exp_0526_cs_d4r4` empató 67/67 eventos y planeó 135 segmentos. Para cada evento posterior al primero, mismo lado es no cruce y cambio de lado es cruce; `Desplaz` se conserva raw sin bloquear el lote. Falta exportación, `SoundOnly`, UI de resumen y validación CP/DIS. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
-| CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`; todavía no guarda perfiles. |
-| Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado. |
+| CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`. Junto con las ROIs se guarda un perfil local, asociado a la ruta del video, en coordenadas del video fuente; al reabrirlo se convierte al frame preparado que usa el escáner. |
+| Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado y los conserva en el perfil local del video. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **149 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 149 pruebas.
+El estado actual compila y tiene **166 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 166 pruebas.
 
 ## Interfaz Actual
 
@@ -116,8 +118,10 @@ dependa de internet. La interfaz manda la decisión confirmada a C#;
 preview. Las coordenadas se guardan en píxeles del video fuente, no en píxeles
 de la imagen reducida. Así la decisión podrá reutilizarse al procesar el video
 completo. El flujo, incluidos límites numéricos, recorte completo, giro y
-espejo, se aprobó manualmente el 12-07-2026 en macOS. Esta configuración vive
-por ahora solo durante el lote abierto.
+espejo, se aprobó manualmente el 12-07-2026 en macOS. Cuando se guardan las
+ROIs, la transformación y las tres regiones se conservan en un perfil local
+asociado a la ruta del video; al reabrirlo se recuperan, aunque la calibración
+OFF/ON debe confirmarse de nuevo.
 
 `LightMarker` y `LightCalibration` se aprobaron manualmente el 13-07-2026 en
 macOS. El investigador puede marcar las tres luces con círculos, verificar esas
@@ -130,22 +134,51 @@ tarjeta pequeña de interfaz. Después de guardar la calibración, **Analizar
 luces** puede recorrer el video completo o un intervalo elegido por tiempo o
 por frames. Aplica la misma transformación/ROIs usadas al calibrar, muestra
 progreso real por frames procesados y presenta los primeros cambios ON/OFF
-estables. El backend pasó pruebas con secuencias y video sintéticos; falta la
-prueba manual con una sesión CMC real.
+estables. Después del análisis puede exportar un Excel de diagnóstico con los
+intervalos visuales ON→OFF, cambios raw, coordenadas de las tres ROIs, filas
+MAT/CSV, comparación diagnóstica por lado y patrón temporal, y `Segmentos
+planeados` antes de cortar videos. Cada segmento muestra su duración total y,
+para eventos, la clasificación de cruce/no cruce junto con la comparación de
+lado que la sustenta. El mismo libro incluye `Perfil de camara`,
+una hoja estructurada con versión, dimensiones fuente, crop, giro, espejo, ROIs
+fuente y umbrales para una importación futura.
+Estima un
+desfase por sesión, deja visibles las señales visuales sin MAT compatible y no
+declara sincronización final. `BehavioralVideoSynchronizer` reutiliza esa misma
+comparación como puerta de calidad: devuelve listo, aviso o bloqueo antes de
+que exista segmentación. Si se analizó solo parte del video, compara únicamente
+las filas conductuales de ese intervalo. En `exp_0526_cs_d4r4`, los primeros
+diez minutos encontraron 28 eventos MAT, los 28 en video y un falso positivo
+breve durante habituación; la prueba real inicial ya quedó aprobada.
+
+La validación completa de `SegmentPlanner` con `exp_0526_cs_d4r4` recorrió
+0:00 hasta 19:11.499. Empató los 67 eventos MAT con una señal visual y planeó
+135 segmentos: 1 habituación inicial, 67 eventos, 66 ITIs y 1 habituación
+final. No hubo filas MAT sin evidencia visual. Cuatro señales visuales no
+tenían fila conductual compatible y quedaron como avisos, no como clips. El
+libro `exp_0526_cs_d4r4_diagnostico_luces_completo.xlsx` permite revisar el
+orden y los límites antes de habilitar la exportación. La etiqueta de cada
+evento se obtiene automáticamente con el `Lado` del evento anterior; el primer
+evento queda como `No aplica` y `Desplaz` permanece disponible como evidencia
+raw, sin generar trabajo manual.
 
 ## Lo Que Falta
 
 ### Backend inmediato
 
-1. Lector binario real de MAT histórico, manteniendo la normalización N×8/N×9
-   ya existente.
-2. `SegmentPlanner`: proponer eventos, ITIs, habituación y hallazgos conductuales.
+1. Construir un coordinador por lote que resuelva cada fuente, escanee cada
+   video y aplique `BehavioralVideoSynchronizer` antes de permitir segmentar.
+2. Revisar el falso positivo breve de habituación y, solo con más sesiones,
+   decidir si corresponde una regla de calidad adicional.
+3. Conectar `ClipExporter` a la interfaz y al coordinador de lote para CS.
+4. Conectar la importación de `Perfil de camara` a la UI y validar dimensiones,
+   transformación y condiciones equivalentes antes de reutilizarlo en un lote.
 
 ### Backend posterior
 
-1. Guardado y asignación de `CameraProfile` reutilizable para varias sesiones.
-2. `ClipExporter` con FFmpeg/ffprobe internos.
-3. `BatchOrchestrator`, reporte final y decisiones de revisión.
+1. Asignación explícita de un perfil de cámara reutilizable a varias sesiones.
+2. Empaquetado administrado de FFmpeg/ffprobe para macOS y Windows.
+3. `BatchOrchestrator` y reporte final por sesión.
 4. Lector del manifiesto de captura de CajaValentia y compatibilidad del CSV
    actual de 10 columnas antes de habilitar procesamiento automático.
 
@@ -164,8 +197,9 @@ prueba manual con una sesión CMC real.
   reabrirse y pasó su flujo manual inicial.
   La referencia compartida entre las dos luces de comida se mantiene provisional
   hasta probarla con el lado opuesto en otra sesión.
-- No hay todavía segmentación, crop aplicado al archivo completo ni exportación
-  de clips. La app no debe presentarse como procesador completo aún.
+- Ya existe planeación lógica de segmentos CS, pero todavía no hay crop aplicado
+  al archivo completo ni exportación de clips. La app no debe presentarse como
+  procesador completo aún.
 - El código de output para `SoundOnly` sigue pendiente de acuerdo del lab.
 - El desfase video-conducta debe medirse por sesión; nunca usar un offset fijo.
 - La integración futura con CajaValentia ya tiene contrato: OBS confirma la
@@ -186,8 +220,10 @@ prueba manual con una sesión CMC real.
 
 1. Hacer una prueba focalizada del lado de comida opuesto.
 2. Ejecutar y revisar la timeline con una sesión CMC real conocida.
-3. Construir `SegmentPlanner` solo después de aceptar esas transiciones como
-   evidencia visual útil.
+3. Construir el coordinador de sincronización por lote y validar que detecte
+   fuentes ausentes, duplicadas o posiblemente cruzadas sin corregirlas solo.
+4. Revisar la sesión CS completa ya planeada y después validar CP/DIS, revisando
+   límites de LED, ITIs y habituación final antes de exportar clips.
 
 ## Lectura Para Retomar
 

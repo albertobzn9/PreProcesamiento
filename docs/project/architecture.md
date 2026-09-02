@@ -44,13 +44,13 @@
 │  │              │ │                    │ │Builder      │ │
 │  └──────────────┘ └────────────────────┘ └─────────────┘ │
 │  ┌──────────────┐ ┌────────────────────┐ ┌────────────┐  │
-│  │BehavioralData│ │SegmentPlanner      │ │ClipExporter│  │
-│  │              │ │                    │ │+ FFmpeg    │  │
+│  │BehavioralData│ │BehavioralVideoSync │ │SegmentPlan-│  │
+│  │              │ │hronizer            │ │ner         │  │
 │  └──────────────┘ └────────────────────┘ └────────────┘  │
-│  ┌────────────────────┐ ┌─────────────────────────────┐  │
-│  │VideoTransformConfig│ │BatchOrchestrator            │  │
-│  │                    │ │                             │  │
-│  └────────────────────┘ └─────────────────────────────┘  │
+│  ┌────────────────────┐ ┌──────────────┐ ┌────────────┐  │
+│  │VideoTransformConfig│ │ClipExporter  │ │BatchOrches-│  │
+│  │                    │ │+ FFmpeg      │ │trator      │  │
+│  └────────────────────┘ └──────────────┘ └────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -85,8 +85,7 @@ Piensa en esta sección como un inventario de preguntas que el sistema debe pode
 | `BehavioralPressEvent` | Presión individual opcional leída de `stem_palanqueos.csv`. | evento de sesión, tiempo, fase, ensayo nullable, tipo textual, lado y contadores raw. |
 | `VideoSegment` | Parte lógica de una sesión que el programa propone revisar o exportar como clip. | `segmentCode`, límites visuales, `warningStart`, `foodLightStart`, `matEventIndex`, estimación de desfase, confianza, tipo y resultado. |
 | `ExportClip` | Instrucción final para generar un archivo de salida. | `inputVideoPath`, `outputPath`, `segment`, `transformConfig`, `namingMetadata`. |
-| `BehavioralReviewFinding` | Excepción conductual detectada que requiere decisión humana. | tipo, sesión, evento, lados, `Desplaz`, evidencia conductual, frames y explicación. |
-| `BatchReport` | Evidencia de lo procesado. | clips exportados, desfase video-conducta, hallazgos conductuales agrupados por sesión/rata, warnings, discrepancias, errores y configuración usada. |
+| `BatchReport` | Evidencia de lo procesado. | sesiones exportadas, bloqueadas o fallidas; clips creados, desfase video-conducta, avisos técnicos, errores y configuración usada. |
 
 La distinción importante es esta:
 - `BehavioralEvent` describe lo que registró la fuente conductual
@@ -137,27 +136,35 @@ Para que todas las secciones se lean igual, cada módulo se describe con este fo
 
 ```text
 NomenclatureParser -> SessionMetadataResolver
-VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder -> SegmentPlanner -> ClipExporter
-BehavioralSourceResolver -> IBehavioralSessionReader -------------------------------^
+VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder -> BehavioralVideoSynchronizer -> SegmentPlanner -> ClipExporter
+BehavioralSourceResolver -> IBehavioralSessionReader ------------------------------^
 VideoTransformConfig -----------------------------------------------> ClipExporter
 BatchOrchestrator -> coordina todo
 ```
 
-### Estado Verificado Del Backend (13 De Julio De 2026)
+### Estado Verificado Del Backend (20 De Julio De 2026)
+
+Esta tabla solo resume qué módulos existen. Los resultados de pruebas reales,
+archivos de evidencia y el siguiente paso operativo viven en
+[Current Project Status](current-status.md), para no mantener dos historiales
+detallados que puedan divergir.
 
 | Módulo | Estado | Evidencia o siguiente límite |
 |--------|--------|------------------------------|
 | `NomenclatureParser` | Implementado | 40 pruebas. Lee los tres esquemas, distingue sesiones fuente de output, omite F1/CM al cargar lotes y construye nombres de output. |
 | `SessionMetadataResolver` | Implementado | Completa metadata y resuelve una fuente conductual explícita, CSV V1, MAT legacy o ausencia. |
-| `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee el CSV V1 histórico de 9 columnas y normaliza matrices MAT N×8/N×9. Falta conectar un lector binario real de `.mat`, aceptar el CSV actual de CajaValentia de 10 columnas y leer el manifiesto externo de captura. |
+| `BehavioralData` | Implementado parcialmente | Resuelve rutas, lee el CSV V1 histórico de 9 columnas y el MAT Level-5 binario N×8/N×9 mediante `MatV5MatrixReader`. Falta aceptar el CSV actual de CajaValentia de 10 columnas, MAT HDF5/v7.3 si llegara a usarse y el manifiesto externo de captura. |
 | `VideoReader` | Implementado | 20 pruebas con video sintético y runtime nativo de OpenCV en macOS; incluye preview JPEG reducido, validado manualmente en la UI de macOS. |
-| `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 2 pruebas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. La persistencia de `CameraProfile` queda pendiente. |
+| `VideoTransformConfig` / `VideoTransformPreviewRenderer` | Implementado | 6 pruebas de perfil y conversión de coordenadas. Conserva crop en píxeles fuente y aplica crop, giro de 180° y espejo al JPEG de preview. `CameraSetupProfileStore` conserva localmente transformación y ROIs por ruta de video en coordenadas fuente, y las convierte al frame preparado solo al medir. El XLSX diagnóstico exporta un perfil versionado reutilizable; falta conectar su importación a la UI y asignarlo a muchas sesiones. |
 | `FrameAnalyzer` | Implementado | 20 pruebas. Mide brillo de ROI rectangular o circular y puede devolver el recorte de esa ROI. |
 | `LightDetection` | Implementado | 21 pruebas. Convierte brillo ya medido en estados ON/OFF, incluida la desactivación explícita de `NoiseLed` durante `CS`. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
-| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 9 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. Puede limitarse a un intervalo de frames y reporta progreso real. |
-| `SegmentPlanner`, exportación y orquestación | Planeados | Se implementarán y probarán después de validar la timeline con un video real. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
+| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 11 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. Puede limitarse a un intervalo de frames y reporta progreso real. |
+| `BehavioralVideoSynchronizer` | Implementado como base por sesión | 3 pruebas. Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Informa posibles desajustes; nunca intercambia fuentes ni segmenta. Falta el coordinador que lo ejecute sobre toda una carpeta. |
+| `SegmentPlanner` | Implementado y validado para CS | 4 pruebas. Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly`, UI de resumen y batch. |
+| `ClipExporter` | Implementado para un clip CS | 3 pruebas. Exporta un segmento individual mediante FFmpeg, con límites de frames exactos, crop, giro/espejo y escritura temporal segura. Probado con un video sintético real. Falta conectarlo a la UI y al lote. |
+| Orquestación | Siguiente etapa para CS | `BatchOrchestrator` aplicará el flujo ya validado a una carpeta de sesiones CS. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -400,30 +407,87 @@ El scanner tiene pruebas con video MJPEG sintético que confirman transiciones
 reales después de aplicar las mismas transformaciones usadas por la calibración,
 el respeto de un intervalo seleccionado y el progreso hasta 100%. La interfaz
 ya permite ejecutar el escaneo una vez que ROIs y calibración están guardadas,
-seleccionando el intervalo por tiempo o por frames; la validación con un video
-CMC real queda pendiente.
+seleccionando el intervalo por tiempo o por frames. `LightEventIntervalBuilder`
+empareja los cambios ON→OFF de cada luz para exportar periodos visuales
+revisables. `LightTimelineDiagnosticExcelExporter` incluye esos periodos, los
+cambios raw, las ROIs y la fuente conductual disponible.
+`LightTimelineDiagnosticComparer` estima un desfase propio de la sesión con
+coincidencias repetidas de lado y tiempo. Deja explícitas las señales visuales
+sin fuente conductual compatible y las filas conductuales sin señal visual, en
+vez de desplazar toda la tabla por posición. `BehavioralVideoSynchronizer`
+reutiliza ese resultado antes de segmentar y considera solo las filas cuya hora
+visual estimada cae dentro del rango realmente analizado. La primera validación
+real con `exp_0526_cs_d4r4` recuperó los 28 eventos MAT del intervalo de diez
+minutos y aisló una señal breve durante habituación.
 
 **Prueba aislada:** Sí. Con secuencias sintéticas de `LightSample` y un video
 sintético pequeño.
 
 ---
 
-### 7. SegmentPlanner
+### 7. BehavioralVideoSynchronizer
 
-**Función en simple:** Decide dónde empieza y dónde termina cada clip, y con qué etiqueta debe salir. La fuente conductual se sincroniza con el video de forma aproximada y revisable.
+**Función en simple:** Antes de recortar nada, confirma si las luces detectadas
+en un video y las filas conductuales que lo acompañan tienen evidencia temporal
+suficiente para trabajar juntas.
 
-**Recibe:** `LightTimeline` + `BehavioralEvent[]` opcional + `SessionMetadata` + reglas de segmentación.
+**Recibe:** intervalos visuales de comida, eventos normalizados de MAT/CSV,
+rango de frames realmente analizado, FPS y la ruta de la fuente conductual.
+
+**Entrega:** un resultado de sincronización con desfase estimado, empates,
+anomalías y un estado: `Ready`, `Warning` o `Blocked`.
+
+**Depende de:** `LightTimelineBuilder`/`LightEventIntervalBuilder` y
+`BehavioralData`. No abre videos ni archivos: recibe la evidencia ya leída y
+normalizada para que pueda probarse de forma aislada.
+
+```text
+LightEventInterval[] + BehavioralEvent[] + scanRange + fps
+  -> BehavioralVideoSynchronizer
+  -> { status, offset, matches, findings }
+```
+
+Reglas actuales:
+1. usa solo luces de comida y el lado `0`/`1` para buscar un patrón temporal
+   repetido;
+2. estima un desfase propio de la sesión, sin usar un offset fijo;
+3. al analizar solo una parte del video, no castiga filas que están después de
+   ese intervalo;
+4. bloquea si no hay evidencia, no hay patrón estable o no hay ningún empate;
+5. avisa si hay señales extra, filas sin señal o todavía hay muy pocos empates;
+6. nunca renombra, intercambia MAT/CSV ni toma una decisión experimental.
+
+Un resultado `Ready` significa que hay al menos tres empates y ninguna
+discrepancia dentro del rango revisado. `Warning` conserva los avisos, pero la
+sesión puede planearse y exportarse con ese estado registrado. `Blocked` impide
+el procesamiento automático de esa sesión hasta que se corrija su pareja de
+archivos o su calibración.
+
+**Prueba aislada:** Sí. Hay pruebas para una sesión consistente, una señal
+visual extra y un patrón incompatible que sugiere una posible asociación errónea.
+
+---
+
+### 8. SegmentPlanner
+
+**Función en simple:** Construye los clips a partir del inventario conductual
+real y usa el video para validarlos, ubicarlos en el reloj visual y conservar
+sus límites observables. Una luz aislada nunca crea por sí sola un ensayo.
+
+**Recibe:** `BehavioralEvent[]`, intervalos de luces, resultado no bloqueado de
+`BehavioralVideoSynchronizer`, metadatos del video y reglas de segmentación.
 
 **Entrega:** `VideoSegment[]`.
 
-**Depende de:** `LightTimelineBuilder` y, cuando exista, `IBehavioralSessionReader`.
+**Depende de:** un `BehavioralVideoSynchronizationResult` que no esté bloqueado,
+`LightTimelineBuilder` y, cuando exista, `IBehavioralSessionReader`.
 
 Ojo importante:
 - `LightTimeline` **no es un módulo**, es un dato construido por `LightTimelineBuilder`
 - `BehavioralEvent` **no es un módulo**, es un dato leído por una fuente conductual
 
 ```
-Input:  LightTimeline + BehavioralEvent[]? + SessionMetadata + SegmentConfig
+Input:  BehavioralEvent[] + matched visual intervals + synchronization + SegmentConfig
 Output: VideoSegment[]
 
 VideoSegment = {
@@ -432,14 +496,12 @@ VideoSegment = {
   Side:               enum { Left, Right, None },
   SegmentCode:        string,  // e1, e2, iti1, hab, habini, habfin
   TrialType:          enum { Safe, Conflict, SoundOnly, ITI, Habituation },
-  Result:             enum { Crossing, NoCrossing, Timeout, PendingReview, NotApplicable },
+  Result:             enum { Crossing, NoCrossing, Timeout, NotApplicable },
   BehavioralEventIndex:int?,   // evento/fila correspondiente de la fuente conductual
   LeverLatencySeconds: float?, // columna Latencia / latencia_s
-  CrossingLatencyMat: float?,  // Desplaz, usado con SideChanged para detectar excepciones
+  CrossingLatencyMat: float?,  // Desplaz raw, conservado para trazabilidad
   PreviousKnownSide:  enum?,   // último Lado válido antes del evento: Left o Right
   SideChanged:        bool?,   // current Side difiere de PreviousKnownSide
-  CrossingContext:    enum?,   // SideChange, InterEventCandidate, None o RequiresReview
-  BehavioralReviewFinding: BehavioralReviewFinding?, // excepción, si existe
   WarningStart:       int?,    // frame donde prende NoiseLed, si aplica
   FoodLightStart:     int?,    // frame donde prende FoodLeft/FoodRight
   FoodLightEnd:       int?,    // frame donde se apaga la luz de comida
@@ -448,39 +510,43 @@ VideoSegment = {
   BehavioralStartEstimateSeconds: float?, // tiempo absoluto - latencia
   VideoBehavioralStartGapSeconds: float?, // inicio visual - inicio conductual estimado
   PostPressLightTailSeconds: float?, // fin visual - tiempo de palanqueo conductual
-  MatchConfidence:    enum,    // alta, media, baja o requiere revisión
   DurationSeconds:    float,
 }
 ```
 
-```text
-BehavioralReviewFinding = {
-  Type:                enum { InterEventCrossing, ShortSideChange },
-  Session:             SessionMetadata, // protocolo, fase, rata y día
-  BehavioralEventIndex:int,
-  PreviousKnownSide:   enum?,
-  CurrentSide:         enum?,
-  DisplacementSeconds: float?,
-  VideoEvidence:       { startFrame, endFrame, clipReference },
-  BehavioralEvidence:  { lado, desplaz, latencia, tiempoAbs },
-  Explanation:         string,
-  InvestigatorDecision: enum { Pending, CountAsCrossing, DoNotCount, Other },
-}
-```
+#### Regla Rectora: Qué Decide Cada Fuente
 
-`BehavioralReviewFinding` no altera los valores raw de la fuente conductual. Mientras
-`InvestigatorDecision` sea `Pending`, el segmento conserva
-`Result = PendingReview`; la UI debe pedir una decisión antes de asignar una
-etiqueta final de output como `cr` o `nc`. Si se exporta antes para facilitar la
-revisión, usa temporalmente el código `rv`.
+1. **MAT/CSV decide el inventario conductual:** qué eventos existieron, su
+   orden, lado, tipo, palanqueo, desplazamiento y candidato a cruce/no cruce.
+2. **El video decide la evidencia visual:** cuándo se ve el LED, cuándo prende
+   y apaga la comida, y cuál es el desfase propio de esa sesión.
+3. **El sincronizador conecta ambos relojes:** traduce cada inicio conductual
+   estimado al reloj del video y exige coincidencias repetidas de lado y tiempo.
+4. **El planner crea un clip de evento solo para una fila conductual validada.**
+   Una señal visual sin fila compatible queda como hallazgo; nunca se convierte
+   en un ensayo ni desplaza la tabla por orden.
+5. **El resultado del lote se decide por lado:** con un lado previo válido,
+   mismo lado significa no cruce y cambio de lado significa cruce. `Desplaz`
+   se conserva como evidencia raw, pero no cambia esa etiqueta automática.
+
+Por eso los clips no se recortan "solo desde las luces" ni "solo desde el
+MAT": el MAT/CSV define qué debe existir y el video aporta el desfase y los
+límites visibles que rodean al evento.
 
 Decisiones principales que toma este módulo:
-1. usa las transiciones de luces para ubicar los límites de cada evento
-2. determina si el evento es seguro, conflicto con comida o solo ruido
-3. detecta huecos entre eventos para marcar `ITI`
-4. detecta zonas sin eventos al inicio o final para marcar habituación
-5. si hay fuente conductual, empareja el evento visual con el evento correspondiente
-6. produce una lista para revisión y luego exportación
+1. parte de las filas MAT/CSV ya validadas; no deriva la lista de ensayos desde
+   encendidos de luz aislados
+2. traduce cada fila al reloj del video con el desfase de esa sesión y la ancla
+   a su evidencia visual compatible
+3. conserva `FoodLightStart`/`FoodLightEnd` y, en riesgo, `WarningStart` para
+   que el clip incluya el contexto visual que MATLAB no registra directamente
+4. genera `ITI` entre el final visual de un evento y el inicio visual del
+   siguiente; los ITIs no se descartan automáticamente
+5. genera habituación inicial solo si el análisis cubre el inicio real del
+   video; genera habituación final solo si cubre el final real
+6. marca como aviso cualquier luz que permanezca encendida dentro de la
+   habituación final esperada, en vez de ocultarla
+7. produce una lista trazable para exportación por lote
 
 Para eventos con comida, `FoodLightStart` es la referencia visual para comparar
 con el inicio MATLAB estimado; no se debe asumir que ambos ocurren en el mismo
@@ -492,26 +558,49 @@ los videos. La especificación completa está en
 [Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md).
 
 **Lógica de segmentación:**
-1. Cuando una luz de comida pasa de OFF a ON -> inicio visual del evento
-2. Cuando se apaga la luz de comida -> fin visual del evento
-3. Si el LED de ruido se enciende antes de la luz de comida -> periodo de advertencia de riesgo/conflicto
-4. Si un `BehavioralEvent` tiene `EventType=SoundOnly` (`tipo_evento=2`), LED sin luz de comida -> tipo `SoundOnly`
-5. LED de ruido asociado a un evento con comida -> tipo `Conflict`
-6. Luz de comida sin LED de ruido asociado -> tipo `Safe`
-7. Entre ensayos/eventos sin luces relevantes -> `ITI`
-8. Al inicio/fin del video sin luces -> `Habituation`
-9. El primer ensayo de la sesión siempre es seguro/de comida; usarlo como referencia contextual, no como sustituto de la detección
-10. Para determinar cruce/no cruce/timeout: clasifica automáticamente como cruce solo cambio de `Lado` + `Desplaz > 1 s`. Si el lado se mantiene igual con `Desplaz > 1 s`, crea un hallazgo `InterEventCrossing`; si cambia con `Desplaz <= 1 s`, crea un hallazgo `ShortSideChange`. Ambos conservan video y datos conductuales, pero requieren decisión del investigador, no una etiqueta automática final. La latencia de palanqueo solo sirve como señal de revisión.
+1. Cada fila MAT/CSV compatible genera un candidato; si no tiene ancla visual,
+   se reporta y no se exporta automáticamente.
+2. En eventos seguros, la luz de comida ON/OFF delimita la evidencia visual.
+3. En riesgo/conflicto, un `NoiseLed` compatible antes de comida adelanta el
+   inicio del clip para conservar LED/ruido previo; la fila conductual sigue
+   definiendo la identidad del evento.
+4. Si un `BehavioralEvent` tiene `EventType=SoundOnly` (`tipo_evento=2`), el
+   ancla será `NoiseLed`; ese camino se implementa después de validar videos
+   reales de solo sonido.
+5. El final del evento con comida conserva `FoodLightEnd`, aunque el palanqueo
+   MATLAB haya ocurrido antes; esa diferencia es parte de la evidencia.
+6. Entre el final visual de un evento y el inicio del siguiente se genera `ITI`.
+7. Desde inicio de video al primer evento validado se genera habituación inicial;
+   desde el último fin visual a fin de video se genera habituación final. La
+   regla de luces apagadas se verifica como calidad, no se asume ciegamente.
+8. El primer ensayo siempre es seguro/de comida; sirve como contexto del
+   protocolo, no sustituye la sincronización ni la detección.
+9. Para cruce/no cruce/timeout: después del primer evento con lado conocido,
+   mismo `Lado` significa no cruce y cambio de `Lado` significa cruce. El primer
+   evento queda como `No aplica` porque no hay lado anterior; `Lado=-2` es
+   timeout. `Desplaz` y latencia de palanqueo se conservan como datos raw, pero
+   no bloquean ni cambian la clasificación automática del lote.
 
 **Timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. `FoodLightStart` y `FoodLightEnd` son límites visuales que se comparan con el inicio MATLAB estimado y `TiempoAbs`; no se asumen idénticos. En un evento `SoundOnly`, `WarningStart` es el inicio relevante y `FoodLightStart` queda vacío.
 
-**Prueba aislada:** Sí. Con `LightTimeline` y `BehavioralEvent` sintéticos se prueba sin necesidad de video.
+**Estado actual:** la primera versión ya recibe empates de sincronización y
+planea eventos con comida, ITIs y habituación solo cuando el rango cubre el
+inicio/final real. En la validación completa CS de `exp_0526_cs_d4r4` produjo
+1 habituación inicial, 67 eventos, 66 ITIs y 1 habituación final a partir de
+67/67 empates MAT-video. El exportador diagnóstico deja esa propuesta en la
+hoja `Segmentos planeados`, con duración total y comparación de lado visible,
+para revisión antes de generar clips. `SoundOnly`,
+asociación LED de riesgo con videos reales, conexión UI de revisión y
+exportación siguen fuera de esta primera versión.
+
+**Prueba aislada:** Sí. Hay pruebas para habituación/eventos/ITI/final, rango
+parcial, sincronización bloqueada y clasificación por comparación de lados.
 
 **Aclaración de nombres:** `LightTimeline` y `BehavioralEvent` son estructuras de datos, no módulos.
 
 ---
 
-### 8. BehavioralData
+### 9. BehavioralData
 
 **Función en simple:** Encuentra y lee la información conductual que acompaña a
 un video. Puede venir de un CSV nuevo o de un `.mat` histórico, pero el resto
@@ -577,10 +666,11 @@ la referencia visual es `NoiseLed`; no se exige luz de comida.
   columnas acordadas, usa punto decimal con cultura invariante, preserva orden y
   valores raw. También lee el CSV de palanqueos si está disponible y conserva
   `ensayo=NA` como valor ausente.
-- `LegacyMatBehavioralSessionReader` define el adaptador de MAT. Ya normaliza
-  matrices N×8 y N×9 mediante `LegacyMatEventMapper`: para N×8 deriva el tipo
-  desde `Estim`; para N×9 usa `TipoEvento`. Falta conectar un lector binario
-  real que extraiga la matriz desde el archivo `.mat` sin modificarlo.
+- `LegacyMatBehavioralSessionReader` usa `MatV5MatrixReader` para leer MAT
+  Level-5 sin MATLAB ni modificar el archivo. Extrae `Resultados` o una única
+  matriz N×8/N×9, que `LegacyMatEventMapper` normaliza: para N×8 deriva el tipo
+  desde `Estim`; para N×9 usa `TipoEvento`. MAT HDF5/v7.3 no forma parte aún de
+  este alcance.
 
 La definición exacta de las columnas, CSV V1 y palanqueos vive en el
 [handoff de CajaValentia](handoff-cajavalentia-csv-backend.md) y en
@@ -593,7 +683,7 @@ malformado, punto decimal bajo cultura española, `lado=-2`, `tipo_evento=2`,
 
 ---
 
-### 9. VideoTransformConfig / VideoTransformPreview
+### 10. VideoTransformConfig / VideoTransformPreview
 
 **Función en simple:** Guardar y previsualizar cómo se debe transformar el video sin generar todavía el clip final.
 
@@ -634,9 +724,12 @@ píxeles del video fuente y aplica, en este orden, crop, giro de 180° y espejo 
 un JPEG de preview. La interfaz usa esta misma ruta y no transforma la imagen
 solo con JavaScript. El crop se elige en un modal amplio con Cropper.js 1.6.2
 local: el video se ajusta completo y fijo al área de trabajo, mientras el
-usuario ajusta el marco o los límites de sus dos esquinas. Por ahora cada
-configuración se conserva únicamente mientras el lote está abierto; falta
-guardarla dentro de un `CameraProfile` reutilizable.
+usuario ajusta el marco o los límites de sus dos esquinas. La aplicación ya
+conserva localmente transformación y ROIs por ruta de video en coordenadas del
+video fuente. El XLSX de diagnóstico incluye una hoja `Perfil de camara`
+versionada con esas mismas decisiones, dimensiones, crop, giro, espejo y
+umbrales. Falta conectar la importación de ese perfil y asignarlo a varias
+sesiones de un mismo encuadre.
 
 Un módulo `VideoCropRotate` puede existir como helper opcional para previews o casos especiales, pero no debe ser el camino principal del batch.
 
@@ -644,43 +737,54 @@ Un módulo `VideoCropRotate` puede existir como helper opcional para previews o 
 
 ---
 
-### 10. ClipExporter
+### 11. ClipExporter
 
 **Función en simple:** Toma un plan de clips y escribe los archivos finales de video.
 
-**Recibe:** `ExportClip[]` y configuración de FFmpeg.
+**Recibe:** una solicitud `ClipExportRequest`: video fuente, metadata,
+segmento planeado, transformación, ruta de salida y opciones de FFmpeg.
 
 **Entrega:** archivos de salida ya exportados.
 
 **Depende de:** `SegmentPlanner`, `VideoTransformConfig` y la capa de exportación.
 
 ```
-Export(exportClips[], ffmpegConfig) -> List<FileInfo>
+ExportAsync(clipExportRequest) -> ClipExportResult
 ```
 
-Cada `ExportClip` incluye video de entrada, segmento, configuración de transformaciones y nombre final. Usa FFmpeg con `-ss`/`-to` y filtros de crop/rotación/flip en un solo paso por clip. Nombra cada archivo según la nomenclatura de output del Video Batch Processor.
+Cada `ExportClip` incluye video de entrada, segmento, configuración de transformaciones y nombre final. Usa FFmpeg con `-ss`/`-to` sobre el reloj del video fuente y filtros de crop/rotación/flip en un solo paso por clip. Nombra cada archivo según la nomenclatura de output del Video Batch Processor.
 
-Antes de exportar, una capa interna de herramientas de video usa `ffprobe` para
-leer duración, fps y dimensiones. FFmpeg y ffprobe deben ser administrados por
-la aplicación; el usuario no instala ni configura ejecutables. El detalle de
-empaquetado se resuelve por sistema operativo, sin exponerlo como una tarea de
-la interfaz.
+Esta primera versión recibe la metadata que ya leyó `VideoReader` y ejecuta
+FFmpeg como proceso interno. La detección y empaquetado de FFmpeg/ffprobe para
+macOS y Windows será responsabilidad de la aplicación antes del primer release;
+no será una tarea de la interfaz ni del investigador.
 
 El perfil inicial previsto para clips destinados a DLC es H.264 (`libx264`) con
-`CRF 18`, sujeto a validación con videos reales. No se debe aplicar un trim
-global fijo a todas las sesiones: `-ss` y `-to` representan los límites del
-segmento planeado, incluida la decisión explícita sobre habituación final.
+`CRF 18`, sujeto a validación con videos reales. No se debe aplicar padding ni
+un trim global fijo a todas las sesiones: `-ss` y `-to` representan exactamente
+los límites del segmento planeado, incluida la decisión explícita sobre
+habituación final. Cada clip se escribe primero como archivo temporal y solo se
+renombra como salida final si FFmpeg termina correctamente.
+
+Al finalizar, el exportador entrega al `BatchReport` una entrada por clip con
+video fuente, MAT/CSV asociado, perfil de cámara, desfase de la sesión,
+segmento y archivo creado. Así un lote puede auditarse o reproducirse después.
 
 Para un evento `SoundOnly`, el exportador no debe inventar `s`, `p` o `na` en
 el campo de tipo. El código corto de output sigue pendiente de acuerdo del lab;
 hasta entonces debe conservar el segmento para revisión y emitir un warning en
 lugar de exportarlo con una etiqueta falsa.
 
-**Prueba aislada:** Sí. Con un video de prueba y segmentos sintéticos.
+**Estado actual:** listo para exportar un clip CS individual. Se comprobó con
+un video de tres segundos: exportó exactamente 30 frames (1 s) y aplicó un
+crop de 160×120 píxeles junto con giro/espejo.
+
+**Prueba aislada:** Sí. Hay pruebas para límites exactos, filtros de cámara y
+limpieza de salida parcial si FFmpeg falla.
 
 ---
 
-### 11. BatchOrchestrator
+### 12. BatchOrchestrator
 
 **Función en simple:** Coordina todo el pipeline de principio a fin para una carpeta de videos.
 
@@ -699,22 +803,27 @@ Run(config) -> BatchReport
     BatchManifestPath,            // configuración interna de este producto
     SessionCaptureManifestPath?,  // paquete externo futuro de CajaValentia
     HabituationConfig: { TargetFinal, WarnShortFinal },
-    UseBehavioralSource: bool,
   }
 ```
 
 Flujo:
-1. escanea la carpeta y encuentra videos candidatos
-2. parsea nombres con `NomenclatureParser`
-3. completa metadata con `SessionMetadataResolver` y `BatchManifest`
-4. asigna el `CameraProfile` correspondiente y lee metadata del video con `VideoReader`
-5. obtiene brillo por ROI con `FrameAnalyzer`, lo entrega mediante el `BrightnessAdapter` y detecta luces con `LightDetection`
-6. construye transiciones estables con `LightTimelineBuilder`
-7. si hay fuente conductual, la resuelve y la lee con `IBehavioralSessionReader`
-8. planea segmentos con `SegmentPlanner`
-9. muestra revisión/QA al usuario antes de exportar
-10. exporta clips con `ClipExporter` aplicando trim + transformaciones
-11. genera `BatchReport` con resumen, warnings y discrepancias
+1. escanea la carpeta y encuentra videos CS candidatos
+2. parsea nombres con `NomenclatureParser` y completa metadata con
+   `SessionMetadataResolver` y `BatchManifest`
+3. resuelve exactamente una fuente conductual por video: una ruta explícita
+   gana; si no existe, busca el stem correspondiente. Sin fuente o con más de
+   una candidata, marca la sesión `Blocked`; nunca adivina una pareja.
+4. asigna el `CameraProfile` confirmado y lee metadata con `VideoReader`
+5. obtiene brillo por ROI con `FrameAnalyzer`, lo entrega mediante el
+   `BrightnessAdapter` y detecta luces con `LightDetection`
+6. construye transiciones estables con `LightTimelineBuilder` y lee el MAT/CSV
+   con `IBehavioralSessionReader`
+7. usa `BehavioralVideoSynchronizer` como puerta de calidad: conserva warnings
+   y bloquea asociaciones sin evidencia suficiente
+8. planea segmentos con `SegmentPlanner` solo para sesiones no bloqueadas
+9. exporta automáticamente los segmentos CS planeados con `ClipExporter`
+10. continúa con la siguiente sesión si una falla y genera un `BatchReport`
+    con estados `Exported`, `ExportedWithWarnings`, `Blocked` o `Failed`
 
 **Prueba aislada:** Parcial. Se puede validar con mocks, pero su valor real aparece al integrar todo.
 
@@ -781,16 +890,16 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 | Bloque UI y vistas | Función en simple | Recibe | Entrega | Conexión con backend |
 |--------------------|-------------------|--------|---------|----------------------|
 | `SessionSetup` (`VideoLoadView`) | Cargar una carpeta, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
-| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta persistir el perfil y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
-| `ProcessingReview` (`SegmentTimelineView`, `HabituationView`, `BehavioralFindingsView`) | Mostrar lo que el backend propuso y permitir confirmar o corregir casos importantes. | Segmentos, eventos conductuales, tipo de fuente, advertencias, hallazgos `InterEventCrossing`/`ShortSideChange` y duraciones de habituación. | Decisiones de revisión: aceptar, excluir, ajustar o marcar para revisión manual. | Se diseña ahora; se conecta después a `LightTimelineBuilder`, `IBehavioralSessionReader` y `SegmentPlanner`. |
+| `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado; al guardarlas, `CameraSetupProfileStore` conserva transformación y ROIs por ruta de video. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta una asignación explícita de perfil a muchas sesiones y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
+| `ProcessingSummary` (`SegmentTimelineView`, `HabituationView`) | Mostrar el plan automático antes de exportar un lote. | Estado de sincronización, segmentos, eventos conductuales, tipo de fuente, advertencias, comparación de lados y duraciones. | Resumen trazable de clips propuestos y avisos técnicos. | Se diseña ahora; primero mostrará `BehavioralVideoSynchronizer` y después se conectará a `SegmentPlanner`. |
 | `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Clips confirmados, opciones de salida y progreso. | `BatchReport`, logs y acceso a la carpeta de salida. | Se diseña ahora; se conecta después a `ClipExporter` y `BatchOrchestrator`. |
 
 ### Estado De La UI
 
-`CameraProfileDraft` y las decisiones de revisión son **estado de interfaz**:
-existen mientras el usuario configura o revisa. Solo pasan a configuración
-reutilizable cuando el usuario los confirma y el backend los guarda. Esto evita
-que la pantalla se convierta en otra fuente de verdad distinta al Core.
+`CameraProfileDraft` y el resumen temporal del lote son **estado de interfaz**:
+existen mientras el usuario configura o consulta el resultado. Solo el perfil
+confirmado pasa a configuración reutilizable cuando el backend lo guarda. Esto
+evita que la pantalla se convierta en otra fuente de verdad distinta al Core.
 
 ### Dirección De Implementación De La Interfaz
 
@@ -806,7 +915,7 @@ lista vuelve a HTML. La interfaz XAML anterior fue retirada: el archivo XAML
 solo aloja el `NativeWebView`, mientras que la presentación vive en
 `WebUi/index.html`.
 
-### 12. AppShell + SessionSetup
+### 13. AppShell + SessionSetup
 
 **Función en simple:** Es la puerta de entrada del programa. Presenta el flujo
 de trabajo, deja elegir videos o una carpeta y ayuda a confirmar que cada sesión
@@ -833,7 +942,7 @@ conteo de sesiones omitidas sin confundirlas con errores de nomenclatura.
 Cuando detecta más de cinco nombres no compatibles, ofrece quitarlos todos de
 la lista del lote. Esa acción nunca borra los archivos físicos del disco.
 
-### 13. CameraSetup
+### 14. CameraSetup
 
 **Función en simple:** Permite escoger un video representativo y decir cómo se
 debe ver la caja: orientación, espejo y recorte. Agrupa esas decisiones en un
@@ -887,7 +996,7 @@ token de esa medición, por lo que al confirmar no se vuelve a buscar un frame
 que podría variar según códec. El flujo se validó manualmente en macOS el
 13-07-2026; después se guardará un `CameraProfile` reutilizable.
 
-### 14. LightCalibration
+### 15. LightCalibration
 
 **Función en simple:** Deja marcar dónde están las tres luces y escoger umbrales
 de encendido/apagado con ejemplos visuales. Su trabajo termina al guardar una
@@ -942,9 +1051,10 @@ Con `BrightnessAdapter` ya implementado, esa segunda ruta queda así:
 frame real -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightSample
 ```
 
-La UI debe mostrar el resultado, no repetir la detección. Timeline, asociación
-con `.mat`, habituación calculada y exportación permanecen deshabilitados o en
-modo de diseño hasta que sus módulos backend existan.
+La UI debe mostrar el resultado, no repetir la detección. La timeline y el
+diagnóstico de sincronización ya están conectados; `SegmentPlanner` ya propone
+habituación, eventos e ITIs en el XLSX de diagnóstico para CS. El resumen de
+esa propuesta en la UI y la exportación de clips siguen pendientes.
 
 ### Regla De Separación
 
@@ -971,14 +1081,13 @@ lectura de video, análisis de frame y detección de luces.
 ```
 1. Usuario abre el programa
 2. Selecciona carpeta con videos -> se listan y agrupan por metadata
-3. Revisa frames representativos y confirma o crea `CameraProfile` por cambio de encuadre
-4. Para cada perfil: dibuja crop, elige orientación, marca las 3 ROIs y calibra OFF/ON por luz
-5. Los parámetros y la asignación de perfiles se guardan en un archivo de configuración
-6. Programa genera segmentos preliminares y los muestra en timeline
-7. Usuario revisa/corrige segmentos críticos, emparejamiento conductual y excepciones de habituación
-8. Usuario da clic en "Procesar todo"
-9. Pipeline se ejecuta sobre todos los videos
-10. Al terminar: carpeta de salida + reporte
+3. Para cada perfil: dibuja crop, elige orientación, marca las 3 ROIs y calibra OFF/ON por luz
+4. Los parámetros y la asignación explícita de perfiles se guardan en configuración
+5. Programa empareja video/MAT, escanea luces, estima el desfase y bloquea solo sesiones inválidas
+6. Programa genera segmentos CS: habituación inicial, eventos, ITIs y habituación final
+7. Usuario consulta el resumen automático y da clic en "Procesar todo"
+8. Pipeline exporta los clips de sesiones no bloqueadas
+9. Al terminar: carpeta de salida + reporte
 ```
 
 ---
@@ -994,11 +1103,14 @@ Paso 1:  NomenclatureParser      -> independiente
 Paso 2:  BrightnessAdapter       -> conecta FrameAnalyzer con LightDetection
          LightDetection          -> depende de BrightnessAdapter solo cuando se conecta a frames reales
          LightTimelineBuilder    -> depende de LightDetection
-         BehavioralData          -> resolución y CSV V1 histórico ya implementados; falta lector binario MAT
-                                  y compatibilidad con el CSV actual de 10 columnas
+         BehavioralData          -> resolución, CSV V1 histórico y lector MAT Level-5 ya implementados;
+                                  falta compatibilidad con el CSV actual de 10 columnas
 
-Paso 3:  SegmentPlanner          -> depende de LightTimelineBuilder + fuente conductual opcional
-         CameraProfile           -> reúne transformaciones, ROIs y calibración por grupo de sesiones
+Paso 3:  BehavioralVideoSynchronizer -> depende de timeline + fuente conductual normalizada;
+                                      bloquea o avisa antes de segmentar
+         SegmentPlanner          -> depende de sincronización no bloqueada + reglas de segmento
+         CameraProfile           -> ya conserva localmente transformaciones y ROIs por video;
+                                  falta asignación explícita por grupo de sesiones
          VideoTransformConfig    -> implementado: usa VideoReader y preview de transformaciones
 
 Paso 4:  ClipExporter            -> depende de SegmentPlanner + VideoTransformConfig
@@ -1008,8 +1120,10 @@ Paso 4:  ClipExporter            -> depende de SegmentPlanner + VideoTransformCo
 
 Paso 5:  UI base                 -> carga, lista, preview, CameraSetup, ROIs y calibración inicial integrados y validados
                                   falta validar la referencia compartida con el lado opuesto
-         UI de timeline/export   -> espera LightTimelineBuilder, SegmentPlanner,
-                                  ClipExporter y BatchOrchestrator
+         UI de timeline/diagnóstico -> integrada; falta consumir el estado del
+                                  sincronizador como resumen de procesamiento
+         UI de segmentación/export -> espera SegmentPlanner, ClipExporter y
+                                  BatchOrchestrator
          Pruebas con datos reales
 ```
 
@@ -1036,7 +1150,9 @@ metadata_defaults:
   treatment: "stx"
 camera_profiles:
   - id: "center-camera"
-    applies_from_session: "exp_0126_cs_d1r1"
+    assigned_sessions:
+      - "exp_0126_cs_d1r1"
+      - "exp_0126_cs_d1r2"
     crop: { x: 50, y: 30, width: 900, height: 500 }
     rotation: 0
     flip: none
@@ -1060,13 +1176,12 @@ export:
   include_itis: true
   include_habituation: true
   include_warning_period: true
-  segment_padding_seconds: 0.5
+  segment_padding_seconds: 0
   quality: "research_archive"
 ```
 
-Los perfiles se evalúan en orden dentro del lote: cada uno aplica desde su
-sesión inicial hasta la sesión inicial del perfil siguiente. La UI debe mostrar
-esa asignación antes de procesar y nunca extender un perfil a otro protocolo sin
-confirmación del usuario.
+Los perfiles se asignan explícitamente a sesiones o a un grupo confirmado por
+el usuario. Nunca se infieren por el orden de archivos ni se extienden a otro
+protocolo sin una asignación visible en la UI.
 
 Esto permite reprocesar sin tener que configurar cada vez.

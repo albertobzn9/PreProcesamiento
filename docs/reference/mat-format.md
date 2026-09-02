@@ -40,7 +40,7 @@ Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Po
 | 4 | **TiempoAbs** | float (s) | Segundos desde que MATLAB crea su reloj interno, antes de mensajes modales y de la habituación inicial. En un evento con palanqueo, registra el momento MATLAB de ese evento. Junto con `Latencia` permite calcular `inicio MATLAB estimado = TiempoAbs - Latencia` para compararlo con el video. |
 | 5 | **PalancasIzq** | int (acumulado) | Presiones acumuladas en la palanca izquierda hasta este evento |
 | 6 | **PalancasDer** | int (acumulado) | Presiones acumuladas en la palanca derecha hasta este evento |
-| 7 | **Desplaz** | float | Latencia asociada al sensor de desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. Cambio de `Lado` + `Desplaz > 1 s` es el cruce automático normal. Los dos patrones excepcionales se reportan para decisión humana. **~180** = timeout. |
+| 7 | **Desplaz** | float | Latencia asociada al sensor de desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. Se conserva raw para trazabilidad, pero no modifica la clasificación por comparación de `Lado`. **~180** = timeout. |
 | 8 | **TipoEvento** | `0`, `1`, `2` | Solo existe en archivos `N×9`. **0** = seguro con comida · **1** = riesgo/conflicto con comida · **2** = solo ruido, LED y parrilla, sin luz de comida ni recompensa. |
 
 Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la interpretación existente: `Estim=0` representa seguro y `Estim=1` representa conflicto con comida, porque esos datos fueron producidos antes de que existiera el evento de solo ruido.
@@ -52,20 +52,20 @@ sonido.
 
 ### Regla Para Clasificar Cruce
 
-El parser debe conservar `Lado` y `Desplaz` raw; el resultado conductual no se
-debe deducir de una sola columna.
+El parser debe conservar `Lado` y `Desplaz` raw. Para el resultado operativo
+del lote, solo compara `Lado` con el último lado válido: mismo lado = no cruce;
+cambio de lado = cruce.
 
-| Comparación con el último `Lado` conocido (`0` o `1`) | `Desplaz` | Interpretación |
-|--------------------------------------------------------|------------|----------------|
-| Cambia `0 -> 1` o `1 -> 0` | `> 1 s` | Cruce completo con cambio de lado. |
-| Se mantiene igual | `<= 1 s` | Palanqueo del mismo lado, sin cruce. |
-| Se mantiene igual | `> 1 s` | Hallazgo `InterEventCrossing`: la rata pudo cruzar durante el ITI y el evento siguiente volvió a registrar el mismo lado. Reportar para decisión del investigador; no clasificarlo automáticamente como cruce contado. |
-| Cambia `0 -> 1` o `1 -> 0` | `<= 1 s` | Hallazgo `ShortSideChange`: puede ocurrir si la rata ya estaba en medio de la caja. Reportar para decisión del investigador; no clasificarlo automáticamente como cruce contado. |
-| `Lado = -2` o valor cercano al límite de fase | — | Timeout. |
+| Comparación con el último `Lado` conocido (`0` o `1`) | Resultado del lote |
+|--------------------------------------------------------|--------------------|
+| Cambia `0 -> 1` o `1 -> 0` | Cruce. |
+| Se mantiene igual | No cruce. |
+| No hay lado anterior | No aplica (primer evento). |
+| `Lado = -2` | Timeout. |
 
-Un timeout o un `Lado` anterior desconocido rompe la secuencia de lados. El
-siguiente evento no debe clasificarse por comparación con un lado viejo. La
-latencia de palanqueo tampoco sustituye estas reglas.
+Un timeout no actualiza el último lado válido. `Desplaz` y la latencia de
+palanqueo se conservan para trazabilidad, pero no sustituyen ni modifican esta
+regla de comparación de lados.
 
 ---
 
@@ -105,9 +105,8 @@ Variable interna: `exp_0126_cs_d1r1`; shape `(57, 8)`.
 Lectura rápida:
 
 - Todos los eventos tienen `Estim=0`.
-- Cambio de `Lado` + `Desplaz > 1` indica cruce con cambio de lado.
-- Lado igual + `Desplaz > 1` genera hallazgo `InterEventCrossing` para revisión del investigador.
-- Lado igual + `Desplaz <= 1` indica palanqueo sin cruce.
+- Cambio de `Lado` respecto al evento anterior indica cruce; lado igual indica
+  no cruce. `Desplaz` se conserva raw.
 - En este ejemplo no hay `Lado=-2`, pero pueden existir timeouts raros en CS, sobre todo al inicio del entrenamiento.
 
 ### CP: `exp_0126_cp_d1r1.mat`
@@ -141,10 +140,8 @@ Lectura rápida:
 
 - `Estim=0` indica seguro; `Estim=1` indica conflicto.
 - `Lado=-2` marca timeout/no cruce.
-- Cambio de `Lado` + `Desplaz > 1` indica cruce con cambio de lado.
-- Lado igual + `Desplaz > 1` genera hallazgo `InterEventCrossing` para revisión del investigador.
-- Lado igual + `Desplaz <= 1` indica palanqueo sin cruce significativo.
-- Cambio de `Lado` + `Desplaz <= 1` requiere revisar video: la rata pudo estar en medio de la caja.
+- Cambio de `Lado` respecto al evento anterior indica cruce; lado igual indica
+  no cruce. `Desplaz` se conserva raw.
 - `Latencia` y `Desplaz` pueden diferir porque representan mediciones distintas: palanqueo vs cruce/desplazamiento.
 
 ---
