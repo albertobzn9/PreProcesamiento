@@ -1,11 +1,13 @@
 using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SessionResolver;
+using VideoBatchProcessor.Core.SessionFiles;
 
 namespace VideoBatchProcessor.App;
 
 public sealed record SessionSetupEntry(
     ParsedFileName ParsedName,
-    SessionMetadata Metadata);
+    SessionMetadata Metadata,
+    IReadOnlyList<string>? AlternateVideoPaths = null);
 
 public sealed class SessionSetupService
 {
@@ -14,11 +16,9 @@ public sealed class SessionSetupService
 
     public IReadOnlyList<SessionSetupEntry> AnalyzeFiles(IEnumerable<string> videoPaths)
     {
-        return videoPaths
-            .Where(IsSupportedVideo)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-            .Select(AnalyzeFile)
+        return SessionVideoSelector.SelectOnePerSession(videoPaths.Where(IsSupportedVideo))
+            .Select(source => AnalyzeFile(source.VideoPath, source.AlternateVideoPaths))
+            .OrderBy(entry => Path.GetFileName(entry.Metadata.SourceVideoPath), StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -28,11 +28,11 @@ public sealed class SessionSetupService
     public static bool IsSupportedVideo(string path) =>
         SupportedExtensions.Contains(Path.GetExtension(path));
 
-    private SessionSetupEntry AnalyzeFile(string videoPath)
+    private SessionSetupEntry AnalyzeFile(string videoPath, IReadOnlyList<string> alternateVideoPaths)
     {
         _parser.TryParse(videoPath, out var parsedName);
         var metadata = _resolver.Resolve(parsedName, BatchManifest.Empty, videoPath);
-        return new SessionSetupEntry(parsedName, metadata);
+        return new SessionSetupEntry(parsedName, metadata, alternateVideoPaths);
     }
 
     private static readonly HashSet<string> SupportedExtensions =

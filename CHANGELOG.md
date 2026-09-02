@@ -10,6 +10,12 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Added
 
+- `Process Batch` ya conecta la interfaz con `BatchOrchestrator`: usa una
+  cámara/calibración confirmada como perfil de referencia, crea una carpeta de
+  clips por sesión junto a sus fuentes y muestra el progreso y resumen del lote.
+- Cada carpeta de clips incluye `clips_exportados.csv`, con frames y tiempos
+  de inicio/final de cada clip dentro del video original.
+
 - `BatchOrchestrator` inicial para Cruces Seguros: recorre subcarpetas, toma
   solo sesiones fuente CS, exige el MAT correspondiente, sincroniza video-MAT,
   genera el XLSX diagnóstico y exporta habituación, eventos e ITIs con FFmpeg.

@@ -810,7 +810,10 @@ Run(config) -> BatchReport
 ```
 
 Flujo:
-1. escanea la carpeta y encuentra videos CS candidatos
+1. escanea la carpeta y encuentra videos CS candidatos. Cada sesión se empareja
+   solo con el `.mat` de su mismo nombre base; si existe como MP4 y MKV,
+   conserva MP4. Si solo existe MKV, usa MKV. El formato alternativo queda
+   intacto en disco y nunca produce clips duplicados.
 2. parsea nombres con `NomenclatureParser` y completa metadata con
    `SessionMetadataResolver` y `BatchManifest`
 3. resuelve el MAT exacto por video: un override explícito gana; si no existe,
@@ -829,16 +832,22 @@ Flujo:
 9. exporta automáticamente los segmentos CS planeados con `ClipExporter`
 10. guarda además un `diagnostico_luces.xlsx` dentro de cada carpeta de sesión
     para conservar la evidencia MAT-video usada antes del corte
-11. continúa con la siguiente sesión si una falla y genera un `BatchReport`
+11. guarda `clips_exportados.csv` junto a los videos generados, con archivo,
+    frames y tiempos de inicio/final en el video original para verificación
+12. continúa con la siguiente sesión si una falla y genera un `BatchReport`
     con estados `Exported`, `ExportedWithWarnings`, `Blocked` o `Failed`
 
 **Estado actual:** Implementado para CS. Recorre subcarpetas, acepta MP4/MKV/
 AVI/MOV/M4V, omite clips de output y fases ajenas, conserva una carpeta de
 salida por sesión y no sobrescribe una salida existente. Requiere que el lote
 reciba una transformación, ROIs/umbrales y metadata completa (el `BatchManifest`
-completa iniciales, sexo y tratamiento de nombres legacy). Falta conectarlo al
-botón de procesamiento de la interfaz y validarlo con un lote real de varias
-sesiones CS antes de extenderlo a CP/DIS.
+completa iniciales, sexo y tratamiento de nombres legacy). La interfaz ya
+entrega esta configuración al botón `Process Batch`, usa la carpeta de entrada
+como raíz de salida (una subcarpeta por sesión) y muestra progreso y resumen.
+La opción inicial segura exporta solo habituación inicial/final, los dos
+primeros eventos y el primer ITI; `AllSegments` se usa después de revisar esos
+límites. Falta validarlo con un lote real de varias sesiones CS antes de
+extenderlo a CP/DIS.
 
 **Prueba aislada:** Sí para el descubrimiento recursivo y selección exclusiva
 de sesiones CS. La prueba integral con videos/MAT reales queda como la siguiente
@@ -909,7 +918,7 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 | `SessionSetup` (`VideoLoadView`) | Cargar una carpeta, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
 | `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado; al guardarlas, `CameraSetupProfileStore` conserva transformación y ROIs por ruta de video. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta una asignación explícita de perfil a muchas sesiones y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
 | `ProcessingSummary` (`SegmentTimelineView`, `HabituationView`) | Mostrar el plan automático antes de exportar un lote. | Estado de sincronización, segmentos, eventos conductuales, tipo de fuente, advertencias, comparación de lados y duraciones. | Resumen trazable de clips propuestos y avisos técnicos. | Se diseña ahora; primero mostrará `BehavioralVideoSynchronizer` y después se conectará a `SegmentPlanner`. |
-| `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Clips confirmados, opciones de salida y progreso. | `BatchReport`, logs y acceso a la carpeta de salida. | Se diseña ahora; se conecta después a `ClipExporter` y `BatchOrchestrator`. |
+| `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Cámara/calibración de la sesión de referencia, metadata legacy y modo de prueba o exportación total. | `BatchReport`, progreso continuo y carpeta de salida por sesión. | Integrado para CS. `Process Batch` muestra porcentaje mientras recorre frames y exporta clips; la primera opción segura exporta pocos límites representativos antes de elegir todos los segmentos. |
 
 ### Estado De La UI
 

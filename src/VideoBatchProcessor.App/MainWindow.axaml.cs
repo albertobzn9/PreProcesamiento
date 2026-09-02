@@ -3,7 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using VideoBatchProcessor.Core.BehavioralData;
+using VideoBatchProcessor.Core.BatchProcessing;
 using VideoBatchProcessor.Core.CameraProfiles;
+using VideoBatchProcessor.Core.ClipExport;
 using VideoBatchProcessor.Core.Diagnostics;
 using VideoBatchProcessor.Core.FrameAnalyzer;
 using VideoBatchProcessor.Core.LightDetection;
@@ -27,6 +29,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, LightTimelineScanResult> _lightTimelines = [];
     private readonly Dictionary<string, LightTimelineScanRange> _lightTimelineRanges = [];
     private readonly CameraSetupProfileStore _cameraProfileStore = new();
+    private string? _loadedFolderPath;
 
     public MainWindow()
     {
@@ -82,6 +85,9 @@ public sealed partial class MainWindow : Window
                 case "exportLightTimelineDiagnostic":
                     await ExportLightTimelineDiagnosticAsync(document.RootElement);
                     break;
+                case "processBatch":
+                    await ProcessBatchAsync(document.RootElement);
+                    break;
             }
         }
         catch (JsonException)
@@ -108,6 +114,7 @@ public sealed partial class MainWindow : Window
         if (files.Count == 0)
             return;
 
+        _loadedFolderPath = null;
         await SendSessionsAsync(files.Select(file => file.Path.LocalPath));
     }
 
@@ -122,6 +129,8 @@ public sealed partial class MainWindow : Window
         var folderPath = folders.FirstOrDefault()?.Path.LocalPath;
         if (string.IsNullOrWhiteSpace(folderPath))
             return;
+
+        _loadedFolderPath = folderPath;
 
         try
         {
@@ -149,6 +158,7 @@ public sealed partial class MainWindow : Window
         var skipped = entries
             .Where(entry => entry.ParsedName.IsExcludedFromBatchInput)
             .ToArray();
+        var alternateFormatCount = entries.Sum(entry => entry.AlternateVideoPaths?.Count ?? 0);
         _loadedSessions.Clear();
         _loadedPreviews.Clear();
         _cameraConfigs.Clear();
@@ -172,6 +182,7 @@ public sealed partial class MainWindow : Window
             type = "sessionsLoaded",
             sessions,
             skippedCount = skipped.Length,
+            alternateFormatCount,
         });
     }
 
@@ -623,6 +634,85 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task ProcessBatchAsync(JsonElement message)
+    {
+        if (string.IsNullOrWhiteSpace(_loadedFolderPath) || !Directory.Exists(_loadedFolderPath))
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = "Carga primero una carpeta de sesiones; el procesamiento por lote no usa archivos sueltos." });
+            return;
+        }
+
+        if (!TryReadBatchSetup(message, out var sessionId, out var initials, out var sex, out var treatment, out var exportMode, out var error) ||
+            !_loadedSessions.TryGetValue(sessionId, out var referenceSession) ||
+            !_cameraConfigs.TryGetValue(sessionId, out var transform) ||
+            !_lightConfigs.TryGetValue(sessionId, out var lightConfig) ||
+            !_lightCalibrations.ContainsKey(sessionId))
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = error ?? "Abre una sesión, marca las luces y guarda su calibración antes de procesar el lote." });
+            return;
+        }
+
+        // Cada sesión conserva sus clips junto a sus fuentes, en una carpeta
+        // propia con el mismo stem. No se pide una segunda ruta al usuario.
+        var outputDirectory = _loadedFolderPath;
+
+        var manifest = new BatchManifest
+        {
+            Iniciales = initials,
+            Sexo = sex,
+            Tratamiento = treatment,
+        };
+        var request = new BatchProcessingRequest(
+            _loadedFolderPath,
+            outputDirectory,
+            transform,
+            lightConfig,
+            manifest,
+            new ClipExportOptions(),
+            exportMode);
+        var progress = new Progress<BatchProcessingProgress>(update =>
+            Dispatcher.UIThread.Post(async () => await SendToWebAsync(new
+            {
+                type = "batchProcessingProgress",
+                completedSessions = update.CompletedSessions,
+                totalSessions = update.TotalSessions,
+                currentVideo = update.CurrentVideoPath is null ? null : Path.GetFileName(update.CurrentVideoPath),
+                percent = update.Percent,
+                message = update.Message,
+            })));
+
+        try
+        {
+            await SendToWebAsync(new
+            {
+                type = "batchProcessingStarted",
+                message = $"Procesando sesiones CS con la configuración de {Path.GetFileName(referenceSession.Metadata.SourceVideoPath)}.",
+            });
+            var report = await Task.Run(() => new BatchOrchestrator().RunAsync(request, progress));
+            await SendToWebAsync(new
+            {
+                type = "batchProcessingCompleted",
+                exportedSessions = report.ExportedSessionCount,
+                blockedSessions = report.BlockedSessionCount,
+                failedSessions = report.FailedSessionCount,
+                exportedClips = report.ExportedClipCount,
+                outputDirectory,
+                sessions = report.Sessions.Select(item => new
+                {
+                    video = Path.GetFileName(item.VideoPath),
+                    status = item.Status.ToString(),
+                    message = item.Message,
+                    clips = item.Clips.Count(clip => clip.Export.Succeeded),
+                    diagnostic = item.DiagnosticPath,
+                }),
+            });
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = $"No se pudo completar el lote: {exception.Message}" });
+        }
+    }
+
     private static (IReadOnlyList<BehavioralEvent> Events, string? SourcePath, string? Error) ReadBehavioralEvidence(
         SessionMetadata metadata)
     {
@@ -698,6 +788,62 @@ public sealed partial class MainWindow : Window
 
         profile = saved;
         return true;
+    }
+
+    private static bool TryReadBatchSetup(
+        JsonElement message,
+        out string sessionId,
+        out string initials,
+        out string sex,
+        out string treatment,
+        out BatchExportMode exportMode,
+        out string? error)
+    {
+        sessionId = string.Empty;
+        initials = string.Empty;
+        sex = string.Empty;
+        treatment = string.Empty;
+        exportMode = BatchExportMode.ValidationSample;
+        error = null;
+
+        if (!message.TryGetProperty("sessionId", out var sessionProperty) ||
+            string.IsNullOrWhiteSpace(sessionProperty.GetString()))
+        {
+            error = "Selecciona la sesión cuya configuración de cámara y luces se aplicará al lote.";
+            return false;
+        }
+
+        if (!TryReadBatchCode(message, "initials", value =>
+                value.Length is >= 2 and <= 5 && value.All(char.IsAsciiLetter), out initials) ||
+            !TryReadBatchCode(message, "sex", value => value is "m" or "h", out sex) ||
+            !TryReadBatchCode(message, "treatment", value => value.Length > 0 && value.All(char.IsAsciiLetterOrDigit), out treatment))
+        {
+            error = "Para nombrar clips legacy indica iniciales (2-5 letras), sexo (m/h) y tratamiento como código breve sin espacios.";
+            return false;
+        }
+
+        sessionId = sessionProperty.GetString()!;
+        if (message.TryGetProperty("exportMode", out var exportModeProperty) &&
+            exportModeProperty.ValueKind == JsonValueKind.String &&
+            string.Equals(exportModeProperty.GetString(), "AllSegments", StringComparison.Ordinal))
+        {
+            exportMode = BatchExportMode.AllSegments;
+        }
+        return true;
+    }
+
+    private static bool TryReadBatchCode(
+        JsonElement message,
+        string propertyName,
+        Func<string, bool> isValid,
+        out string value)
+    {
+        value = string.Empty;
+        if (!message.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String)
+            return false;
+
+        value = property.GetString()?.Trim().ToLowerInvariant() ?? string.Empty;
+        return isValid(value);
     }
 
     private static bool TryReadTimelineRange(

@@ -6,7 +6,10 @@ using VideoBatchProcessor.Core.LightDetection;
 using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SegmentPlanning;
 using VideoBatchProcessor.Core.SessionResolver;
+using VideoBatchProcessor.Core.SessionFiles;
 using VideoBatchProcessor.Core.VideoTransform;
+using System.Globalization;
+using System.Text;
 
 namespace VideoBatchProcessor.Core.BatchProcessing;
 
@@ -58,10 +61,10 @@ public sealed class BatchOrchestrator
         if (string.IsNullOrWhiteSpace(inputDirectory) || !Directory.Exists(inputDirectory))
             return [];
 
-        return Directory.EnumerateFiles(inputDirectory, "*", SearchOption.AllDirectories)
-            .Where(path => s_videoExtensions.Contains(Path.GetExtension(path)))
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .Select(CreateCandidate)
+        return SessionVideoSelector.SelectOnePerSession(
+                Directory.EnumerateFiles(inputDirectory, "*", SearchOption.AllDirectories)
+                    .Where(path => s_videoExtensions.Contains(Path.GetExtension(path))))
+            .Select(source => CreateCandidate(source.VideoPath, source.AlternateVideoPaths))
             .ToArray();
     }
 
@@ -79,37 +82,57 @@ public sealed class BatchOrchestrator
         {
             cancellationToken.ThrowIfCancellationRequested();
             var candidate = candidates[index];
-            progress?.Report(new BatchProcessingProgress(index, candidates.Count, candidate.VideoPath, "Procesando sesión"));
+            ReportProgress("Preparando sesión", index, 0);
 
             var report = candidate.IsCsSource
-                ? await ProcessCsSessionAsync(candidate, request, cancellationToken)
+                ? await ProcessCsSessionAsync(
+                    candidate,
+                    request,
+                    (message, sessionPercent) => ReportProgress(message, index, sessionPercent),
+                    cancellationToken)
                 : BatchSessionReport.Skipped(candidate.VideoPath, candidate.SkipReason!);
             reports.Add(report);
+            ReportProgress("Sesión terminada", index + 1, 0);
         }
 
-        progress?.Report(new BatchProcessingProgress(candidates.Count, candidates.Count, null, "Lote terminado"));
+        progress?.Report(new BatchProcessingProgress(candidates.Count, candidates.Count, null, "Lote terminado", 100));
         return new BatchReport(request.InputDirectory, request.OutputDirectory, reports);
+
+        void ReportProgress(string message, int completedSessions, double sessionPercent)
+        {
+            var percent = candidates.Count == 0
+                ? 100
+                : (int)Math.Round((completedSessions + Math.Clamp(sessionPercent, 0, 100) / 100d) * 100d / candidates.Count);
+            progress?.Report(new BatchProcessingProgress(
+                completedSessions,
+                candidates.Count,
+                completedSessions < candidates.Count ? candidates[completedSessions].VideoPath : null,
+                message,
+                percent));
+        }
     }
 
-    private BatchCandidate CreateCandidate(string videoPath)
+    private BatchCandidate CreateCandidate(string videoPath, IReadOnlyList<string> alternateVideoPaths)
     {
         if (!_nomenclatureParser.TryParse(videoPath, out var parsed))
-            return new BatchCandidate(videoPath, null, false, "El nombre no corresponde a una sesión fuente reconocida.");
+            return new BatchCandidate(videoPath, null, false, "El nombre no corresponde a una sesión fuente reconocida.", alternateVideoPaths);
         if (!parsed.IsSourceSession)
-            return new BatchCandidate(videoPath, parsed, false, "Es un clip de salida; nunca se vuelve a procesar como entrada.");
+            return new BatchCandidate(videoPath, parsed, false, "Es un clip de salida; nunca se vuelve a procesar como entrada.", alternateVideoPaths);
         if (parsed.FaseEstandar != "f2")
-            return new BatchCandidate(videoPath, parsed, false, "El lote inicial solo procesa Cruces Seguros (f2/cs).");
+            return new BatchCandidate(videoPath, parsed, false, "El lote inicial solo procesa Cruces Seguros (f2/cs).", alternateVideoPaths);
 
-        return new BatchCandidate(videoPath, parsed, true, null);
+        return new BatchCandidate(videoPath, parsed, true, null, alternateVideoPaths);
     }
 
     private async Task<BatchSessionReport> ProcessCsSessionAsync(
         BatchCandidate candidate,
         BatchProcessingRequest request,
+        Action<string, double> reportProgress,
         CancellationToken cancellationToken)
     {
         try
         {
+            reportProgress("Leyendo metadata y MAT", 5);
             var metadata = _metadataResolver.Resolve(candidate.ParsedName!, request.Manifest, candidate.VideoPath);
             if (!metadata.IsComplete)
             {
@@ -133,13 +156,18 @@ public sealed class BatchOrchestrator
             if (behavior.Events.Count == 0)
                 return BatchSessionReport.Blocked(candidate.VideoPath, "El MAT no contiene eventos utilizables.");
 
+            reportProgress("Analizando luces", 10);
+            var scanProgress = new Progress<LightTimelineScanProgress>(update =>
+                reportProgress($"Analizando luces ({update.Percent}%)", 10 + update.Percent * 0.70));
             var scan = _timelineScanner.Scan(
                 candidate.VideoPath,
                 request.Transform,
                 request.LightConfig,
+                progress: scanProgress,
                 cancellationToken: cancellationToken);
             var intervals = LightEventIntervalBuilder.Build(scan.Timeline);
             var fullRange = new LightTimelineScanRange(0, checked((int)scan.Metadata.TotalFrames - 1));
+            reportProgress("Sincronizando video y MAT", 82);
             var synchronization = _synchronizer.Synchronize(
                 intervals,
                 behavior.Events,
@@ -155,6 +183,7 @@ public sealed class BatchOrchestrator
                     synchronization);
             }
 
+            reportProgress("Planeando recortes", 88);
             var plan = _segmentPlanner.Plan(new SegmentPlanningInput(
                 scan.Metadata,
                 fullRange,
@@ -185,6 +214,7 @@ public sealed class BatchOrchestrator
             }
 
             Directory.CreateDirectory(sessionOutputDirectory);
+            reportProgress("Guardando diagnóstico", 91);
             var diagnosticPath = Path.Combine(sessionOutputDirectory, "diagnostico_luces.xlsx");
             _diagnosticExporter.Export(new LightTimelineDiagnosticReport(
                 scan.Metadata,
@@ -198,9 +228,12 @@ public sealed class BatchOrchestrator
                 null), diagnosticPath);
 
             var exports = new List<BatchClipReport>();
-            foreach (var segment in plan.Segments)
+            var segmentsToExport = SelectSegmentsForExport(plan.Segments, request.ExportMode);
+            for (var exportIndex = 0; exportIndex < segmentsToExport.Count; exportIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var segment = segmentsToExport[exportIndex];
+                reportProgress($"Exportando clip {exportIndex + 1} de {segmentsToExport.Count}", 92 + exportIndex * 7d / Math.Max(1, segmentsToExport.Count));
                 var outputPath = Path.Combine(
                     sessionOutputDirectory,
                     BuildOutputName(metadata, segment));
@@ -225,6 +258,11 @@ public sealed class BatchOrchestrator
                         diagnosticPath);
                 }
             }
+
+            reportProgress("Guardando índice de clips", 99);
+            BatchClipManifestWriter.Write(
+                Path.Combine(sessionOutputDirectory, "clips_exportados.csv"),
+                exports);
 
             var hasWarnings = synchronization.Status == BehavioralVideoSynchronizationStatus.Warning || plan.Warnings.Count > 0;
             return new BatchSessionReport(
@@ -322,6 +360,31 @@ public sealed class BatchOrchestrator
             metadata.Tratamiento);
     }
 
+    private static IReadOnlyList<PlannedVideoSegment> SelectSegmentsForExport(
+        IReadOnlyList<PlannedVideoSegment> segments,
+        BatchExportMode exportMode)
+    {
+        if (exportMode == BatchExportMode.AllSegments)
+            return segments;
+
+        // La primera corrida real solo necesita evidencia de los límites clave:
+        // inicio, primeros eventos/ITI y final. El orden final sigue el video.
+        var selected = new HashSet<PlannedVideoSegment>();
+        AddFirst(PlannedSegmentKind.InitialHabituation);
+        foreach (var item in segments.Where(item => item.Kind == PlannedSegmentKind.Event).Take(2))
+            selected.Add(item);
+        AddFirst(PlannedSegmentKind.InterTrialInterval);
+        AddFirst(PlannedSegmentKind.FinalHabituation);
+        return selected.OrderBy(item => item.Sequence).ToArray();
+
+        void AddFirst(PlannedSegmentKind kind)
+        {
+            var segment = segments.FirstOrDefault(item => item.Kind == kind);
+            if (segment is not null)
+                selected.Add(segment);
+        }
+    }
+
     private static string DescribeSynchronizationBlock(BehavioralVideoSynchronizationResult synchronization) =>
         synchronization.Findings.Count == 0
             ? "La sincronización entre video y MAT quedó bloqueada."
@@ -346,13 +409,21 @@ public sealed record BatchProcessingRequest(
     VideoTransformConfig Transform,
     LightDetectionConfig LightConfig,
     BatchManifest Manifest,
-    ClipExportOptions ClipOptions);
+    ClipExportOptions ClipOptions,
+    BatchExportMode ExportMode = BatchExportMode.ValidationSample);
+
+public enum BatchExportMode
+{
+    ValidationSample,
+    AllSegments,
+}
 
 public sealed record BatchCandidate(
     string VideoPath,
     ParsedFileName? ParsedName,
     bool IsCsSource,
-    string? SkipReason);
+    string? SkipReason,
+    IReadOnlyList<string>? AlternateVideoPaths = null);
 
 public enum BatchSessionStatus
 {
@@ -414,7 +485,68 @@ public sealed record BatchProcessingProgress(
     int CompletedSessions,
     int TotalSessions,
     string? CurrentVideoPath,
-    string Message)
+    string Message,
+    int? PercentOverride = null)
 {
-    public int Percent => TotalSessions == 0 ? 100 : (int)Math.Round(CompletedSessions * 100d / TotalSessions);
+    public int Percent => PercentOverride ?? (TotalSessions == 0 ? 100 : (int)Math.Round(CompletedSessions * 100d / TotalSessions));
+}
+
+/// <summary>
+/// Deja una tabla breve junto a los clips para que el investigador pueda ubicar
+/// cada fragmento en el video original sin alterar la nomenclatura oficial.
+/// </summary>
+public static class BatchClipManifestWriter
+{
+    public static void Write(string outputPath, IReadOnlyList<BatchClipReport> clips)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(clips);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? throw new ArgumentException("La ruta de manifest no tiene carpeta.", nameof(outputPath)));
+        using var writer = new StreamWriter(outputPath, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        writer.WriteLine("archivo_clip,tipo,ensayo,resultado,frame_inicio_original,frame_final_original,inicio_original,final_original,duracion_s");
+
+        foreach (var clip in clips.Where(item => item.Export.Succeeded))
+        {
+            var segment = clip.Segment;
+            var start = clip.Export.StartSeconds ?? segment.StartTimeSeconds;
+            var end = clip.Export.EndExclusiveSeconds ?? segment.EndTimeSeconds;
+            writer.WriteLine(string.Join(',',
+                Csv(Path.GetFileName(clip.Export.OutputPath)),
+                Csv(KindCode(segment.Kind)),
+                Csv(segment.BehavioralEventNumber?.ToString(CultureInfo.InvariantCulture) ?? "na"),
+                Csv(ResultCode(segment.Result)),
+                segment.StartFrameIndex.ToString(CultureInfo.InvariantCulture),
+                segment.EndFrameIndex.ToString(CultureInfo.InvariantCulture),
+                Csv(FormatVideoTime(start)),
+                Csv(FormatVideoTime(end)),
+                (end - start).ToString("0.000", CultureInfo.InvariantCulture)));
+        }
+    }
+
+    private static string KindCode(PlannedSegmentKind kind) => kind switch
+    {
+        PlannedSegmentKind.InitialHabituation => "habituacion_inicial",
+        PlannedSegmentKind.Event => "evento",
+        PlannedSegmentKind.InterTrialInterval => "iti",
+        PlannedSegmentKind.FinalHabituation => "habituacion_final",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    private static string ResultCode(PlannedBehavioralResult result) => result switch
+    {
+        PlannedBehavioralResult.Crossing => "cruce",
+        PlannedBehavioralResult.NoCrossing => "no_cruce",
+        PlannedBehavioralResult.Timeout => "timeout",
+        PlannedBehavioralResult.NotApplicable => "na",
+        _ => throw new ArgumentOutOfRangeException(nameof(result)),
+    };
+
+    private static string FormatVideoTime(double seconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
+    }
+
+    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 }

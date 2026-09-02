@@ -1,4 +1,6 @@
 using VideoBatchProcessor.Core.BatchProcessing;
+using VideoBatchProcessor.Core.ClipExport;
+using VideoBatchProcessor.Core.SegmentPlanning;
 
 namespace VideoBatchProcessor.Tests;
 
@@ -32,6 +34,26 @@ public sealed class BatchOrchestratorTests : IDisposable
         var candidates = new BatchOrchestrator().DiscoverCandidates(Path.Combine(_directory, "no-existe"));
 
         Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void BatchClipManifestWriter_RegistraTiemposDelVideoOriginal()
+    {
+        var path = Path.Combine(_directory, "clips_exportados.csv");
+        var segment = new PlannedVideoSegment(
+            PlannedSegmentKind.Event, 2, 90, 149, 3, 149d / 30d,
+            PlannedTrialType.SafeFood, PlannedBehavioralResult.Crossing, 2,
+            1, 0, 1.2, 2.3, null, 90, 149, null, null, null, null);
+        var clip = new BatchClipReport(segment, new ClipExportResult(
+            true, "/tmp/abs_2605_f2_d4r1_m_e2_s_cr_stx.mp4", 3, 5, null));
+
+        BatchClipManifestWriter.Write(path, [clip]);
+
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(2, lines.Length);
+        Assert.Contains("00:00:03.000", lines[1]);
+        Assert.Contains("00:00:05.000", lines[1]);
+        Assert.Contains("90,149", lines[1]);
     }
 
     public void Dispose()
