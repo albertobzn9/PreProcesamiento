@@ -14,7 +14,10 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
   cámara/calibración confirmada como perfil de referencia, crea una carpeta de
   clips por sesión junto a sus fuentes y muestra el progreso y resumen del lote.
 - Cada carpeta de clips incluye `clips_exportados.csv`, con frames y tiempos
-  de inicio/final de cada clip dentro del video original.
+  de inicio/final de cada clip dentro del video original, distinguiendo los
+  límites lógicos del evento y los límites del archivo exportado.
+- Los clips de evento incluyen por defecto cinco frames de contexto antes y
+  después; habituación e ITIs conservan sus límites planeados.
 
 - `BatchOrchestrator` inicial para Cruces Seguros: recorre subcarpetas, toma
   solo sesiones fuente CS, exige el MAT correspondiente, sincroniza video-MAT,
@@ -44,8 +47,8 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 - La clasificación de eventos del lote usa únicamente el `Lado` previo:
   mismo lado = no cruce, cambio de lado = cruce. El primer evento queda como
   no aplicable y `Desplaz` se conserva raw sin crear revisión manual.
-- `ClipExporter` inicial para CS: exporta un segmento individual con FFmpeg,
-  límites de frame exactos, crop/giro/espejo y archivo temporal seguro.
+- `ClipExporter` para CS: exporta segmentos con FFmpeg, crop/giro/espejo,
+  contexto visual de eventos y archivo temporal seguro.
 - Pruebas para lectura MAT, intervalos de luz, Excel diagnóstico, perfil de
   cámara y emparejamiento diagnóstico.
 - Pruebas para descubrimiento recursivo de candidatos del lote CS y para

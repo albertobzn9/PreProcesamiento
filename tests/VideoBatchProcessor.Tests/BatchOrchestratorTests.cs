@@ -45,7 +45,7 @@ public sealed class BatchOrchestratorTests : IDisposable
             PlannedTrialType.SafeFood, PlannedBehavioralResult.Crossing, 2,
             1, 0, 1.2, 2.3, null, 90, 149, null, null, null, null);
         var clip = new BatchClipReport(segment, new ClipExportResult(
-            true, "/tmp/abs_2605_f2_d4r1_m_e2_s_cr_stx.mp4", 3, 5, null));
+            true, "/tmp/abs_2605_f2_d4r1_m_e2_s_cr_stx.mp4", 3, 5, null, 85, 154));
 
         BatchClipManifestWriter.Write(path, [clip]);
 
@@ -53,7 +53,7 @@ public sealed class BatchOrchestratorTests : IDisposable
         Assert.Equal(2, lines.Length);
         Assert.Contains("00:00:03.000", lines[1]);
         Assert.Contains("00:00:05.000", lines[1]);
-        Assert.Contains("90,149", lines[1]);
+        Assert.Contains("90,149,\"00:00:03.000\",\"00:00:04.966\",85,154", lines[1]);
     }
 
     public void Dispose()

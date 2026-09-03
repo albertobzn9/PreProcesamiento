@@ -161,10 +161,10 @@ detallados que puedan divergir.
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
 | `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 11 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. Puede limitarse a un intervalo de frames y reporta progreso real. |
-| `BehavioralVideoSynchronizer` | Implementado como base por sesión | 3 pruebas. Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Informa posibles desajustes; nunca intercambia fuentes ni segmenta. Falta el coordinador que lo ejecute sobre toda una carpeta. |
-| `SegmentPlanner` | Implementado y validado para CS | 4 pruebas. Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly`, UI de resumen y batch. |
-| `ClipExporter` | Implementado para un clip CS | 3 pruebas. Exporta un segmento individual mediante FFmpeg, con límites de frames exactos, crop, giro/espejo y escritura temporal segura. Probado con un video sintético real. Falta conectarlo a la UI y al lote. |
-| Orquestación | Siguiente etapa para CS | `BatchOrchestrator` aplicará el flujo ya validado a una carpeta de sesiones CS. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
+| `BehavioralVideoSynchronizer` | Implementado como base por sesión | 3 pruebas. Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Informa posibles desajustes; nunca intercambia fuentes ni segmenta. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
+| `SegmentPlanner` | Implementado y validado para CS | 4 pruebas. Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly`, UI de resumen y validación CP/DIS. |
+| `ClipExporter` | Implementado e integrado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. |
+| Orquestación | Implementada para CS | `BatchOrchestrator` aplica el flujo validado a una carpeta de sesiones CS y escribe una carpeta de salida por video. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -760,11 +760,15 @@ macOS y Windows será responsabilidad de la aplicación antes del primer release
 no será una tarea de la interfaz ni del investigador.
 
 El perfil inicial previsto para clips destinados a DLC es H.264 (`libx264`) con
-`CRF 18`, sujeto a validación con videos reales. No se debe aplicar padding ni
-un trim global fijo a todas las sesiones: `-ss` y `-to` representan exactamente
-los límites del segmento planeado, incluida la decisión explícita sobre
-habituación final. Cada clip se escribe primero como archivo temporal y solo se
-renombra como salida final si FFmpeg termina correctamente.
+`CRF 18`, sujeto a validación con videos reales. No se aplica un trim global
+fijo a todas las sesiones. Los límites lógicos vienen del segmento planeado; al
+exportar un **evento**, se añaden por defecto cinco frames antes y cinco después
+para que se observe el encendido y apagado de la luz. La ampliación se recorta
+en los bordes reales del video. Habituación e ITIs conservan exactamente sus
+límites planeados. `clips_exportados.csv` conserva ambas referencias: el rango
+lógico del evento y el rango físico finalmente escrito. Cada clip se escribe
+primero como archivo temporal y solo se renombra como salida final si FFmpeg
+termina correctamente.
 
 Al finalizar, el exportador entrega al `BatchReport` una entrada por clip con
 video fuente, MAT/CSV asociado, perfil de cámara, desfase de la sesión,
@@ -775,13 +779,14 @@ el campo de tipo. El código corto de output sigue pendiente de acuerdo del lab;
 hasta entonces debe conservar el segmento para revisión y emitir un warning en
 lugar de exportarlo con una etiqueta falsa.
 
-**Estado actual:** listo para exportar un clip CS individual. Se comprobó con
-un video de tres segundos: exportó exactamente 30 frames (1 s) y aplicó un
-crop de 160×120 píxeles junto con giro/espejo. `BatchOrchestrator` ya lo llama
-para cada segmento validado de una sesión CS.
+**Estado actual:** `BatchOrchestrator` ya llama al exportador para cada segmento
+validado de una sesión CS. Las pruebas comprueban el crop, giro/espejo, los
+cinco frames de contexto de un evento y el ajuste correcto cuando el evento
+cae al borde del video.
 
-**Prueba aislada:** Sí. Hay pruebas para límites exactos, filtros de cámara y
-limpieza de salida parcial si FFmpeg falla.
+**Prueba aislada:** Sí. Hay pruebas para contexto de cinco frames en eventos,
+límite del video, ITIs sin contexto extra, filtros de cámara y limpieza de
+salida parcial si FFmpeg falla.
 
 ---
 

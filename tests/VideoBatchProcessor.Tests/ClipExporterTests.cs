@@ -31,10 +31,12 @@ public sealed class ClipExporterTests : IDisposable
         Assert.True(result.Succeeded);
         Assert.True(File.Exists(output));
         Assert.False(Directory.EnumerateFiles(_directory, "*.partial.mp4").Any());
-        Assert.Equal("2", ValueAfter(runner.Arguments!, "-ss"));
-        Assert.Equal("1", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal("1.83333333", ValueAfter(runner.Arguments!, "-ss"));
+        Assert.Equal("1.16666667", ValueAfter(runner.Arguments!, "-t"));
         Assert.Equal("crop=100:80:10:20,hflip,vflip,hflip", ValueAfter(runner.Arguments!, "-vf"));
-        Assert.Equal(2, result.StartSeconds);
+        Assert.Equal(55, result.StartFrameIndex);
+        Assert.Equal(89, result.EndFrameIndex);
+        Assert.Equal(55d / 30d, result.StartSeconds);
         Assert.Equal(3, result.EndExclusiveSeconds);
     }
 
@@ -66,6 +68,56 @@ public sealed class ClipExporterTests : IDisposable
         Assert.False(result.Succeeded);
         Assert.Null(runner.Arguments);
         Assert.Contains("límites", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ExportAsync_AgregaCincoFramesSoloAEventos()
+    {
+        var source = Path.Combine(_directory, "context-source.mp4");
+        var output = Path.Combine(_directory, "context-clip.mp4");
+        await File.WriteAllTextAsync(source, "source");
+        var runner = new SuccessfulRunner();
+        var request = Request(source, output) with
+        {
+            SourceVideo = new VideoMetadata
+            {
+                FilePath = source,
+                Width = 320,
+                Height = 240,
+                Fps = 30,
+                TotalFrames = 180,
+                Duration = TimeSpan.FromSeconds(6),
+            },
+        };
+
+        var result = await new ClipExporter(runner).ExportAsync(request);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("1.83333333", ValueAfter(runner.Arguments!, "-ss"));
+        Assert.Equal("1.33333333", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal(55, result.StartFrameIndex);
+        Assert.Equal(94, result.EndFrameIndex);
+    }
+
+    [Fact]
+    public async Task ExportAsync_NoAgregaContextoAHabituacionNiIti()
+    {
+        var source = Path.Combine(_directory, "iti-source.mp4");
+        var output = Path.Combine(_directory, "iti-clip.mp4");
+        await File.WriteAllTextAsync(source, "source");
+        var runner = new SuccessfulRunner();
+        var request = Request(source, output) with
+        {
+            Segment = Segment(60, 89) with { Kind = PlannedSegmentKind.InterTrialInterval },
+        };
+
+        var result = await new ClipExporter(runner).ExportAsync(request);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("2", ValueAfter(runner.Arguments!, "-ss"));
+        Assert.Equal("1", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal(60, result.StartFrameIndex);
+        Assert.Equal(89, result.EndFrameIndex);
     }
 
     public void Dispose() => Directory.Delete(_directory, recursive: true);

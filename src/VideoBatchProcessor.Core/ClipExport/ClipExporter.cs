@@ -34,7 +34,8 @@ public sealed class ClipExporter
         var temporaryPath = CreateTemporaryPath(request.OutputPath);
         try
         {
-            var arguments = BuildArguments(request, temporaryPath);
+            var exportRange = ResolveExportRange(request);
+            var arguments = BuildArguments(request, temporaryPath, exportRange);
             var execution = await _ffmpegRunner.RunAsync(
                 request.Options.FfmpegPath,
                 arguments,
@@ -59,9 +60,11 @@ public sealed class ClipExporter
             return new ClipExportResult(
                 true,
                 request.OutputPath,
-                request.Segment.StartTimeSeconds,
-                EndExclusiveSeconds(request.Segment, request.SourceVideo.Fps),
-                null);
+                exportRange.StartFrameIndex / request.SourceVideo.Fps,
+                (exportRange.EndFrameIndex + 1) / request.SourceVideo.Fps,
+                null,
+                exportRange.StartFrameIndex,
+                exportRange.EndFrameIndex);
         }
         catch (OperationCanceledException)
         {
@@ -75,10 +78,14 @@ public sealed class ClipExporter
         }
     }
 
-    internal static IReadOnlyList<string> BuildArguments(ClipExportRequest request, string temporaryPath)
+    internal static IReadOnlyList<string> BuildArguments(
+        ClipExportRequest request,
+        string temporaryPath,
+        ClipExportFrameRange? exportRange = null)
     {
-        var start = request.Segment.StartFrameIndex / request.SourceVideo.Fps;
-        var duration = (request.Segment.EndFrameIndex - request.Segment.StartFrameIndex + 1) /
+        var range = exportRange ?? ResolveExportRange(request);
+        var start = range.StartFrameIndex / request.SourceVideo.Fps;
+        var duration = (range.EndFrameIndex - range.StartFrameIndex + 1) /
                        request.SourceVideo.Fps;
         var arguments = new List<string>
         {
@@ -162,7 +169,23 @@ public sealed class ClipExporter
             return false;
         }
 
+        if (request.Options.EventContextFramesBefore < 0 || request.Options.EventContextFramesAfter < 0)
+        {
+            error = "Los frames de contexto no pueden ser negativos.";
+            return false;
+        }
+
         return request.Transform.TryValidateFor(request.SourceVideo.Width, request.SourceVideo.Height, out error);
+    }
+
+    internal static ClipExportFrameRange ResolveExportRange(ClipExportRequest request)
+    {
+        var isEvent = request.Segment.Kind == PlannedSegmentKind.Event;
+        var startPadding = isEvent ? request.Options.EventContextFramesBefore : 0;
+        var endPadding = isEvent ? request.Options.EventContextFramesAfter : 0;
+        return new ClipExportFrameRange(
+            Math.Max(0, request.Segment.StartFrameIndex - startPadding),
+            Math.Min((int)request.SourceVideo.TotalFrames - 1, request.Segment.EndFrameIndex + endPadding));
     }
 
     private static string CreateTemporaryPath(string outputPath)
@@ -206,6 +229,8 @@ public sealed record ClipExportOptions
     public string FfmpegPath { get; init; } = "ffmpeg";
     public string VideoCodec { get; init; } = "libx264";
     public int Crf { get; init; } = 18;
+    public int EventContextFramesBefore { get; init; } = 5;
+    public int EventContextFramesAfter { get; init; } = 5;
 }
 
 public sealed record ClipExportResult(
@@ -213,11 +238,15 @@ public sealed record ClipExportResult(
     string OutputPath,
     double? StartSeconds,
     double? EndExclusiveSeconds,
-    string? ErrorMessage)
+    string? ErrorMessage,
+    int? StartFrameIndex = null,
+    int? EndFrameIndex = null)
 {
     public static ClipExportResult Failed(string outputPath, string errorMessage) =>
         new(false, outputPath, null, null, errorMessage);
 }
+
+public sealed record ClipExportFrameRange(int StartFrameIndex, int EndFrameIndex);
 
 public interface IFfmpegRunner
 {

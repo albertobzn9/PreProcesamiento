@@ -504,13 +504,13 @@ public static class BatchClipManifestWriter
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? throw new ArgumentException("La ruta de manifest no tiene carpeta.", nameof(outputPath)));
         using var writer = new StreamWriter(outputPath, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-        writer.WriteLine("archivo_clip,tipo,ensayo,resultado,frame_inicio_original,frame_final_original,inicio_original,final_original,duracion_s");
+        writer.WriteLine("archivo_clip,tipo,ensayo,resultado,frame_inicio_evento,frame_final_evento,inicio_evento,final_evento,frame_inicio_clip,frame_final_clip,inicio_clip,final_clip,duracion_clip_s");
 
         foreach (var clip in clips.Where(item => item.Export.Succeeded))
         {
             var segment = clip.Segment;
-            var start = clip.Export.StartSeconds ?? segment.StartTimeSeconds;
-            var end = clip.Export.EndExclusiveSeconds ?? segment.EndTimeSeconds;
+            var clipStart = clip.Export.StartSeconds ?? segment.StartTimeSeconds;
+            var clipEnd = clip.Export.EndExclusiveSeconds ?? segment.EndTimeSeconds;
             writer.WriteLine(string.Join(',',
                 Csv(Path.GetFileName(clip.Export.OutputPath)),
                 Csv(KindCode(segment.Kind)),
@@ -518,9 +518,13 @@ public static class BatchClipManifestWriter
                 Csv(ResultCode(segment.Result)),
                 segment.StartFrameIndex.ToString(CultureInfo.InvariantCulture),
                 segment.EndFrameIndex.ToString(CultureInfo.InvariantCulture),
-                Csv(FormatVideoTime(start)),
-                Csv(FormatVideoTime(end)),
-                (end - start).ToString("0.000", CultureInfo.InvariantCulture)));
+                Csv(FormatVideoTime(segment.StartTimeSeconds)),
+                Csv(FormatVideoTime(segment.EndTimeSeconds)),
+                (clip.Export.StartFrameIndex ?? segment.StartFrameIndex).ToString(CultureInfo.InvariantCulture),
+                (clip.Export.EndFrameIndex ?? segment.EndFrameIndex).ToString(CultureInfo.InvariantCulture),
+                Csv(FormatVideoTime(clipStart)),
+                Csv(FormatVideoTime(clipEnd)),
+                (clipEnd - clipStart).ToString("0.000", CultureInfo.InvariantCulture)));
         }
     }
 
