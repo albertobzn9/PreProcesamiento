@@ -106,6 +106,12 @@
     .modal-button { min-height:38px; padding:0 14px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#334155; font-size:13px; font-weight:700; }
     .modal-button.primary { border-color:var(--navy); background:var(--navy); color:#fff; }
     .modal-button.danger { color:#b42318; }
+    .existing-output-dialog { width:min(620px,94vw); height:auto; grid-template-rows:auto auto auto; }
+    .existing-output-body { padding:22px; background:#f8fafc; }
+    .existing-output-body p { margin:0 0 14px; color:#475569; font-size:13px; line-height:1.5; }
+    .existing-output-list { max-height:180px; margin:0; padding:0; overflow:auto; list-style:none; border:1px solid var(--line); border-radius:5px; background:#fff; }
+    .existing-output-list li { padding:10px 12px; border-bottom:1px solid var(--line); color:#334155; font-size:12px; font-weight:700; }
+    .existing-output-list li:last-child { border-bottom:0; }
     .roi-dialog { display:grid; grid-template-rows:auto minmax(0,1fr) auto; width:min(1120px,94vw); height:min(760px,88vh); border-radius:8px; background:#fff; box-shadow:0 24px 80px rgba(15,23,42,.35); overflow:hidden; }
     .roi-dialog-body { display:grid; min-height:0; grid-template-columns:minmax(0,1fr) 260px; background:#fff; }
     .roi-workspace { display:flex; position:relative; min-width:0; min-height:0; align-items:center; justify-content:center; padding:18px; border:2px solid #fff; background:#111827; overflow:hidden; }
@@ -231,6 +237,13 @@
       <footer class="crop-dialog-footer"><span id="calibration-modal-status" class="setup-help">Arrastra la barra para buscar. El programa solo carga la última posición elegida.</span><div><button class="modal-button" data-action="cancel-calibration">Cerrar</button><button id="save-calibration" class="modal-button primary" data-action="save-calibration" disabled>Guardar calibración</button></div></footer>
     </section>
   </div>
+  <div id="existing-output-modal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="existing-output-title">
+    <section class="crop-dialog existing-output-dialog">
+      <header class="crop-dialog-head"><div><h2 id="existing-output-title">Ya existen resultados</h2><p>Elige qué hacer antes de procesar. Ninguna opción borra archivos automáticamente.</p></div></header>
+      <div class="existing-output-body"><p>Estas sesiones ya tienen una carpeta de clips. Puedes conservarlas y omitirlas, o archivarlas con fecha para crear una corrida nueva.</p><ul id="existing-output-list" class="existing-output-list"></ul></div>
+      <footer class="crop-dialog-footer"><span class="setup-help">Archivar conserva los clips anteriores en una carpeta separada.</span><div><button class="modal-button" data-action="cancel-existing-output">Cancelar</button><button class="modal-button" data-action="skip-existing-output">Omitir existentes</button><button class="modal-button primary" data-action="archive-existing-output">Archivar y procesar</button></div></footer>
+    </section>
+  </div>
   <script src="vendor/cropper-1.6.2.min.js"></script>
   <script>
     const state = { sessions: [], selectedSessionId: null, preview: null, cropEditorImageDataUrl: null, imageDataUrl: null, camera: { rotation: 'None', mirrorHorizontally: false, crop: null }, lightRois: null, draftLightRois: null, roiDisplay: null, activeLight: 'foodLeft', roiZoom: 1, roiPan: { x: 0, y: 0 }, roiPanMode: false, calibration: { frame: null, offReference: null, activeReference: null, foodSide: 'FoodLeft', saved: null, requestId: 0 }, lightTimeline: null, timelineRunning: false, timelineProgress: null, timelineRangeMode: 'time', timelineRange: null, batchRunning: false };
@@ -255,6 +268,10 @@
       calibrationCard.insertAdjacentHTML('afterend', '<section class="settings-card"><h3>◒&nbsp; TIMELINE DE LUCES</h3><p id="timeline-help" class="setup-help">Cuando la calibración esté lista, analiza el video completo para detectar encendidos y apagados estables.</p><div class="timeline-range"><label>Intervalo a analizar</label><p id="timeline-video-total" class="timeline-range-hint">Video total: —</p><div class="timeline-range-modes"><button class="timeline-range-control active" data-action="timeline-range-time">Por tiempo</button><button class="timeline-range-control" data-action="timeline-range-frames">Por frames</button></div><div id="timeline-time-range" class="timeline-range-grid"><label>Inicio min<input id="timeline-start-minutes" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Inicio seg<input id="timeline-start-seconds" class="timeline-range-control" type="number" min="0" max="59" step="1" value="0"></label><label>Fin min<input id="timeline-end-minutes" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Fin seg<input id="timeline-end-seconds" class="timeline-range-control" type="number" min="0" max="59" step="1" value="0"></label></div><div id="timeline-frame-range" class="timeline-range-grid hidden"><label>Frame inicial<input id="timeline-start-frame" class="timeline-range-control" type="number" min="0" step="1" value="0"></label><label>Frame final<input id="timeline-end-frame" class="timeline-range-control" type="number" min="0" step="1" value="0"></label></div><p id="timeline-range-hint" class="timeline-range-hint">El rango inicia en 0:00 y termina al final del video.</p></div><button id="analyze-light-timeline" class="crop-button primary" data-action="analyze-light-timeline" disabled>Analizar luces</button><button id="export-light-diagnostic" class="crop-button" data-action="export-light-diagnostic" disabled>Exportar Excel de diagnóstico</button><p id="timeline-summary" class="crop-summary">Timeline: pendiente.</p><div id="timeline-progress" class="timeline-progress hidden" aria-live="polite"><div class="timeline-progress-meta"><span id="timeline-progress-label">Analizando: 0%</span><span id="timeline-progress-frames">0 frames</span></div><div class="timeline-progress-track"><div id="timeline-progress-fill" class="timeline-progress-fill"></div></div></div><div id="timeline-events" class="timeline-events hidden"></div></section>');
     }
     installTimelineCard();
+    document.getElementById('analyze-light-timeline')?.closest('.settings-card')?.classList.add('hidden');
+    document.getElementById('process-batch').textContent = '▷ Procesar sesiones';
+    const processingCard = [...document.querySelectorAll('.settings-card')].find(card => card.textContent.includes('ALCANCE DEL LOTE'));
+    if (processingCard) processingCard.innerHTML = '<h3>▤&nbsp; PROCESAMIENTO</h3><p class="setup-help"><strong>Procesar sesiones</strong> funciona igual con un video o con varios de la lista. Siempre analiza desde 0:00 hasta el último frame real para conservar habituación, eventos, ITIs y final.</p><p class="setup-help">El análisis de luces y el Excel diagnóstico se generan automáticamente dentro de la carpeta de cada video procesado.</p>';
     function receiveFromHost(value) {
       try { handleHostMessage(typeof value === 'string' ? JSON.parse(value) : value); }
       catch { showNotice('No se pudo interpretar la respuesta de la aplicación.'); }
@@ -273,9 +290,10 @@
       if (message.type === 'lightTimelineReady' && message.sessionId === state.selectedSessionId) { state.lightTimeline = { samplesAnalyzed: Number(message.samplesAnalyzed), intervalCount: Number(message.intervalCount || 0), transitions: message.transitions || [] }; state.timelineRunning = false; state.timelineProgress = null; updateCameraControls(); showNotice(message.message); }
       if (message.type === 'lightTimelineRejected') { state.timelineRunning = false; state.timelineProgress = null; updateCameraControls(); showNotice(message.message); }
       if (message.type === 'lightTimelineExported' || message.type === 'lightTimelineExportRejected') showNotice(message.message);
-      if (message.type === 'batchProcessingStarted') { state.batchRunning = true; updateBatchUi(message.message, 0); }
+      if (message.type === 'existingOutputDecisionRequired') openExistingOutputDialog(message.outputs || []);
+      if (message.type === 'batchProcessingStarted') { closeExistingOutputDialog(); state.batchRunning = true; updateBatchUi(message.message, 0); }
       if (message.type === 'batchProcessingProgress') updateBatchUi(`${message.message}: ${message.completedSessions}/${message.totalSessions}${message.currentVideo ? ` · ${message.currentVideo}` : ''}`, Number(message.percent));
-      if (message.type === 'batchProcessingCompleted') { state.batchRunning = false; const detail = `${message.exportedSessions} sesión(es) exportada(s), ${message.blockedSessions} bloqueada(s), ${message.failedSessions} fallida(s), ${message.exportedClips} clip(s).`; updateBatchUi(detail, 100); showNotice(`${detail} Salida: ${message.outputDirectory}`); }
+      if (message.type === 'batchProcessingCompleted') { state.batchRunning = false; const detail = `${message.exportedSessions} sesión(es) exportada(s), ${message.skippedSessions || 0} omitida(s), ${message.blockedSessions} bloqueada(s), ${message.failedSessions} fallida(s), ${message.exportedClips} clip(s).`; updateBatchUi(detail, 100); showNotice(`${detail} Salida: ${message.outputDirectory}`); }
       if (message.type === 'batchProcessingRejected') { state.batchRunning = false; updateBatchUi('Lote pendiente.'); showNotice(message.message); }
       if (message.type === 'previewFailed' || message.type === 'cameraPreviewFailed') showNotice(message.message);
       if (message.type === 'status') showNotice(message.message);
@@ -535,19 +553,20 @@
     function saveCalibration() { const calibration = state.calibration; if (!calibration.offReference || !calibration.activeReference || !state.selectedSessionId) return; document.getElementById('calibration-modal-status').textContent = 'Calculando umbrales con las referencias elegidas...'; sendToHost({ type: 'saveLightCalibration', sessionId: state.selectedSessionId, offFrameToken: calibration.offReference.token, activeFrameToken: calibration.activeReference.token, foodSide: calibration.foodSide, mode: calibration.mode }); }
     function analyzeLightTimeline() { if (!state.selectedSessionId || !state.calibration.saved || state.timelineRunning) return; const range = readTimelineRange(); if (range.error) { showNotice(range.error); return; } state.timelineRunning = true; state.lightTimeline = null; state.timelineProgress = { framesProcessed: 0, totalFrames: range.endFrame - range.startFrame + 1, percent: 0 }; updateCameraControls(); sendToHost({ type: 'analyzeLightTimeline', sessionId: state.selectedSessionId, scanRange: range }); }
     function exportLightTimelineDiagnostic() { if (!state.selectedSessionId || !state.lightTimeline || state.timelineRunning) return; sendToHost({ type: 'exportLightTimelineDiagnostic', sessionId: state.selectedSessionId }); }
-    function startBatchProcessing() {
+    function openExistingOutputDialog(outputs) { const list = document.getElementById('existing-output-list'); list.innerHTML = outputs.map(output => `<li>${escapeHtml(output.video)} <span>(${escapeHtml(output.outputFolder)})</span></li>`).join(''); document.getElementById('existing-output-modal').classList.remove('hidden'); }
+    function closeExistingOutputDialog() { document.getElementById('existing-output-modal').classList.add('hidden'); }
+    function startBatchProcessing(existingOutputPolicy = null) {
       if (state.batchRunning) return;
       if (!state.selectedSessionId || !state.preview) { showNotice('Selecciona la sesión cuya cámara y luces ya confirmaste.'); return; }
       if (!state.calibration.saved) { showNotice('Guarda primero la calibración de luces de la sesión seleccionada.'); return; }
-      if (state.timelineRunning) { showNotice('Espera a que termine el análisis de luces antes de iniciar el lote.'); return; }
       const initials = document.getElementById('initials').value.trim();
       const sex = document.getElementById('sex').value;
       const treatment = document.getElementById('treatment').value.trim();
       if (!initials || !treatment) { showNotice('Para nombres legacy indica iniciales y el código de tratamiento antes de procesar.'); return; }
       const exportMode = document.getElementById('batch-export-mode').value;
-      sendToHost({ type: 'processBatch', sessionId: state.selectedSessionId, initials, sex, treatment, exportMode });
+      sendToHost({ type: 'processBatch', sessionId: state.selectedSessionId, sessionIds: state.sessions.map(session => session.sessionId), initials, sex, treatment, exportMode, existingOutputPolicy });
     }
-    function updateBatchUi(message, percent = null) { document.getElementById('batch-status').textContent = `Video Batch Processor. ${message}`; const button = document.getElementById('process-batch'); button.disabled = state.batchRunning; button.textContent = state.batchRunning ? 'Procesando lote…' : '▷ Procesar sesiones completas'; const progress = document.getElementById('batch-progress'); if (Number.isFinite(percent)) { const bounded = clamp(Math.round(percent), 0, 100); progress.classList.remove('hidden'); document.getElementById('batch-progress-label').textContent = message; document.getElementById('batch-progress-percent').textContent = `${bounded}%`; document.getElementById('batch-progress-fill').style.width = `${bounded}%`; } else if (!state.batchRunning) progress.classList.add('hidden'); }
+    function updateBatchUi(message, percent = null) { document.getElementById('batch-status').textContent = `Video Batch Processor. ${message}`; const button = document.getElementById('process-batch'); button.disabled = state.batchRunning; button.textContent = state.batchRunning ? 'Procesando sesiones…' : '▷ Procesar sesiones'; const progress = document.getElementById('batch-progress'); if (Number.isFinite(percent)) { const bounded = clamp(Math.round(percent), 0, 100); progress.classList.remove('hidden'); document.getElementById('batch-progress-label').textContent = message; document.getElementById('batch-progress-percent').textContent = `${bounded}%`; document.getElementById('batch-progress-fill').style.width = `${bounded}%`; } else if (!state.batchRunning) progress.classList.add('hidden'); }
     function formatDuration(seconds) { const total = Math.max(0, Math.round(Number(seconds) || 0)); const minutes = Math.floor(total / 60); const remaining = total % 60; return `${minutes}:${String(remaining).padStart(2, '0')}`; }
     function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]); }
     document.addEventListener('click', event => {
@@ -576,6 +595,9 @@
       if (action === 'calibration-back-second' && state.preview) requestCalibrationFrame(calibrationFrameIndex() - Math.max(1, Math.round(state.preview.fps)));
       if (action === 'calibration-forward-second' && state.preview) requestCalibrationFrame(calibrationFrameIndex() + Math.max(1, Math.round(state.preview.fps)));
       if (action === 'save-calibration') saveCalibration();
+      if (action === 'cancel-existing-output') closeExistingOutputDialog();
+      if (action === 'skip-existing-output') { closeExistingOutputDialog(); startBatchProcessing('SkipExisting'); }
+      if (action === 'archive-existing-output') { closeExistingOutputDialog(); startBatchProcessing('ArchiveAndReplace'); }
       if (action === 'analyze-light-timeline') analyzeLightTimeline();
       if (action === 'export-light-diagnostic') exportLightTimelineDiagnostic();
       if (action === 'timeline-range-time') { state.timelineRangeMode = 'time'; updateCameraControls(); }

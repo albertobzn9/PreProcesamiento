@@ -20,12 +20,12 @@ public sealed class NomenclatureParser
 
     /// <summary>
     /// VBP Output — 9 tokens: ini_YYMM_fN_dNrN_sexo_seg_tipo_res_trat
-    /// Ejemplo: abs_2601_f5_d1r3_m_e1_p_cr_stx
+    /// Ejemplos: abs_2601_f5_d1r3_m_cr1_p_cr_stx y el formato histórico e1.
     /// </summary>
     private static readonly Regex s_vbpOutput = new(
         @"^(?<ini>[a-z]{2,5})_(?<fecha>\d{4})_(?<fase>f\d+)_d(?<dia>\d+)r(?<rata>\d+)" +
         @"_(?<sexo>m|h)" +
-        @"_(?<seg>habini|habfin|hab|iti\d+|e\d+)" +
+        @"_(?<seg>habini|habfin|hab|iti\d+|e\d+|cr\d+|nc\d+)" +
         @"_(?<tipo>s|p|na)" +
         @"_(?<res>cr|nc|to|rv|na)" +
         @"_(?<trat>[a-z0-9]+)$",
@@ -187,14 +187,19 @@ public sealed class NomenclatureParser
         "habfin" => TipoSegmento.HabituacionFinal,
         "hab"    => TipoSegmento.Habituacion,
         _ when seg.StartsWith("iti", StringComparison.Ordinal) => TipoSegmento.ITI,
-        _ when seg.StartsWith("e",   StringComparison.Ordinal) => TipoSegmento.Evento,
+        _ when seg.StartsWith("e", StringComparison.Ordinal) ||
+               seg.StartsWith("cr", StringComparison.Ordinal) ||
+               seg.StartsWith("nc", StringComparison.Ordinal) => TipoSegmento.Evento,
         _ => null
     };
 
     private static int? ResolveSegmentoNumero(string seg)
     {
-        if (seg.StartsWith("e",   StringComparison.Ordinal) &&
+        if (seg.StartsWith("e", StringComparison.Ordinal) &&
             int.TryParse(seg.AsSpan(1), out var ne)) return ne;
+        if ((seg.StartsWith("cr", StringComparison.Ordinal) ||
+             seg.StartsWith("nc", StringComparison.Ordinal)) &&
+            int.TryParse(seg.AsSpan(2), out var nr)) return nr;
         if (seg.StartsWith("iti", StringComparison.Ordinal) &&
             int.TryParse(seg.AsSpan(3), out var ni)) return ni;
         return null;

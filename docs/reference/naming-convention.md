@@ -118,14 +118,15 @@ Es la nomenclatura específica de este programa para clips exportados.
 Ejemplo:
 
 ```text
-abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4
+abs_2601_f5_d1r3_m_cr1_p_cr_stx.mp4
 ```
 
 Esta convención parte de los datos de sesión del estándar del lab y agrega los
 campos que Video Batch Processor puede obtener solo después de analizar el
 video: `segmento`, `tipoensayo` y `resultado`. Así permite saber qué parte del
-video representa el clip y si el evento fue cruce, no cruce, timeout o requiere
-revisión antes de una decisión final.
+video representa el clip y si el evento fue cruce, no cruce o timeout. El CSV
+que acompaña cada corrida conserva siempre el número original de la fila
+conductual para mantener trazabilidad.
 
 En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia donde se prende el LED de ruido blanco antes de la luz de comida. Aun así, el identificador `eN` conserva la trazabilidad con el evento de la fuente conductual, cuya latencia empieza cuando se prende la luz de comida.
 
@@ -138,7 +139,7 @@ En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia 
 | `f5` | Fase del protocolo | discriminación |
 | `d1r3` | Día + rata | día 1, rata 3 |
 | `m` | Sexo | macho |
-| `e1` | Segmento | evento/ensayo 1 de la fuente conductual |
+| `cr1` | Segmento | primer evento clasificado como cruce en esa sesión |
 | `p` | Tipo de ensayo | peligroso/riesgo |
 | `cr` | Resultado | cruce |
 | `stx` | Tratamiento | sin tratamiento |
@@ -147,7 +148,9 @@ En ensayos de riesgo/conflicto, el clip puede incluir el periodo de advertencia 
 
 | Código | Significado |
 |--------|-------------|
-| `eN` | Evento/ensayo registrado en la fuente conductual. Se conserva el número para mantener trazabilidad con la fila correspondiente. |
+| `crN` | Evento con cruce. `N` cuenta solo cruces dentro de esa sesión. |
+| `ncN` | Evento sin cruce. `N` cuenta solo no cruces dentro de esa sesión. |
+| `eN` | Evento no clasificable (`na`) o timeout (`to`); conserva su número original de la fuente conductual. También se acepta al leer outputs históricos. |
 | `itiN` | Intervalo entre eventos. Por ejemplo, `iti1` es el intervalo posterior a `e1`. |
 | `hab` | Habituación cuando se exporta como un solo bloque. |
 | `habini` | Habituación inicial, si se exporta separada. |
@@ -184,33 +187,26 @@ para ocultar esa diferencia experimental.
 ### Ejemplos DIS, Día 1, Rata 3
 
 ```text
-abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4     # evento peligroso/riesgo con cruce
-abs_2601_f5_d1r3_m_e2_s_cr_stx.mp4     # evento seguro con cruce
-abs_2601_f5_d1r3_m_e3_p_nc_stx.mp4     # evento peligroso/riesgo sin cruce
-abs_2601_f5_d1r3_m_e4_s_nc_stx.mp4     # evento seguro sin cruce
+abs_2601_f5_d1r3_m_cr1_p_cr_stx.mp4    # primer cruce peligroso/riesgo
+abs_2601_f5_d1r3_m_cr2_s_cr_stx.mp4    # segundo cruce seguro
+abs_2601_f5_d1r3_m_nc1_p_nc_stx.mp4    # primer no cruce peligroso/riesgo
+abs_2601_f5_d1r3_m_nc2_s_nc_stx.mp4    # segundo no cruce seguro
 abs_2601_f5_d1r3_m_e5_p_to_stx.mp4     # evento peligroso/riesgo con timeout
 abs_2601_f5_d1r3_m_e6_s_rv_stx.mp4     # evento con excepción pendiente de revisión
 abs_2601_f5_d1r3_m_iti1_na_na_stx.mp4  # ITI posterior al evento 1
 abs_2601_f5_d1r3_m_hab_na_na_stx.mp4   # habituación
 ```
 
-### Por Qué `eN` No Significa Solo Cruce
+### Contadores Separados Y Trazabilidad
 
-En esta convención, `eN` significa **evento/ensayo registrado en la fuente conductual**, no "cruce exitoso".
+Para que la carpeta sea fácil de leer, los eventos de cruce y no cruce llevan
+contadores independientes. Por ejemplo, una sesión puede tener `cr1` a `cr32`
+y `nc1` a `nc34`, aunque haya 67 filas conductuales en total. El primer evento
+queda `e1_*_na_*` porque no se puede comparar con un evento anterior.
 
-Esto conserva trazabilidad directa:
-
-```text
-fila/evento 12 de la fuente conductual -> e12 -> clip e12
-```
-
-El resultado conductual se codifica aparte:
-
-```text
-e12_p_cr  -> evento 12, peligroso, con cruce
-e13_s_nc  -> evento 13, seguro, sin cruce
-e14_p_to  -> evento 14, peligroso, timeout
-```
+La trazabilidad no se pierde: `clips_exportados.csv` guarda el campo `ensayo`,
+que es el número original de la fila del `.mat` o CSV. Ese archivo es la fuente
+para relacionar cada `crN` o `ncN` con el evento cronológico original.
 
 ---
 
@@ -228,8 +224,8 @@ Entrada con estándar del lab:
   abs_2601_f5_d1r3_m_stx.mat
 
 Output del Video Batch Processor:
-  abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4
-  abs_2601_f5_d1r3_m_e2_s_nc_stx.mp4
+  abs_2601_f5_d1r3_m_cr1_p_cr_stx.mp4
+  abs_2601_f5_d1r3_m_nc1_s_nc_stx.mp4
   abs_2601_f5_d1r3_m_iti1_na_na_stx.mp4
   abs_2601_f5_d1r3_m_hab_na_na_stx.mp4
 ```
@@ -253,7 +249,9 @@ La diferencia conceptual es:
 5. No renombrar ni modificar los datos conductuales fuente.
 6. El programa debe poder leer la nomenclatura legacy y la nomenclatura estándar del lab para sesiones fuente completas.
 7. El programa debe exportar clips usando la nomenclatura de output del Video Batch Processor.
-8. Para eventos de la fuente conductual, conservar `eN` aunque no haya cruce.
+8. Para eventos clasificados, usar `crN` o `ncN` con contadores separados; usar
+   `eN` solo cuando el resultado sea `na` o `to`. Consultar `clips_exportados.csv`
+   para el número original de la fuente conductual.
 9. Usar `na` cuando un campo no aplique, como en ITI o habituación.
 
 ---

@@ -268,6 +268,21 @@ public class NomenclatureParserTests
         Assert.Equal(ResultadoConductual.Cruce, r.Resultado);
     }
 
+    [Fact] public void VbpOutput_ContadoresSeparadosDeCrucesYNoCruces()
+    {
+        _parser.TryParse("abs_2605_f2_d4r1_m_cr12_s_cr_stx.mp4", out var crossing);
+        _parser.TryParse("abs_2605_f2_d4r1_m_nc7_s_nc_stx.mp4", out var noCrossing);
+
+        Assert.Equal(NamingScheme.VideoBatchOutput, crossing.Scheme);
+        Assert.Equal(TipoSegmento.Evento, crossing.SegmentoTipo);
+        Assert.Equal(12, crossing.SegmentoNumero);
+        Assert.Equal(ResultadoConductual.Cruce, crossing.Resultado);
+        Assert.Equal(NamingScheme.VideoBatchOutput, noCrossing.Scheme);
+        Assert.Equal(TipoSegmento.Evento, noCrossing.SegmentoTipo);
+        Assert.Equal(7, noCrossing.SegmentoNumero);
+        Assert.Equal(ResultadoConductual.NoCruce, noCrossing.Resultado);
+    }
+
     // ── 8. BuildVbpOutputName ────────────────────────────────────────────
 
     [Fact] public void Build_Evento_Cruce()

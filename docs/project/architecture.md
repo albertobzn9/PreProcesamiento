@@ -194,10 +194,10 @@ Output:        { Scheme="LabStandard", Initials="abs", DateCode="2601",
                  PhaseCode="f5", Day=9, Rat=4, Sex="m",
                  Treatment="stx" }
 
-Input output:  "abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4"
+Input output:  "abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4"
 Output:        { Scheme="VideoBatchOutput", Initials="abs", DateCode="2601",
                  PhaseCode="f5", Day=9, Rat=4, Sex="m",
-                 SegmentCode="e1", TrialTypeCode="p",
+                 SegmentCode="cr1", TrialTypeCode="p",
                  ResultCode="cr", Treatment="stx" }
 ```
 
@@ -208,7 +208,7 @@ Campos principales:
 - `Day`: día de entrenamiento o prueba
 - `Rat`: identificador de la rata
 - `Sex`: sexo del animal si la nomenclatura lo incluye
-- `SegmentCode`: parte del video (`e1`, `e2`, `iti1`, `hab`, etc.), asignada por el programa al crear un clip de output
+- `SegmentCode`: parte del video (`cr1`, `nc1`, `iti1`, `hab`, etc.), asignada por el programa al crear un clip de output. `crN` y `ncN` llevan conteos separados; el número original del evento se conserva en el CSV de exportación.
 - `TrialTypeCode`: tipo de evento del clip de output (`s`, `p`, etc.)
 - `ResultCode`: resultado del evento (`cr`, `nc`, `to`, `na`)
 - `Treatment`: tratamiento (`stx`, `dzp`, etc.)
@@ -494,7 +494,7 @@ VideoSegment = {
   StartFrame:         int,
   EndFrame:           int,
   Side:               enum { Left, Right, None },
-  SegmentCode:        string,  // e1, e2, iti1, hab, habini, habfin
+  SegmentCode:        string,  // cr1, nc1, e1 (na/to), iti1, habini, habfin
   TrialType:          enum { Safe, Conflict, SoundOnly, ITI, Habituation },
   Result:             enum { Crossing, NoCrossing, Timeout, NotApplicable },
   BehavioralEventIndex:int?,   // evento/fila correspondiente de la fuente conductual
@@ -805,8 +805,9 @@ por video.
 ```
 Run(config) -> BatchReport
   config = {
-    InputDir,
-    OutputDir,
+    InputDir,                    // carpeta recursiva o referencia de la selección
+    SourceVideoPaths?,           // uno o varios videos elegidos explícitamente
+    OutputDir,                   // referencia del reporte; cada salida va junto a su fuente
     Transform,                    // crop, giro y espejo ya confirmados
     LightConfig,                  // ROIs y umbrales ya calibrados
     BatchManifest,                // datos faltantes de sesiones legacy
@@ -815,8 +816,9 @@ Run(config) -> BatchReport
 ```
 
 Flujo:
-1. escanea la carpeta y encuentra videos CS candidatos. Cada sesión se empareja
-   solo con el `.mat` de su mismo nombre base; si existe como MP4 y MKV,
+1. recibe una carpeta recursiva o uno o varios videos elegidos explícitamente
+   y encuentra los candidatos CS. Cada sesión se empareja solo con el `.mat`
+   de su mismo nombre base; si existe como MP4 y MKV,
    conserva MP4. Si solo existe MKV, usa MKV. El formato alternativo queda
    intacto en disco y nunca produce clips duplicados.
 2. parsea nombres con `NomenclatureParser` y completa metadata con
@@ -842,13 +844,17 @@ Flujo:
 12. continúa con la siguiente sesión si una falla y genera un `BatchReport`
     con estados `Exported`, `ExportedWithWarnings`, `Blocked` o `Failed`
 
-**Estado actual:** Implementado para CS. Recorre subcarpetas, acepta MP4/MKV/
-AVI/MOV/M4V, omite clips de output y fases ajenas, conserva una carpeta de
-salida por sesión y no sobrescribe una salida existente. Requiere que el lote
-reciba una transformación, ROIs/umbrales y metadata completa (el `BatchManifest`
-completa iniciales, sexo y tratamiento de nombres legacy). La interfaz ya
-entrega esta configuración al botón `Process Batch`, usa la carpeta de entrada
-como raíz de salida (una subcarpeta por sesión) y muestra progreso y resumen.
+**Estado actual:** Implementado para CS. Recorre subcarpetas o acepta una
+selección explícita de uno o varios videos; soporta MP4/MKV/AVI/MOV/M4V, omite
+clips de output y fases ajenas, conserva una carpeta de salida junto a cada
+video fuente. Antes de escanear frames, si encuentra resultados existentes, la
+interfaz pide una decisión: cancelar, omitir esas sesiones y continuar con las
+nuevas, o archivar cada carpeta anterior con fecha para crear una corrida nueva.
+Nunca borra clips automáticamente. Requiere que el lote reciba una
+transformación, ROIs/umbrales y metadata completa (el `BatchManifest` completa
+iniciales, sexo y tratamiento de nombres legacy). La interfaz ya entrega esta
+configuración al botón `Procesar sesiones`, analiza luces como parte del flujo,
+genera el Excel diagnóstico automáticamente y muestra progreso y resumen.
 La opción inicial segura exporta solo habituación inicial/final, los dos
 primeros eventos y el primer ITI; `AllSegments` se usa después de revisar esos
 límites. Falta validarlo con un lote real de varias sesiones CS antes de
@@ -920,10 +926,10 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 
 | Bloque UI y vistas | Función en simple | Recibe | Entrega | Conexión con backend |
 |--------------------|-------------------|--------|---------|----------------------|
-| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida y nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
+| `SessionSetup` (`VideoLoadView`) | Cargar una carpeta o uno o varios videos, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida o nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
 | `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado; al guardarlas, `CameraSetupProfileStore` conserva transformación y ROIs por ruta de video. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta una asignación explícita de perfil a muchas sesiones y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
 | `ProcessingSummary` (`SegmentTimelineView`, `HabituationView`) | Mostrar el plan automático antes de exportar un lote. | Estado de sincronización, segmentos, eventos conductuales, tipo de fuente, advertencias, comparación de lados y duraciones. | Resumen trazable de clips propuestos y avisos técnicos. | Se diseña ahora; primero mostrará `BehavioralVideoSynchronizer` y después se conectará a `SegmentPlanner`. |
-| `BatchExport` (`ExportView`) | Ejecutar el lote y mostrar qué se exportó o falló. | Cámara/calibración de la sesión de referencia, metadata legacy y modo de prueba o exportación total. | `BatchReport`, progreso continuo y carpeta de salida por sesión. | Integrado para CS. `Process Batch` muestra porcentaje mientras recorre frames y exporta clips; la primera opción segura exporta pocos límites representativos antes de elegir todos los segmentos. |
+| `BatchExport` (`ExportView`) | Ejecutar una o varias sesiones y mostrar qué se exportó o falló. | Cámara/calibración de la sesión de referencia, lista visible de sesiones, metadata legacy y modo de prueba o exportación total. | `BatchReport`, progreso continuo y carpeta de salida junto a cada video. | Integrado para CS. `Procesar sesiones` muestra porcentaje mientras recorre frames y exporta clips; la primera opción segura exporta pocos límites representativos antes de elegir todos los segmentos. |
 
 ### Estado De La UI
 

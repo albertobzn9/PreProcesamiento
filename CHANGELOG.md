@@ -18,6 +18,15 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
   límites lógicos del evento y los límites del archivo exportado.
 - Los clips de evento incluyen por defecto cinco frames de contexto antes y
   después; habituación e ITIs conservan sus límites planeados.
+- `Procesar sesiones` acepta una selección explícita de uno o varios videos,
+  además de una carpeta; el análisis de luces y el Excel diagnóstico pasan a
+  formar parte de ese flujo y cada salida queda junto a su video fuente.
+- Antes de procesar, la app detecta resultados existentes y permite cancelar,
+  omitirlos o archivarlos con fecha para crear una corrida nueva sin perder la
+  evidencia anterior.
+- Los nombres de clips de evento separan ahora sus conteos: `cr1...crN` para
+  cruces y `nc1...ncN` para no cruces. `clips_exportados.csv` conserva el
+  ensayo/fila original de la fuente conductual para rastrear cada clip.
 
 - `BatchOrchestrator` inicial para Cruces Seguros: recorre subcarpetas, toma
   solo sesiones fuente CS, exige el MAT correspondiente, sincroniza video-MAT,

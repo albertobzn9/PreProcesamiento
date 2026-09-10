@@ -61,12 +61,39 @@ public sealed class BatchOrchestrator
         if (string.IsNullOrWhiteSpace(inputDirectory) || !Directory.Exists(inputDirectory))
             return [];
 
+        return DiscoverCandidates(
+            Directory.EnumerateFiles(inputDirectory, "*", SearchOption.AllDirectories)
+                .Where(path => s_videoExtensions.Contains(Path.GetExtension(path))));
+    }
+
+    /// <summary>
+    /// Prepara una selección explícita de una o más sesiones. La interfaz usa
+    /// esta entrada para que un video elegido individualmente siga el mismo
+    /// flujo completo que una carpeta con muchas sesiones.
+    /// </summary>
+    public IReadOnlyList<BatchCandidate> DiscoverCandidates(IEnumerable<string> videoPaths)
+    {
+        ArgumentNullException.ThrowIfNull(videoPaths);
+
         return SessionVideoSelector.SelectOnePerSession(
-                Directory.EnumerateFiles(inputDirectory, "*", SearchOption.AllDirectories)
-                    .Where(path => s_videoExtensions.Contains(Path.GetExtension(path))))
+                videoPaths.Where(path => !string.IsNullOrWhiteSpace(path) &&
+                                         s_videoExtensions.Contains(Path.GetExtension(path))))
             .Select(source => CreateCandidate(source.VideoPath, source.AlternateVideoPaths))
             .ToArray();
     }
+
+    /// <summary>
+    /// Revisa las salidas antes de escanear frames, para que la interfaz pueda
+    /// pedir una decisión explícita sin gastar tiempo ni sobrescribir evidencia.
+    /// </summary>
+    public IReadOnlyList<ExistingBatchOutput> FindExistingOutputs(IEnumerable<string> videoPaths) =>
+        DiscoverCandidates(videoPaths)
+            .Where(candidate => candidate.IsCsSource)
+            .Select(candidate => new ExistingBatchOutput(
+                candidate.VideoPath,
+                GetSessionOutputDirectory(candidate.VideoPath)))
+            .Where(item => Directory.Exists(item.OutputDirectory))
+            .ToArray();
 
     public async Task<BatchReport> RunAsync(
         BatchProcessingRequest request,
@@ -76,7 +103,9 @@ public sealed class BatchOrchestrator
         ArgumentNullException.ThrowIfNull(request);
         ValidateRequest(request);
 
-        var candidates = DiscoverCandidates(request.InputDirectory);
+        var candidates = request.SourceVideoPaths is { Count: > 0 }
+            ? DiscoverCandidates(request.SourceVideoPaths)
+            : DiscoverCandidates(request.InputDirectory);
         var reports = new List<BatchSessionReport>();
         for (var index = 0; index < candidates.Count; index++)
         {
@@ -84,13 +113,13 @@ public sealed class BatchOrchestrator
             var candidate = candidates[index];
             ReportProgress("Preparando sesión", index, 0);
 
-            var report = candidate.IsCsSource
-                ? await ProcessCsSessionAsync(
+            var report = !candidate.IsCsSource
+                ? BatchSessionReport.Skipped(candidate.VideoPath, candidate.SkipReason!)
+                : await ProcessCandidateAsync(
                     candidate,
                     request,
                     (message, sessionPercent) => ReportProgress(message, index, sessionPercent),
-                    cancellationToken)
-                : BatchSessionReport.Skipped(candidate.VideoPath, candidate.SkipReason!);
+                    cancellationToken);
             reports.Add(report);
             ReportProgress("Sesión terminada", index + 1, 0);
         }
@@ -112,6 +141,49 @@ public sealed class BatchOrchestrator
         }
     }
 
+    private async Task<BatchSessionReport> ProcessCandidateAsync(
+        BatchCandidate candidate,
+        BatchProcessingRequest request,
+        Action<string, double> reportProgress,
+        CancellationToken cancellationToken)
+    {
+        var sessionOutputDirectory = GetSessionOutputDirectory(candidate.VideoPath);
+        if (Directory.Exists(sessionOutputDirectory))
+        {
+            switch (request.ExistingOutputPolicy)
+            {
+                case ExistingOutputPolicy.SkipExisting:
+                    return BatchSessionReport.Skipped(
+                        candidate.VideoPath,
+                        "Se omitió porque ya existe una carpeta de resultados para esta sesión.");
+                case ExistingOutputPolicy.ArchiveAndReplace:
+                    try
+                    {
+                        ArchiveOutputDirectory(sessionOutputDirectory);
+                    }
+                    catch (Exception exception)
+                    {
+                        return BatchSessionReport.Failed(
+                            candidate.VideoPath,
+                            $"No se pudo archivar la salida existente: {exception.Message}");
+                    }
+                    break;
+                case ExistingOutputPolicy.Block:
+                default:
+                    return BatchSessionReport.Blocked(
+                        candidate.VideoPath,
+                        "Ya existe una carpeta de salida para esta sesión. Elige omitirla o archivarla antes de volver a procesar.");
+            }
+        }
+
+        return await ProcessCsSessionAsync(
+            candidate,
+            request,
+            sessionOutputDirectory,
+            reportProgress,
+            cancellationToken);
+    }
+
     private BatchCandidate CreateCandidate(string videoPath, IReadOnlyList<string> alternateVideoPaths)
     {
         if (!_nomenclatureParser.TryParse(videoPath, out var parsed))
@@ -127,6 +199,7 @@ public sealed class BatchOrchestrator
     private async Task<BatchSessionReport> ProcessCsSessionAsync(
         BatchCandidate candidate,
         BatchProcessingRequest request,
+        string sessionOutputDirectory,
         Action<string, double> reportProgress,
         CancellationToken cancellationToken)
     {
@@ -200,14 +273,11 @@ public sealed class BatchOrchestrator
                     plan.Warnings);
             }
 
-            var sessionOutputDirectory = Path.Combine(
-                request.OutputDirectory,
-                Path.GetFileNameWithoutExtension(candidate.VideoPath));
             if (Directory.Exists(sessionOutputDirectory))
             {
                 return BatchSessionReport.Blocked(
                     candidate.VideoPath,
-                    "Ya existe una carpeta de salida para esta sesión. Se conserva para no mezclar ni sobrescribir clips.",
+                    "Apareció una carpeta de salida mientras se procesaba la sesión; se conserva para no sobrescribir clips.",
                     matPath,
                     synchronization,
                     plan.Warnings);
@@ -229,6 +299,7 @@ public sealed class BatchOrchestrator
 
             var exports = new List<BatchClipReport>();
             var segmentsToExport = SelectSegmentsForExport(plan.Segments, request.ExportMode);
+            var outputSegmentCodes = OutputSegmentCodePlanner.Create(plan.Segments);
             for (var exportIndex = 0; exportIndex < segmentsToExport.Count; exportIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -236,7 +307,7 @@ public sealed class BatchOrchestrator
                 reportProgress($"Exportando clip {exportIndex + 1} de {segmentsToExport.Count}", 92 + exportIndex * 7d / Math.Max(1, segmentsToExport.Count));
                 var outputPath = Path.Combine(
                     sessionOutputDirectory,
-                    BuildOutputName(metadata, segment));
+                    BuildOutputName(metadata, segment, outputSegmentCodes[segment]));
                 var exported = await _clipExporter.ExportAsync(new ClipExportRequest(
                     candidate.VideoPath,
                     scan.Metadata,
@@ -321,16 +392,11 @@ public sealed class BatchOrchestrator
                !string.IsNullOrWhiteSpace(fileOverride.BehavioralSourcePath ?? fileOverride.MatPath);
     }
 
-    private static string BuildOutputName(SessionMetadata metadata, PlannedVideoSegment segment)
+    private static string BuildOutputName(
+        SessionMetadata metadata,
+        PlannedVideoSegment segment,
+        string segmentCode)
     {
-        var segmentCode = segment.Kind switch
-        {
-            PlannedSegmentKind.InitialHabituation => "habini",
-            PlannedSegmentKind.FinalHabituation => "habfin",
-            PlannedSegmentKind.InterTrialInterval => $"iti{segment.BehavioralEventNumber ?? segment.Sequence}",
-            PlannedSegmentKind.Event => $"e{segment.BehavioralEventNumber}",
-            _ => throw new ArgumentOutOfRangeException(nameof(segment)),
-        };
         var trialCode = segment.TrialType switch
         {
             PlannedTrialType.SafeFood => "s",
@@ -390,10 +456,33 @@ public sealed class BatchOrchestrator
             ? "La sincronización entre video y MAT quedó bloqueada."
             : string.Join(" ", synchronization.Findings.Select(item => item.Message));
 
+    private static string GetSessionOutputDirectory(string videoPath)
+    {
+        var sourceDirectory = Path.GetDirectoryName(videoPath);
+        if (string.IsNullOrWhiteSpace(sourceDirectory))
+            throw new ArgumentException("No se pudo identificar la carpeta del video fuente.", nameof(videoPath));
+
+        return Path.Combine(sourceDirectory, Path.GetFileNameWithoutExtension(videoPath));
+    }
+
+    private static void ArchiveOutputDirectory(string outputDirectory)
+    {
+        var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var archivedDirectory = $"{outputDirectory}_anterior_{stamp}";
+        var suffix = 2;
+        while (Directory.Exists(archivedDirectory))
+            archivedDirectory = $"{outputDirectory}_anterior_{stamp}_{suffix++}";
+
+        Directory.Move(outputDirectory, archivedDirectory);
+    }
+
     private static void ValidateRequest(BatchProcessingRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.InputDirectory) || !Directory.Exists(request.InputDirectory))
+        if ((request.SourceVideoPaths is null || request.SourceVideoPaths.Count == 0) &&
+            (string.IsNullOrWhiteSpace(request.InputDirectory) || !Directory.Exists(request.InputDirectory)))
             throw new DirectoryNotFoundException("La carpeta de entrada no existe.");
+        if (request.SourceVideoPaths is { Count: > 0 } && request.SourceVideoPaths.Any(path => string.IsNullOrWhiteSpace(path) || !File.Exists(path)))
+            throw new FileNotFoundException("Uno de los videos seleccionados ya no existe.");
         if (string.IsNullOrWhiteSpace(request.OutputDirectory) || !Path.IsPathRooted(request.OutputDirectory))
             throw new ArgumentException("La carpeta de salida debe ser una ruta absoluta.", nameof(request));
         ArgumentNullException.ThrowIfNull(request.Transform);
@@ -410,12 +499,21 @@ public sealed record BatchProcessingRequest(
     LightDetectionConfig LightConfig,
     BatchManifest Manifest,
     ClipExportOptions ClipOptions,
-    BatchExportMode ExportMode = BatchExportMode.ValidationSample);
+    BatchExportMode ExportMode = BatchExportMode.ValidationSample,
+    IReadOnlyList<string>? SourceVideoPaths = null,
+    ExistingOutputPolicy ExistingOutputPolicy = ExistingOutputPolicy.Block);
 
 public enum BatchExportMode
 {
     ValidationSample,
     AllSegments,
+}
+
+public enum ExistingOutputPolicy
+{
+    Block,
+    SkipExisting,
+    ArchiveAndReplace,
 }
 
 public sealed record BatchCandidate(
@@ -424,6 +522,8 @@ public sealed record BatchCandidate(
     bool IsCsSource,
     string? SkipReason,
     IReadOnlyList<string>? AlternateVideoPaths = null);
+
+public sealed record ExistingBatchOutput(string VideoPath, string OutputDirectory);
 
 public enum BatchSessionStatus
 {
@@ -478,6 +578,7 @@ public sealed record BatchReport(
     public int ExportedSessionCount => Sessions.Count(item => item.Status is BatchSessionStatus.Exported or BatchSessionStatus.ExportedWithWarnings);
     public int BlockedSessionCount => Sessions.Count(item => item.Status == BatchSessionStatus.Blocked);
     public int FailedSessionCount => Sessions.Count(item => item.Status == BatchSessionStatus.Failed);
+    public int SkippedSessionCount => Sessions.Count(item => item.Status == BatchSessionStatus.Skipped);
     public int ExportedClipCount => Sessions.Sum(item => item.Clips.Count(clip => clip.Export.Succeeded));
 }
 

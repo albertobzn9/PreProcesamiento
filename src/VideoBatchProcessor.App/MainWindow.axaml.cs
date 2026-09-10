@@ -29,7 +29,6 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, LightTimelineScanResult> _lightTimelines = [];
     private readonly Dictionary<string, LightTimelineScanRange> _lightTimelineRanges = [];
     private readonly CameraSetupProfileStore _cameraProfileStore = new();
-    private string? _loadedFolderPath;
 
     public MainWindow()
     {
@@ -98,23 +97,24 @@ public sealed partial class MainWindow : Window
 
     private async Task SelectFilesAsync()
     {
+        var supportedVideos = new FilePickerFileType("Videos compatibles")
+        {
+            Patterns = ["*.mp4", "*.avi", "*.mov", "*.mkv", "*.m4v"],
+            // macOS usa UTI, no los patrones glob de Windows/Linux. `public.movie`
+            // cubre los formatos de video estándar y el segundo identifica MKV.
+            AppleUniformTypeIdentifiers = ["public.movie", "org.matroska.mkv"],
+        };
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Agregar videos de sesión",
             AllowMultiple = true,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Video")
-                {
-                    Patterns = ["*.mp4", "*.avi", "*.mov", "*.mkv", "*.m4v"],
-                },
-            ],
+            FileTypeFilter = [supportedVideos],
+            SuggestedFileType = supportedVideos,
         });
 
         if (files.Count == 0)
             return;
 
-        _loadedFolderPath = null;
         await SendSessionsAsync(files.Select(file => file.Path.LocalPath));
     }
 
@@ -129,8 +129,6 @@ public sealed partial class MainWindow : Window
         var folderPath = folders.FirstOrDefault()?.Path.LocalPath;
         if (string.IsNullOrWhiteSpace(folderPath))
             return;
-
-        _loadedFolderPath = folderPath;
 
         try
         {
@@ -636,12 +634,6 @@ public sealed partial class MainWindow : Window
 
     private async Task ProcessBatchAsync(JsonElement message)
     {
-        if (string.IsNullOrWhiteSpace(_loadedFolderPath) || !Directory.Exists(_loadedFolderPath))
-        {
-            await SendToWebAsync(new { type = "batchProcessingRejected", message = "Carga primero una carpeta de sesiones; el procesamiento por lote no usa archivos sueltos." });
-            return;
-        }
-
         if (!TryReadBatchSetup(message, out var sessionId, out var initials, out var sex, out var treatment, out var exportMode, out var error) ||
             !_loadedSessions.TryGetValue(sessionId, out var referenceSession) ||
             !_cameraConfigs.TryGetValue(sessionId, out var transform) ||
@@ -652,9 +644,40 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // Cada sesión conserva sus clips junto a sus fuentes, en una carpeta
-        // propia con el mismo stem. No se pide una segunda ruta al usuario.
-        var outputDirectory = _loadedFolderPath;
+        if (!TryReadSelectedSessions(message, out var selectedSessions, out error))
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = error });
+            return;
+        }
+
+        if (!TryReadExistingOutputPolicy(message, out var existingOutputPolicy, out error))
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = error });
+            return;
+        }
+
+        if (!selectedSessions.Any(item => string.Equals(item.Metadata.SourceVideoPath, referenceSession.Metadata.SourceVideoPath, StringComparison.OrdinalIgnoreCase)))
+        {
+            await SendToWebAsync(new { type = "batchProcessingRejected", message = "La sesión cuya cámara configuraste debe permanecer en la lista a procesar." });
+            return;
+        }
+
+        var inputDirectory = Path.GetDirectoryName(referenceSession.Metadata.SourceVideoPath)!;
+        var sourceVideoPaths = selectedSessions.Select(item => item.Metadata.SourceVideoPath).ToArray();
+        var existingOutputs = new BatchOrchestrator().FindExistingOutputs(sourceVideoPaths);
+        if (existingOutputs.Count > 0 && existingOutputPolicy == ExistingOutputPolicy.Block)
+        {
+            await SendToWebAsync(new
+            {
+                type = "existingOutputDecisionRequired",
+                outputs = existingOutputs.Select(item => new
+                {
+                    video = Path.GetFileName(item.VideoPath),
+                    outputFolder = Path.GetFileName(item.OutputDirectory),
+                }),
+            });
+            return;
+        }
 
         var manifest = new BatchManifest
         {
@@ -663,13 +686,15 @@ public sealed partial class MainWindow : Window
             Tratamiento = treatment,
         };
         var request = new BatchProcessingRequest(
-            _loadedFolderPath,
-            outputDirectory,
+            inputDirectory,
+            inputDirectory,
             transform,
             lightConfig,
             manifest,
             new ClipExportOptions(),
-            exportMode);
+            exportMode,
+            SourceVideoPaths: sourceVideoPaths,
+            ExistingOutputPolicy: existingOutputPolicy);
         var progress = new Progress<BatchProcessingProgress>(update =>
             Dispatcher.UIThread.Post(async () => await SendToWebAsync(new
             {
@@ -686,7 +711,7 @@ public sealed partial class MainWindow : Window
             await SendToWebAsync(new
             {
                 type = "batchProcessingStarted",
-                message = $"Procesando sesiones CS con la configuración de {Path.GetFileName(referenceSession.Metadata.SourceVideoPath)}.",
+                message = $"Procesando {selectedSessions.Count} sesión(es) CS con la configuración de {Path.GetFileName(referenceSession.Metadata.SourceVideoPath)}.",
             });
             var report = await Task.Run(() => new BatchOrchestrator().RunAsync(request, progress));
             await SendToWebAsync(new
@@ -695,8 +720,9 @@ public sealed partial class MainWindow : Window
                 exportedSessions = report.ExportedSessionCount,
                 blockedSessions = report.BlockedSessionCount,
                 failedSessions = report.FailedSessionCount,
+                skippedSessions = report.SkippedSessionCount,
                 exportedClips = report.ExportedClipCount,
-                outputDirectory,
+                outputDirectory = "junto a cada video fuente",
                 sessions = report.Sessions.Select(item => new
                 {
                     video = Path.GetFileName(item.VideoPath),
@@ -711,6 +737,77 @@ public sealed partial class MainWindow : Window
         {
             await SendToWebAsync(new { type = "batchProcessingRejected", message = $"No se pudo completar el lote: {exception.Message}" });
         }
+    }
+
+    private static bool TryReadExistingOutputPolicy(
+        JsonElement message,
+        out ExistingOutputPolicy policy,
+        out string? error)
+    {
+        policy = ExistingOutputPolicy.Block;
+        error = null;
+        if (!message.TryGetProperty("existingOutputPolicy", out var policyProperty) ||
+            policyProperty.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (policyProperty.ValueKind != JsonValueKind.String)
+        {
+            error = "La decisión sobre resultados existentes no es válida.";
+            return false;
+        }
+
+        policy = policyProperty.GetString() switch
+        {
+            "SkipExisting" => ExistingOutputPolicy.SkipExisting,
+            "ArchiveAndReplace" => ExistingOutputPolicy.ArchiveAndReplace,
+            _ => ExistingOutputPolicy.Block,
+        };
+
+        if (policy == ExistingOutputPolicy.Block)
+        {
+            error = "La decisión sobre resultados existentes no es válida.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryReadSelectedSessions(
+        JsonElement message,
+        out IReadOnlyList<SessionSetupEntry> selectedSessions,
+        out string? error)
+    {
+        selectedSessions = [];
+        error = null;
+        if (!message.TryGetProperty("sessionIds", out var sessionIdsProperty) ||
+            sessionIdsProperty.ValueKind != JsonValueKind.Array)
+        {
+            error = "No hay sesiones seleccionadas para procesar.";
+            return false;
+        }
+
+        var entries = new List<SessionSetupEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in sessionIdsProperty.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString()))
+                continue;
+
+            var sessionId = item.GetString()!;
+            if (seen.Add(sessionId) && _loadedSessions.TryGetValue(sessionId, out var entry))
+                entries.Add(entry);
+        }
+
+        if (entries.Count == 0)
+        {
+            error = "No quedan sesiones compatibles en la lista para procesar.";
+            return false;
+        }
+
+        selectedSessions = entries;
+        return true;
     }
 
     private static (IReadOnlyList<BehavioralEvent> Events, string? SourcePath, string? Error) ReadBehavioralEvidence(

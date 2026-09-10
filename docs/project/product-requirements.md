@@ -125,9 +125,9 @@ En ensayos de riesgo/conflicto, el LED de ruido blanco y el sonido se encienden 
 
 El programa corta cada ensayo o segmento relevante en su propio video, usando la nomenclatura de output definida en [Naming Convention](../reference/naming-convention.md):
 
-- `abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4` → evento 1, peligroso, con cruce
-- `abs_2601_f5_d9r4_m_e2_s_cr_stx.mp4` → evento 2, seguro, con cruce
-- `abs_2601_f5_d9r4_m_e3_p_nc_stx.mp4` → evento 3, peligroso, sin cruce
+- `abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4` → primer cruce, peligroso
+- `abs_2601_f5_d9r4_m_cr2_s_cr_stx.mp4` → segundo cruce, seguro
+- `abs_2601_f5_d9r4_m_nc1_p_nc_stx.mp4` → primer no cruce, peligroso
 - `abs_2601_f5_d9r4_m_iti1_na_na_stx.mp4` → ITI posterior al evento 1
 - `abs_2601_f5_d9r4_m_hab_na_na_stx.mp4` → habituación
 - ...
@@ -221,13 +221,13 @@ Una carpeta con videos organizados por sesión/rata. Los clips usan la nomenclat
 ```
 videos_procesados/
 ├── abs_2601_f5_d9r4_m/
-│   ├── abs_2601_f5_d9r4_m_e1_p_cr_stx.mp4      (evento 1, peligroso, con cruce)
-│   ├── abs_2601_f5_d9r4_m_e2_s_cr_stx.mp4      (evento 2, seguro, con cruce)
-│   ├── abs_2601_f5_d9r4_m_e3_s_nc_stx.mp4      (evento 3, seguro, sin cruce)
+│   ├── abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4     (primer cruce, peligroso)
+│   ├── abs_2601_f5_d9r4_m_cr2_s_cr_stx.mp4     (segundo cruce, seguro)
+│   ├── abs_2601_f5_d9r4_m_nc1_s_nc_stx.mp4     (primer no cruce, seguro)
 │   ├── abs_2601_f5_d9r4_m_iti1_na_na_stx.mp4   (ITI posterior al evento 1)
 │   ├── abs_2601_f5_d9r4_m_hab_na_na_stx.mp4    (habituación)
 │   ├── ...
-│   └── abs_2601_f5_d9r4_m_e30_s_cr_stx.mp4     (evento 30, seguro, con cruce)
+│   └── abs_2601_f5_d9r4_m_cr30_s_cr_stx.mp4    (cruce 30, seguro)
 ├── abs_2601_f5_d9r3_m/
 │   └── ...
 └── reporte.csv            (resumen de todo lo procesado)

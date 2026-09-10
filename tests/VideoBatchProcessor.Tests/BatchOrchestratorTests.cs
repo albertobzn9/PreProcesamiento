@@ -37,6 +37,56 @@ public sealed class BatchOrchestratorTests : IDisposable
     }
 
     [Fact]
+    public void DiscoverCandidates_SeleccionExplicitaProcesaUnSoloVideo()
+    {
+        Directory.CreateDirectory(_directory);
+        var video = Path.Combine(_directory, "exp_0126_cs_d1r1.mkv");
+        File.WriteAllBytes(video, []);
+
+        var candidates = new BatchOrchestrator().DiscoverCandidates([video]);
+
+        var candidate = Assert.Single(candidates);
+        Assert.Equal(video, candidate.VideoPath);
+        Assert.True(candidate.IsCsSource);
+    }
+
+    [Fact]
+    public void FindExistingOutputs_DetectaLaCarpetaJuntoAlVideoAntesDeProcesar()
+    {
+        Directory.CreateDirectory(_directory);
+        var video = Path.Combine(_directory, "exp_0126_cs_d1r1.mp4");
+        File.WriteAllBytes(video, []);
+        var outputFolder = Path.Combine(_directory, "exp_0126_cs_d1r1");
+        Directory.CreateDirectory(outputFolder);
+
+        var existing = new BatchOrchestrator().FindExistingOutputs([video]);
+
+        var item = Assert.Single(existing);
+        Assert.Equal(video, item.VideoPath);
+        Assert.Equal(outputFolder, item.OutputDirectory);
+    }
+
+    [Fact]
+    public void OutputSegmentCodePlanner_EnumeraCrucesYNoCrucesPorSeparado()
+    {
+        var first = Segment(1, PlannedBehavioralResult.NotApplicable, 1);
+        var noCrossingOne = Segment(2, PlannedBehavioralResult.NoCrossing, 2);
+        var crossingOne = Segment(3, PlannedBehavioralResult.Crossing, 3);
+        var noCrossingTwo = Segment(4, PlannedBehavioralResult.NoCrossing, 4);
+        var crossingTwo = Segment(5, PlannedBehavioralResult.Crossing, 5);
+
+        var codes = OutputSegmentCodePlanner.Create([
+            crossingTwo, noCrossingTwo, first, crossingOne, noCrossingOne,
+        ]);
+
+        Assert.Equal("e1", codes[first]);
+        Assert.Equal("nc1", codes[noCrossingOne]);
+        Assert.Equal("cr1", codes[crossingOne]);
+        Assert.Equal("nc2", codes[noCrossingTwo]);
+        Assert.Equal("cr2", codes[crossingTwo]);
+    }
+
+    [Fact]
     public void BatchClipManifestWriter_RegistraTiemposDelVideoOriginal()
     {
         var path = Path.Combine(_directory, "clips_exportados.csv");
@@ -64,4 +114,30 @@ public sealed class BatchOrchestratorTests : IDisposable
 
     private static void Create(string directory, string fileName) =>
         File.WriteAllBytes(Path.Combine(directory, fileName), []);
+
+    private static PlannedVideoSegment Segment(
+        int sequence,
+        PlannedBehavioralResult result,
+        int behavioralEventNumber) =>
+        new(
+            PlannedSegmentKind.Event,
+            sequence,
+            sequence * 10,
+            sequence * 10 + 9,
+            sequence,
+            sequence + 0.3,
+            PlannedTrialType.SafeFood,
+            result,
+            behavioralEventNumber,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 }
