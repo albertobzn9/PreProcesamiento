@@ -88,6 +88,8 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Changed
 
+- Las carpetas creadas junto a cada video terminan en `_recortes` para
+  distinguir claramente los resultados del archivo fuente.
 - El escaneo masivo reutiliza los buffers y las máscaras de las tres ROIs entre
   frames. Conserva la misma medición de brillo y reduce trabajo repetido sin
   omitir partes del video.

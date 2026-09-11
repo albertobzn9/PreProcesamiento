@@ -74,7 +74,7 @@ public sealed class BatchOrchestratorTests : IDisposable
         Directory.CreateDirectory(_directory);
         var video = Path.Combine(_directory, "exp_0126_cs_d1r1.mp4");
         File.WriteAllBytes(video, []);
-        var outputFolder = Path.Combine(_directory, "exp_0126_cs_d1r1");
+        var outputFolder = Path.Combine(_directory, "exp_0126_cs_d1r1_recortes");
         Directory.CreateDirectory(outputFolder);
 
         var existing = new BatchOrchestrator().FindExistingOutputs([video]);

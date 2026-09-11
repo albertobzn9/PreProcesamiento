@@ -226,6 +226,9 @@ ambos sistemas.
 
 Una carpeta con videos organizados por sesión/rata. Los clips usan la nomenclatura de output del Video Batch Processor:
 
+Cada video fuente genera junto a él una carpeta con el mismo nombre y el sufijo
+`_recortes`, para distinguir inmediatamente los resultados del original.
+
 ```
 videos_procesados/
 ├── abs_2601_f5_d9r4_m/

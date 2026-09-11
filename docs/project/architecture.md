@@ -166,7 +166,7 @@ detallados que puedan divergir.
 | `BehavioralVideoSynchronizer` | Implementado como base por sesión | Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Usa lados conocidos para estimar el reloj y puede empatar `Lado=-2` por tiempo sin inventarle un lado. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
 | `SegmentPlanner` | Implementado y validado para CS | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly` y validación CP/DIS. |
 | `ClipExporter` | Implementado; validado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. La conexión CP está lista para validación real. |
-| Orquestación | Integrada para CS y habilitada para validar CP | `BatchOrchestrator` ejecuta primero el emparejamiento por contenido, conserva el escaneo, bloquea parejas dudosas y escribe una carpeta de salida por video. La prueba rápida exporta cinco eventos/ITIs sin habituación. |
+| Orquestación | Integrada para CS y habilitada para validar CP | `BatchOrchestrator` ejecuta primero el emparejamiento por contenido, conserva el escaneo, bloquea parejas dudosas y escribe una carpeta `<video>_recortes` junto a cada video. La prueba rápida exporta cinco eventos/ITIs sin habituación. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -900,7 +900,7 @@ Flujo:
 **Estado actual:** Validado para CS y habilitado para la primera prueba CP.
 Recorre subcarpetas o acepta una
 selección explícita de uno o varios videos; soporta MP4/MKV/AVI/MOV/M4V, omite
-clips de output y fases ajenas, conserva una carpeta de salida junto a cada
+clips de output y fases ajenas, conserva una carpeta `<video>_recortes` junto a cada
 video fuente. Antes de escanear frames, si encuentra resultados existentes, la
 interfaz pide una decisión: cancelar, omitir esas sesiones y continuar con las
 nuevas, o archivar cada carpeta anterior con fecha para crear una corrida nueva.

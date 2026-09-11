@@ -535,7 +535,7 @@ public sealed class BatchOrchestrator
         if (string.IsNullOrWhiteSpace(sourceDirectory))
             throw new ArgumentException("No se pudo identificar la carpeta del video fuente.", nameof(videoPath));
 
-        return Path.Combine(sourceDirectory, Path.GetFileNameWithoutExtension(videoPath));
+        return Path.Combine(sourceDirectory, $"{Path.GetFileNameWithoutExtension(videoPath)}_recortes");
     }
 
     private static void ArchiveOutputDirectory(string outputDirectory)
