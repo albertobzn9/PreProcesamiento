@@ -5,9 +5,9 @@ using VideoFileReader = VideoBatchProcessor.Core.VideoReader.VideoReader;
 namespace VideoBatchProcessor.Core.LightDetection;
 
 /// <summary>
-/// Recorre un video preparado, mide las ROIs reales de cada frame y construye
-/// su <see cref="LightTimeline"/>. Las transformaciones se aplican antes de
-/// medir, igual que durante la calibración de la interfaz.
+/// Recorre un video, mide las ROIs reales de cada frame y construye su
+/// <see cref="LightTimeline"/>. Las ROIs del video preparado se convierten una
+/// vez a coordenadas fuente para evitar transformar el frame completo.
 /// </summary>
 public sealed class LightTimelineScanner
 {
@@ -34,13 +34,25 @@ public sealed class LightTimelineScanner
             if (reader.Metadata.TotalFrames > int.MaxValue)
                 throw new InvalidOperationException("El video tiene más frames de los que el modelo actual puede representar.");
 
+            if (!LightDetectionCoordinateMapper.TryMapPreparedToSource(
+                    lightConfig,
+                    transformConfig,
+                    reader.Metadata.Width,
+                    reader.Metadata.Height,
+                    out var sourceLightConfig,
+                    out error))
+            {
+                throw new ArgumentException(error, nameof(lightConfig));
+            }
+
             var samples = new List<LightSample>();
-            var detector = new LightDetector(lightConfig);
+            var detector = new LightDetector(sourceLightConfig!);
             var videoFrames = (int)reader.Metadata.TotalFrames;
             var effectiveRange = scanRange ?? new LightTimelineScanRange(0, videoFrames - 1);
             effectiveRange.Validate(videoFrames);
             var totalFrames = effectiveRange.FrameCount;
             var lastReportedPercent = -1;
+            using var brightness = new ReusableFrameBrightnessSource(sourceLightConfig!);
 
             ReportProgress(0);
 
@@ -54,25 +66,11 @@ public sealed class LightTimelineScanner
                 var sourceFrame = samples.Count == 0 && firstRangeFrame is not null
                     ? firstRangeFrame
                     : reader.Current;
-
-                if (!VideoTransformPreviewRenderer.TryTransformFrame(
-                        sourceFrame,
-                        reader.Metadata,
-                        transformConfig,
-                        out var prepared,
-                        out error))
-                {
-                    throw new InvalidOperationException(error ?? "No se pudo preparar un frame para medir las luces.");
-                }
-
-                using (prepared)
-                {
-                    var brightness = new FrameAnalyzerBrightnessSource(prepared!, lightConfig);
-                    samples.Add(detector.Analyze(
-                        brightness,
-                        (int)reader.CurrentFrameIndex,
-                        reader.CurrentTimestamp.TotalSeconds));
-                }
+                brightness.Update(sourceFrame);
+                samples.Add(detector.Analyze(
+                    brightness,
+                    (int)reader.CurrentFrameIndex,
+                    reader.CurrentTimestamp.TotalSeconds));
 
                 ReportProgress(samples.Count);
                 hasFrame = reader.MoveNext(cancellationToken);

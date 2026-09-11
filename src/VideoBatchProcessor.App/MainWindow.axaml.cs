@@ -11,6 +11,8 @@ using VideoBatchProcessor.Core.FrameAnalyzer;
 using VideoBatchProcessor.Core.LightDetection;
 using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SessionResolver;
+using VideoBatchProcessor.Core.SessionFiles;
+using VideoBatchProcessor.Core.SessionPairing;
 using VideoBatchProcessor.Core.VideoReader;
 using VideoBatchProcessor.Core.VideoTransform;
 
@@ -20,6 +22,8 @@ public sealed partial class MainWindow : Window
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly SessionSetupService _sessionSetup = new();
+    private readonly NomenclatureParser _nomenclatureParser = new();
+    private readonly SessionSourceRenamer _sessionSourceRenamer = new();
     private readonly Dictionary<string, SessionSetupEntry> _loadedSessions = [];
     private readonly Dictionary<string, VideoPreview> _loadedPreviews = [];
     private readonly Dictionary<string, VideoTransformConfig> _cameraConfigs = [];
@@ -29,6 +33,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, LightTimelineScanResult> _lightTimelines = [];
     private readonly Dictionary<string, LightTimelineScanRange> _lightTimelineRanges = [];
     private readonly CameraSetupProfileStore _cameraProfileStore = new();
+    private PendingPairingContext? _pendingPairingContext;
 
     public MainWindow()
     {
@@ -65,6 +70,12 @@ public sealed partial class MainWindow : Window
                     break;
                 case "selectSession":
                     await LoadPreviewAsync(document.RootElement);
+                    break;
+                case "renameSession":
+                    await RenameSessionAsync(document.RootElement);
+                    break;
+                case "selectBehavioralSource":
+                    await SelectBehavioralSourceAsync(document.RootElement);
                     break;
                 case "updateCameraSetup":
                     await UpdateCameraSetupAsync(document.RootElement);
@@ -181,6 +192,75 @@ public sealed partial class MainWindow : Window
             sessions,
             skippedCount = skipped.Length,
             alternateFormatCount,
+        });
+    }
+
+    private async Task RenameSessionAsync(JsonElement message)
+    {
+        if (!message.TryGetProperty("sessionId", out var sessionIdProperty) ||
+            string.IsNullOrWhiteSpace(sessionIdProperty.GetString()) ||
+            !_loadedSessions.TryGetValue(sessionIdProperty.GetString()!, out var entry) ||
+            entry.ParsedName.Scheme != NamingScheme.Unknown)
+        {
+            await SendToWebAsync(new
+            {
+                type = "sessionNameRejected",
+                message = "Ese video ya no está disponible como nombre no compatible.",
+            });
+            return;
+        }
+
+        var sessionId = sessionIdProperty.GetString()!;
+        var correctedStem = message.TryGetProperty("correctedStem", out var correctedStemProperty)
+            ? correctedStemProperty.GetString()?.Trim()
+            : null;
+        var candidatePath = Path.Combine(
+            Path.GetDirectoryName(entry.Metadata.SourceVideoPath) ?? string.Empty,
+            (correctedStem ?? string.Empty) + Path.GetExtension(entry.Metadata.SourceVideoPath));
+        if (string.IsNullOrWhiteSpace(correctedStem) ||
+            !_nomenclatureParser.TryParse(candidatePath, out var parsed) ||
+            !parsed.IsSourceSession ||
+            parsed.FaseEstandar is null)
+        {
+            await SendToWebAsync(new
+            {
+                type = "sessionNameRejected",
+                message = "El nombre todavía no coincide con la nomenclatura legacy o la estándar del laboratorio.",
+            });
+            return;
+        }
+
+        if (!_sessionSourceRenamer.TryRename(
+                entry.Metadata.SourceVideoPath,
+                entry.AlternateVideoPaths,
+                correctedStem,
+                out var renamed,
+                out var error))
+        {
+            await SendToWebAsync(new
+            {
+                type = "sessionNameRejected",
+                message = error ?? "No se pudo corregir el nombre del video.",
+            });
+            return;
+        }
+
+        var updatedEntry = _sessionSetup.AnalyzeFiles(renamed!.AllVideoPaths).Single();
+        _loadedSessions[sessionId] = updatedEntry;
+        _loadedPreviews.Remove(sessionId);
+        _cameraConfigs.Remove(sessionId);
+        _lightConfigs.Remove(sessionId);
+        ClearCalibrationState(sessionId);
+        _lightTimelines.Remove(sessionId);
+        _lightTimelineRanges.Remove(sessionId);
+
+        await SendToWebAsync(new
+        {
+            type = "sessionNameCorrected",
+            session = ToWebSession(sessionId, updatedEntry),
+            message = renamed.AlternateVideoPaths.Count == 0
+                ? $"Nombre corregido: {Path.GetFileName(renamed.PrimaryVideoPath)}."
+                : $"Nombre corregido en el video principal y {renamed.AlternateVideoPaths.Count} formato(s) alternativo(s).",
         });
     }
 
@@ -695,6 +775,98 @@ public sealed partial class MainWindow : Window
             exportMode,
             SourceVideoPaths: sourceVideoPaths,
             ExistingOutputPolicy: existingOutputPolicy);
+        _pendingPairingContext = new PendingPairingContext(
+            transform,
+            lightConfig,
+            manifest,
+            exportMode,
+            existingOutputPolicy,
+            sourceVideoPaths);
+
+        await ExecuteBatchAsync(request, selectedSessions.Count, Path.GetFileName(referenceSession.Metadata.SourceVideoPath));
+    }
+
+    private async Task SelectBehavioralSourceAsync(JsonElement message)
+    {
+        if (_pendingPairingContext is null ||
+            !message.TryGetProperty("sessionId", out var sessionIdProperty) ||
+            string.IsNullOrWhiteSpace(sessionIdProperty.GetString()) ||
+            !_loadedSessions.TryGetValue(sessionIdProperty.GetString()!, out var session) ||
+            !_pendingPairingContext.SourceVideoPaths.Contains(
+                session.Metadata.SourceVideoPath,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            await SendToWebAsync(new
+            {
+                type = "batchProcessingRejected",
+                message = "La sesión marcada ya no pertenece al último lote.",
+            });
+            return;
+        }
+
+        var behavioralType = new FilePickerFileType("Datos conductuales")
+        {
+            Patterns = ["*.mat", "*.csv"],
+        };
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Elegir MAT o CSV para {Path.GetFileName(session.Metadata.SourceVideoPath)}",
+            AllowMultiple = false,
+            FileTypeFilter = [behavioralType],
+            SuggestedFileType = behavioralType,
+        });
+        var behavioralPath = files.FirstOrDefault()?.Path.LocalPath;
+        if (string.IsNullOrWhiteSpace(behavioralPath))
+            return;
+
+        if (Path.GetFileNameWithoutExtension(behavioralPath)
+            .EndsWith("_palanqueos", StringComparison.OrdinalIgnoreCase))
+        {
+            await SendToWebAsync(new
+            {
+                type = "pairingSelectionRejected",
+                message = "El CSV de palanqueos es evidencia adicional; elige el MAT o CSV principal de eventos.",
+            });
+            return;
+        }
+
+        try
+        {
+            await Task.Run(() => new BehavioralPairingEvidenceReader().Read(behavioralPath));
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new
+            {
+                type = "pairingSelectionRejected",
+                message = $"No se puede usar esa tabla: {exception.Message}",
+            });
+            return;
+        }
+
+        var context = _pendingPairingContext;
+        var videoPath = session.Metadata.SourceVideoPath;
+        var inputDirectory = Path.GetDirectoryName(videoPath)!;
+        var request = new BatchProcessingRequest(
+            inputDirectory,
+            inputDirectory,
+            context.Transform,
+            context.LightConfig,
+            context.Manifest,
+            new ClipExportOptions(),
+            context.ExportMode,
+            SourceVideoPaths: [videoPath],
+            ExistingOutputPolicy: context.ExistingOutputPolicy,
+            BehavioralSourcePaths: [behavioralPath]);
+
+        await ExecuteBatchAsync(request, 1, Path.GetFileName(videoPath));
+    }
+
+    private async Task ExecuteBatchAsync(
+        BatchProcessingRequest request,
+        int selectedSessionCount,
+        string referenceFileName)
+    {
         var progress = new Progress<BatchProcessingProgress>(update =>
             Dispatcher.UIThread.Post(async () => await SendToWebAsync(new
             {
@@ -711,9 +883,24 @@ public sealed partial class MainWindow : Window
             await SendToWebAsync(new
             {
                 type = "batchProcessingStarted",
-                message = $"Procesando {selectedSessions.Count} sesión(es) CS con la configuración de {Path.GetFileName(referenceSession.Metadata.SourceVideoPath)}.",
+                message = $"Emparejando y procesando {selectedSessionCount} sesión(es) CS/CP con la configuración de {referenceFileName}.",
             });
             var report = await Task.Run(() => new BatchOrchestrator().RunAsync(request, progress));
+            var sessionIdsByPath = _loadedSessions.ToDictionary(
+                item => Path.GetFullPath(item.Value.Metadata.SourceVideoPath),
+                item => item.Key,
+                StringComparer.OrdinalIgnoreCase);
+            var flaggedSessions = report.Sessions
+                .Where(item => item.Status == BatchSessionStatus.Blocked)
+                .Select(item => new
+                {
+                    sessionId = sessionIdsByPath.GetValueOrDefault(Path.GetFullPath(item.VideoPath)),
+                    video = Path.GetFileName(item.VideoPath),
+                    message = item.Message ?? "No se pudo confirmar la pareja video-MAT.",
+                    behavioralSource = item.MatPath is null ? null : Path.GetFileName(item.MatPath),
+                })
+                .Where(item => item.sessionId is not null)
+                .ToArray();
             await SendToWebAsync(new
             {
                 type = "batchProcessingCompleted",
@@ -723,11 +910,14 @@ public sealed partial class MainWindow : Window
                 skippedSessions = report.SkippedSessionCount,
                 exportedClips = report.ExportedClipCount,
                 outputDirectory = "junto a cada video fuente",
+                pairingReport = report.PairingReportPath,
+                flaggedSessions,
                 sessions = report.Sessions.Select(item => new
                 {
                     video = Path.GetFileName(item.VideoPath),
                     status = item.Status.ToString(),
                     message = item.Message,
+                    behavioralSource = item.MatPath is null ? null : Path.GetFileName(item.MatPath),
                     clips = item.Clips.Count(clip => clip.Export.Succeeded),
                     diagnostic = item.DiagnosticPath,
                 }),
@@ -1443,10 +1633,14 @@ public sealed partial class MainWindow : Window
             DescribeBehavioralSource(metadata));
     }
 
-    private static string? DescribeInputMessage(ParsedFileName parsedName) =>
-        parsedName.Scheme == NamingScheme.VideoBatchOutput
-            ? "Este archivo ya es un clip generado por Video Batch Processor. Carga el video completo de la sesión."
-            : null;
+    private static string? DescribeInputMessage(ParsedFileName parsedName) => parsedName.Scheme switch
+    {
+        NamingScheme.VideoBatchOutput =>
+            "Este archivo ya es un clip generado por Video Batch Processor. Carga el video completo de la sesión.",
+        NamingScheme.Unknown =>
+            "El lote intentará emparejar este video por su contenido. Corrige el nombre si conoces la sesión correcta.",
+        _ => null,
+    };
 
     private static string DescribeBehavioralSource(SessionMetadata metadata) => metadata.SourceBehavioralKind switch
     {
@@ -1467,6 +1661,14 @@ public sealed partial class MainWindow : Window
         string? MissingFields,
         string? InputMessage,
         string BehavioralSource);
+
+    private sealed record PendingPairingContext(
+        VideoTransformConfig Transform,
+        LightDetectionConfig LightConfig,
+        BatchManifest Manifest,
+        BatchExportMode ExportMode,
+        ExistingOutputPolicy ExistingOutputPolicy,
+        IReadOnlyList<string> SourceVideoPaths);
 
     private sealed record CalibrationFrameMeasurement(
         string SessionId,

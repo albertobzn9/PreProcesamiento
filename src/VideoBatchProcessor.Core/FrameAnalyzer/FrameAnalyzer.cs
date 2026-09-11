@@ -71,7 +71,7 @@ public sealed class FrameAnalyzer
                 continue;
             }
 
-            var subMat = frame[clipped];
+            using var subMat = frame[clipped];
             var brightness = ComputeMeanBrightness(subMat, roi.Shape);
 
             Mat? crop = null;

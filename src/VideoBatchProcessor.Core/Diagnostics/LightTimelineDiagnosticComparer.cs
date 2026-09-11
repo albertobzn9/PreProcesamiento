@@ -121,7 +121,7 @@ public sealed class LightTimelineDiagnosticComparer
         var candidates = (
             from interval in visual
             from item in behavioral
-            where IsCompatibleSide(interval.Light, item.Side)
+            where HasKnownSide(item.Side) && IsCompatibleSide(interval.Light, item.Side)
             select interval.OnTimeSeconds - EstimatedMatlabStart(item))
             .OrderBy(value => value)
             .ToArray();
@@ -152,7 +152,7 @@ public sealed class LightTimelineDiagnosticComparer
         double offset)
     {
         return Enumerable.Range(lastMatchedIndex + 1, behavioral.Count - lastMatchedIndex - 1)
-            .Where(index => !pairedIndexes.Contains(index) && IsCompatibleSide(interval.Light, behavioral[index].Side))
+            .Where(index => !pairedIndexes.Contains(index) && IsCompatibleForPairing(interval.Light, behavioral[index].Side))
             .Select(index => new
             {
                 Index = index,
@@ -170,6 +170,11 @@ public sealed class LightTimelineDiagnosticComparer
     private static bool IsCompatibleSide(LightId light, int side) =>
         (light == LightId.FoodLeft && side == 1) ||
         (light == LightId.FoodRight && side == 0);
+
+    private static bool IsCompatibleForPairing(LightId light, int side) =>
+        side == -2 || IsCompatibleSide(light, side);
+
+    private static bool HasKnownSide(int side) => side is 0 or 1;
 
     private static bool IsInsideVisualScanRange(
         double estimatedVisualStartSeconds,

@@ -6,9 +6,32 @@ sin inventar versiones de producto antes de la primera liberación.
 
 Para el estado operativo actual, ver [Current Project Status](docs/project/current-status.md).
 
-## [Unreleased] - 2026-07-16
+## [Unreleased]
 
 ### Added
+
+- Los videos con nombre no compatible muestran una acción para corregirlo desde
+  la lista. El cuadro valida la nomenclatura, renombra también los formatos
+  alternativos cargados y nunca sobrescribe otro archivo. El nombre corregido
+  no decide qué MAT corresponde al video.
+- Una pareja video-MAT dudosa queda marcada y sin recortes. La interfaz permite
+  elegir manualmente otra tabla principal para volver a comprobarla u omitir el
+  video por ahora; `_palanqueos.csv` no puede elegirse como tabla principal.
+- Preflight de emparejamiento por lote en Core: lee una vez cada video y
+  MAT/CSV, compara todas las parejas por evidencia temporal y solo confirma
+  asociaciones fuertes y mutuamente preferidas.
+- Inventario CSV de emparejamiento con confirmaciones, ambigüedades, tablas sin
+  video, evidencia conductual duplicada y errores de lectura.
+- Soporte de `Lado=-2` durante la sincronización: el reloj se estima con lados
+  conocidos y el timeout puede empatarse por tiempo sin inventar un lado.
+- Pruebas de nombres incorrectos, MAT duplicados, preferencia MP4/MKV, timeout,
+  evidencia débil y fallos parciales de lectura.
+- El botón de lote ya usa el preflight por contenido antes de exportar y
+  reutiliza el escaneo de luces para no analizar dos veces el mismo video.
+- La validación rápida exporta cinco clips de eventos/ITIs por sesión y omite
+  habituaciones; CP queda habilitado para una prueba real acotada.
+- Los nombres legacy con día/rata intercambiados, como `r1d5`, pueden recuperar
+  su identidad desde una fuente conductual confirmada.
 
 - `Process Batch` ya conecta la interfaz con `BatchOrchestrator`: usa una
   cámara/calibración confirmada como perfil de referencia, crea una carpeta de
@@ -65,6 +88,20 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Changed
 
+- El escaneo masivo reutiliza los buffers y las máscaras de las tres ROIs entre
+  frames. Conserva la misma medición de brillo y reduce trabajo repetido sin
+  omitir partes del video.
+- El progreso del emparejamiento da el peso principal a los frames de video;
+  leer muchos MAT pequeños ya no deja la barra aparentemente detenida cerca
+  de 69 % mientras se analiza un video largo.
+- La barra del lote queda como máximo en 99 % mientras todavía se exportan
+  clips o se escriben reportes. El 100 % se reserva para el lote terminado.
+- La exportación solicita a FFmpeg la cantidad exacta de frames de cada
+  segmento. Evita que el último frame indicado en `clips_exportados.csv`
+  desaparezca por redondeo temporal.
+- El escaneo de luces convierte las tres ROIs a coordenadas del video fuente
+  una sola vez y mide directamente esas regiones en cada frame. Conserva los
+  mismos límites visuales sin reconstruir un frame completo por cada lectura.
 - La interfaz de timeline muestra duración total y frames totales; sus campos
   de tiempo y frame se actualizan entre sí sin perder el rango exacto.
 - La app acepta explícitamente video MKV además de MP4, AVI, MOV y M4V.
@@ -87,7 +124,7 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
   eventos, 66 ITIs y 1 habituación final. Cuatro señales visuales extra y las
   excepciones de lado quedaron como avisos, no como clips inventados.
 - `dotnet build VideoBatchProcessor.sln` y `dotnet test VideoBatchProcessor.sln`
-  pasan con 166 pruebas.
+  pasan con 202 pruebas.
 
 ## Earlier Milestones
 

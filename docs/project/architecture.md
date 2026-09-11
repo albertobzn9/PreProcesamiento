@@ -136,13 +136,14 @@ Para que todas las secciones se lean igual, cada módulo se describe con este fo
 
 ```text
 NomenclatureParser -> SessionMetadataResolver
-VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder -> BehavioralVideoSynchronizer -> SegmentPlanner -> ClipExporter
-BehavioralSourceResolver -> IBehavioralSessionReader ------------------------------^
+VideoReader -> FrameAnalyzer -> BrightnessAdapter -> LightDetection -> LightTimelineBuilder
+BehavioralSourceResolver -> IBehavioralSessionReader
+LightTimelineBuilder + IBehavioralSessionReader -> SessionPairingResolver -> BehavioralVideoSynchronizer -> SegmentPlanner -> ClipExporter
 VideoTransformConfig -----------------------------------------------> ClipExporter
 BatchOrchestrator -> coordina todo
 ```
 
-### Estado Verificado Del Backend (20 De Julio De 2026)
+### Estado Verificado Del Backend (10 De Septiembre De 2026)
 
 Esta tabla solo resume qué módulos existen. Los resultados de pruebas reales,
 archivos de evidencia y el siguiente paso operativo viven en
@@ -160,11 +161,12 @@ detallados que puedan divergir.
 | `LightDetection` | Implementado | 21 pruebas. Convierte brillo ya medido en estados ON/OFF, incluida la desactivación explícita de `NoiseLed` durante `CS`. |
 | `BrightnessAdapter` (`FrameAnalyzerBrightnessSource`) | Implementado | 3 pruebas. Recibe un `Mat`, delega la medición a `FrameAnalyzer` y expone el brillo mediante `IFrameBrightnessSource` para `LightDetection`. |
 | `LightCalibration` | Implementado y validado manualmente | 3 pruebas. Conserva referencias OFF/ON, calcula medianas y propone un umbral. La UI navega por frames, conserva la evidencia al reabrirse y, si se ajustan ROIs, vuelve a medir los mismos frames antes de actualizar los umbrales. Falta decidir con el lado opuesto si la referencia de comida puede seguir compartiéndose. |
-| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | 11 pruebas. Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real aplicando crop, giro, espejo, ROIs y umbrales ya configurados. Puede limitarse a un intervalo de frames y reporta progreso real. |
-| `BehavioralVideoSynchronizer` | Implementado como base por sesión | 3 pruebas. Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Informa posibles desajustes; nunca intercambia fuentes ni segmenta. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
-| `SegmentPlanner` | Implementado y validado para CS | 4 pruebas. Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly`, UI de resumen y validación CP/DIS. |
-| `ClipExporter` | Implementado e integrado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. |
-| Orquestación | Implementada para CS | `BatchOrchestrator` aplica el flujo validado a una carpeta de sesiones CS y escribe una carpeta de salida por video. La futura importación de sesiones de CajaValentia se conecta a la orquestación, no a la UI ni a la detección de luces. |
+| `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real con crop, giro, espejo, ROIs y umbrales ya configurados. Para evitar trabajo innecesario, convierte las ROIs una vez a coordenadas fuente, mide solo esas zonas y reutiliza buffers y máscaras entre frames. Puede limitarse a un intervalo de frames y reporta progreso real. |
+| `SessionPairingResolver` / `BatchSessionPairingAnalyzer` | Integrado; pendiente de prueba CP real | El botón de lote lee una vez cada video y MAT/CSV, compara todas las parejas posibles y solo confirma asociaciones fuertes y mutuamente preferidas. Prefiere MP4 y usa MKV como respaldo. Detecta evidencia conductual duplicada, conserva errores y exporta `emparejamiento_sesiones.csv` antes de recortar. Su progreso da el peso principal al escaneo de frames, no al número de archivos pequeños. |
+| `BehavioralVideoSynchronizer` | Implementado como base por sesión | Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Usa lados conocidos para estimar el reloj y puede empatar `Lado=-2` por tiempo sin inventarle un lado. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
+| `SegmentPlanner` | Implementado y validado para CS | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly` y validación CP/DIS. |
+| `ClipExporter` | Implementado; validado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. La conexión CP está lista para validación real. |
+| Orquestación | Integrada para CS y habilitada para validar CP | `BatchOrchestrator` ejecuta primero el emparejamiento por contenido, conserva el escaneo, bloquea parejas dudosas y escribe una carpeta de salida por video. La prueba rápida exporta cinco eventos/ITIs sin habituación. |
 
 El backend actual es una base probada, no un pipeline de procesamiento completo. La
 UI debe conectarse primero a módulos implementados y no simular que las etapas
@@ -425,7 +427,65 @@ sintético pequeño.
 
 ---
 
-### 7. BehavioralVideoSynchronizer
+### 7. SessionPairingResolver / BatchSessionPairingAnalyzer
+
+**Función en simple:** Antes de procesar un lote, decide qué video corresponde
+a qué MAT o CSV usando el patrón real de eventos, no solo el nombre del archivo.
+
+**Recibe:** videos fuente, fuentes conductuales candidatas, transformación de
+cámara, ROIs y umbrales.
+
+**Entrega:** un `SessionPairingReport` con parejas `Confirmed`, `Ambiguous` o
+`NoMatch`, fuentes sin video, evidencia duplicada y errores de lectura. Puede
+guardarse como CSV mediante `SessionPairingReportCsvWriter`.
+
+**Depende de:** `SessionVideoSelector`, `LightTimelineScanner`,
+`IBehavioralSessionReader` y `BehavioralVideoSynchronizer`.
+
+```text
+videos + MAT/CSV + CameraProfile
+  -> BatchSessionPairingAnalyzer
+  -> SessionPairingResolver
+  -> inventario de parejas antes del recorte
+```
+
+Reglas actuales:
+1. si una captura existe como MP4 y MKV, analiza MP4; usa MKV solo cuando falta
+   MP4 y nunca procesa ambos como sesiones distintas;
+2. cada video y cada tabla se leen una sola vez;
+3. compara todas las combinaciones viables por cobertura temporal, cantidad de
+   eventos y error residual;
+4. el nombre base se conserva como dato informativo, pero nunca rompe un empate
+   ni confirma una pareja por sí solo;
+5. una asignación se confirma únicamente cuando video y tabla se prefieren
+   mutuamente y la mejor opción supera con claridad a la segunda;
+6. tablas con contenido conductual idéntico se reportan como duplicadas, aunque
+   sus archivos binarios no tengan el mismo hash;
+7. `_palanqueos.csv` nunca se considera fuente principal;
+8. un archivo ilegible no cancela el inventario completo: queda señalado para
+   corregirse;
+9. una pareja ambigua o ausente se marca y no llega al recorte automático;
+10. el usuario tiene la decisión final: puede elegir otra tabla principal para
+    volver a comprobarla u omitir el video después de revisar la alerta;
+11. corregir el nombre organiza el archivo, pero nunca sustituye la comprobación
+    del contenido video-MAT.
+
+En la interfaz, una pareja no confirmada abre una alerta. **Elegir MAT/CSV**
+permite seleccionar manualmente otra tabla principal y vuelve a ejecutar la
+comprobación para ese video; **Omitir por ahora** conserva todos los archivos y
+no genera clips. La elección manual resuelve qué tabla revisar, pero no inventa
+límites si los tiempos no pueden sincronizarse.
+
+**Estado actual:** implementado, probado en Core y conectado antes de
+`BatchOrchestrator`. Guarda `emparejamiento_sesiones.csv`; falta validar sus
+decisiones con los archivos reales de Cruces Peligrosos.
+
+**Prueba aislada:** Sí. Incluye nombres incorrectos, MAT duplicados, evidencia
+insuficiente, timeout, preferencia MP4/MKV y errores de lectura parciales.
+
+---
+
+### 8. BehavioralVideoSynchronizer
 
 **Función en simple:** Antes de recortar nada, confirma si las luces detectadas
 en un video y las filas conductuales que lo acompañan tienen evidencia temporal
@@ -448,8 +508,9 @@ LightEventInterval[] + BehavioralEvent[] + scanRange + fps
 ```
 
 Reglas actuales:
-1. usa solo luces de comida y el lado `0`/`1` para buscar un patrón temporal
-   repetido;
+1. usa luces de comida y filas con lado conocido `0`/`1` para estimar un patrón
+   temporal repetido; después puede empatar filas `Lado=-2` por tiempo y orden,
+   sin asignarles izquierda o derecha;
 2. estima un desfase propio de la sesión, sin usar un offset fijo;
 3. al analizar solo una parte del video, no castiga filas que están después de
    ese intervalo;
@@ -468,7 +529,7 @@ visual extra y un patrón incompatible que sugiere una posible asociación erró
 
 ---
 
-### 8. SegmentPlanner
+### 9. SegmentPlanner
 
 **Función en simple:** Construye los clips a partir del inventario conductual
 real y usa el video para validarlos, ubicarlos en el reloj visual y conservar
@@ -600,7 +661,7 @@ parcial, sincronización bloqueada y clasificación por comparación de lados.
 
 ---
 
-### 9. BehavioralData
+### 10. BehavioralData
 
 **Función en simple:** Encuentra y lee la información conductual que acompaña a
 un video. Puede venir de un CSV nuevo o de un `.mat` histórico, pero el resto
@@ -683,7 +744,7 @@ malformado, punto decimal bajo cultura española, `lado=-2`, `tipo_evento=2`,
 
 ---
 
-### 10. VideoTransformConfig / VideoTransformPreview
+### 11. VideoTransformConfig / VideoTransformPreview
 
 **Función en simple:** Guardar y previsualizar cómo se debe transformar el video sin generar todavía el clip final.
 
@@ -737,7 +798,7 @@ Un módulo `VideoCropRotate` puede existir como helper opcional para previews o 
 
 ---
 
-### 11. ClipExporter
+### 12. ClipExporter
 
 **Función en simple:** Toma un plan de clips y escribe los archivos finales de video.
 
@@ -790,11 +851,10 @@ salida parcial si FFmpeg falla.
 
 ---
 
-### 12. BatchOrchestrator
+### 13. BatchOrchestrator
 
-**Función en simple:** Procesa una carpeta de sesiones de Cruces Seguros de
-principio a fin, sin que el investigador tenga que repetir el mismo flujo video
-por video.
+**Función en simple:** Procesa una o varias sesiones de Cruces Seguros o Cruces
+Peligrosos sin que el investigador repita el flujo video por video.
 
 **Recibe:** una configuración de procesamiento por lote.
 
@@ -817,34 +877,28 @@ Run(config) -> BatchReport
 
 Flujo:
 1. recibe una carpeta recursiva o uno o varios videos elegidos explícitamente
-   y encuentra los candidatos CS. Cada sesión se empareja solo con el `.mat`
-   de su mismo nombre base; si existe como MP4 y MKV,
-   conserva MP4. Si solo existe MKV, usa MKV. El formato alternativo queda
-   intacto en disco y nunca produce clips duplicados.
-2. parsea nombres con `NomenclatureParser` y completa metadata con
-   `SessionMetadataResolver` y `BatchManifest`
-3. resuelve el MAT exacto por video: un override explícito gana; si no existe,
-   busca `stem.mat` junto al video. Sin MAT marca la sesión `Blocked`; nunca
-   adivina una pareja. El CSV y el manifiesto de captura de CajaValentia se
-   incorporarán después de validar este primer lote CS.
-4. recibe la transformación y configuración de luces ya confirmadas y lee
-   metadata con `VideoReader`
-5. obtiene brillo por ROI con `FrameAnalyzer`, lo entrega mediante el
-   `BrightnessAdapter` y detecta luces con `LightDetection`
-6. construye transiciones estables con `LightTimelineBuilder` y lee el MAT con
-   `IBehavioralSessionReader`
-7. usa `BehavioralVideoSynchronizer` como puerta de calidad: conserva warnings
-   y bloquea asociaciones sin evidencia suficiente
-8. planea segmentos con `SegmentPlanner` solo para sesiones no bloqueadas
-9. exporta automáticamente los segmentos CS planeados con `ClipExporter`
-10. guarda además un `diagnostico_luces.xlsx` dentro de cada carpeta de sesión
+   y encuentra candidatos CS/CP. Si existe MP4 y MKV, conserva MP4; si falta
+   MP4, usa MKV. El alternativo queda intacto y no produce clips duplicados.
+2. lee una vez cada video y cada MAT/CSV disponible, compara todas las parejas
+   por contenido y guarda `emparejamiento_sesiones.csv`;
+3. permite continuar únicamente a parejas confirmadas. Un nombre intercambiado
+   como `r1d5` puede recuperar día/rata desde la tabla confirmada; una pareja
+   ambigua se bloquea;
+4. completa metadata con `NomenclatureParser`, `SessionMetadataResolver` y
+   `BatchManifest`;
+5. reutiliza el escaneo de luces del preflight y aplica
+   `BehavioralVideoSynchronizer` como puerta de calidad;
+6. planea segmentos con `SegmentPlanner` solo para sesiones no bloqueadas;
+7. exporta los segmentos planeados con `ClipExporter`;
+8. guarda además un `diagnostico_luces.xlsx` dentro de cada carpeta de sesión
     para conservar la evidencia MAT-video usada antes del corte
-11. guarda `clips_exportados.csv` junto a los videos generados, con archivo,
+9. guarda `clips_exportados.csv` junto a los videos generados, con archivo,
     frames y tiempos de inicio/final en el video original para verificación
-12. continúa con la siguiente sesión si una falla y genera un `BatchReport`
+10. continúa con la siguiente sesión si una falla y genera un `BatchReport`
     con estados `Exported`, `ExportedWithWarnings`, `Blocked` o `Failed`
 
-**Estado actual:** Implementado para CS. Recorre subcarpetas o acepta una
+**Estado actual:** Validado para CS y habilitado para la primera prueba CP.
+Recorre subcarpetas o acepta una
 selección explícita de uno o varios videos; soporta MP4/MKV/AVI/MOV/M4V, omite
 clips de output y fases ajenas, conserva una carpeta de salida junto a cada
 video fuente. Antes de escanear frames, si encuentra resultados existentes, la
@@ -855,14 +909,15 @@ transformación, ROIs/umbrales y metadata completa (el `BatchManifest` completa
 iniciales, sexo y tratamiento de nombres legacy). La interfaz ya entrega esta
 configuración al botón `Procesar sesiones`, analiza luces como parte del flujo,
 genera el Excel diagnóstico automáticamente y muestra progreso y resumen.
-La opción inicial segura exporta solo habituación inicial/final, los dos
-primeros eventos y el primer ITI; `AllSegments` se usa después de revisar esos
-límites. Falta validarlo con un lote real de varias sesiones CS antes de
-extenderlo a CP/DIS.
+La opción de prueba rápida analiza la sesión completa, pero exporta solo los
+primeros cinco segmentos que sean eventos o ITIs; no exporta habituaciones.
+`AllSegments` se usa después de revisar esos límites. Falta validar dos sesiones
+CP reales, incluida una con nombre intercambiado, antes de habilitar CP para
+lotes completos o extender el flujo a DIS.
 
-**Prueba aislada:** Sí para el descubrimiento recursivo y selección exclusiva
-de sesiones CS. La prueba integral con videos/MAT reales queda como la siguiente
-validación manual.
+**Prueba aislada:** Sí para descubrimiento, CS/CP, nombre intercambiado,
+preferencia MP4/MKV, emparejamiento y selección de cinco clips sin habituación.
+La prueba integral con videos/MAT CP reales es la siguiente validación manual.
 
 ---
 
@@ -929,7 +984,7 @@ siguiente; ninguno interpreta por sí mismo el video o la fuente conductual.
 | `SessionSetup` (`VideoLoadView`) | Cargar una carpeta o uno o varios videos, confirmar qué sesiones se procesarán y mostrar un primer frame de una sesión fuente. | Carpeta elegida o nombres de videos. | Lista de `SessionMetadata`, avisos, grupos de trabajo y preview raw del video seleccionado. | Implementado y validado manualmente en macOS. Usa `NomenclatureParser`, `SessionMetadataResolver` y `VideoReader`. |
 | `CameraSetup` (`CropView`, `LightMarkerView`, `LightCalibrationView`) | Preparar cómo se verá y medirá un grupo de videos con el mismo encuadre. | Frame representativo, decisiones de crop/orientación y ROIs. | `CameraProfileDraft`: transformación, ROIs, referencias OFF/ON y umbrales aceptados. | Giro de 180°, espejo, crop en modal y preview transformado ya están integrados por sesión. `LightMarkerView` permite marcar y validar las tres ROIs en coordenadas reales del video preparado; al guardarlas, `CameraSetupProfileStore` conserva transformación y ROIs por ruta de video. `LightCalibrationView` recorre frames, mide referencias OFF/ON reales y conserva umbrales en memoria. Falta una asignación explícita de perfil a muchas sesiones y confirmar con video real si el umbral de comida puede compartirse entre ambos lados. |
 | `ProcessingSummary` (`SegmentTimelineView`, `HabituationView`) | Mostrar el plan automático antes de exportar un lote. | Estado de sincronización, segmentos, eventos conductuales, tipo de fuente, advertencias, comparación de lados y duraciones. | Resumen trazable de clips propuestos y avisos técnicos. | Se diseña ahora; primero mostrará `BehavioralVideoSynchronizer` y después se conectará a `SegmentPlanner`. |
-| `BatchExport` (`ExportView`) | Ejecutar una o varias sesiones y mostrar qué se exportó o falló. | Cámara/calibración de la sesión de referencia, lista visible de sesiones, metadata legacy y modo de prueba o exportación total. | `BatchReport`, progreso continuo y carpeta de salida junto a cada video. | Integrado para CS. `Procesar sesiones` muestra porcentaje mientras recorre frames y exporta clips; la primera opción segura exporta pocos límites representativos antes de elegir todos los segmentos. |
+| `BatchExport` (`ExportView`) | Ejecutar una o varias sesiones y mostrar qué se exportó o falló. | Cámara/calibración de la sesión de referencia, lista visible de sesiones, metadata legacy y modo de prueba o exportación total. | `BatchReport`, progreso continuo, inventario de parejas y carpeta de salida junto a cada video. | Validado para CS y listo para prueba CP. `Procesar sesiones` empareja por contenido, muestra progreso y, en modo rápido, exporta cinco eventos/ITIs sin habituación. |
 
 ### Estado De La UI
 
@@ -952,7 +1007,7 @@ lista vuelve a HTML. La interfaz XAML anterior fue retirada: el archivo XAML
 solo aloja el `NativeWebView`, mientras que la presentación vive en
 `WebUi/index.html`.
 
-### 13. AppShell + SessionSetup
+### 14. AppShell + SessionSetup
 
 **Función en simple:** Es la puerta de entrada del programa. Presenta el flujo
 de trabajo, deja elegir videos o una carpeta y ayuda a confirmar que cada sesión
@@ -979,7 +1034,7 @@ conteo de sesiones omitidas sin confundirlas con errores de nomenclatura.
 Cuando detecta más de cinco nombres no compatibles, ofrece quitarlos todos de
 la lista del lote. Esa acción nunca borra los archivos físicos del disco.
 
-### 14. CameraSetup
+### 15. CameraSetup
 
 **Función en simple:** Permite escoger un video representativo y decir cómo se
 debe ver la caja: orientación, espejo y recorte. Agrupa esas decisiones en un
@@ -1033,7 +1088,7 @@ token de esa medición, por lo que al confirmar no se vuelve a buscar un frame
 que podría variar según códec. El flujo se validó manualmente en macOS el
 13-07-2026; después se guardará un `CameraProfile` reutilizable.
 
-### 15. LightCalibration
+### 16. LightCalibration
 
 **Función en simple:** Deja marcar dónde están las tres luces y escoger umbrales
 de encendido/apagado con ejemplos visuales. Su trabajo termina al guardar una

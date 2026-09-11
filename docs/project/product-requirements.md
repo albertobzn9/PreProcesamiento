@@ -72,7 +72,7 @@ La idea general de este proyecto es que se puedan normalizar/estandarizar todos 
 3. **Rotación/reflejo:** el usuario puede rotar 180° o reflejar los videos cuando lo necesite, o dejar la imagen intacta.
 4. **Identificación de luces:** el programa detecta cuándo se prenden las tres luces a partir de ROIs y umbrales calibrados por el usuario.
 5. **Recorte por segmento:** una vez que identifica los eventos de luz, recorta automáticamente habituación, eventos/ensayos e ITIs.
-6. **Asociación conductual:** usa CSV V1 o `.mat` histórico para completar etiquetas conductuales de los eventos y conservar su trazabilidad con el video.
+6. **Asociación conductual:** usa CSV V1 o `.mat` histórico para completar etiquetas conductuales de los eventos y conservar su trazabilidad con el video. En lotes, compara el patrón real de cada video contra las tablas disponibles antes de confiar en sus nombres.
 7. **Recorte de habituación:** informa excepciones de habituación final y permite seleccionar qué sesiones largas se quieren recortar.
 
 ## Requisitos Funcionales
@@ -144,6 +144,14 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 **Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y tipo de evento. Para el lote, el programa determina cruce/no cruce comparando el lado con el evento anterior válido; `Desplaz` permanece como dato raw y no genera una alerta manual.
 
 Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y la fuente conductual define las etiquetas. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
+
+Antes de recortar un lote, la aplicación debe crear un inventario video-tabla.
+Una pareja solo puede confirmarse automáticamente cuando el patrón de eventos,
+los lados conocidos y los tiempos coinciden claramente y ambos archivos son su
+mejor opción. El nombre idéntico ayuda a desempatar, pero no reemplaza esa
+evidencia. Parejas ambiguas, tablas duplicadas, archivos ilegibles y fuentes sin
+pareja deben mostrarse y quedar fuera del recorte automático. Si una captura
+existe en MP4 y MKV, se usa MP4; MKV funciona como respaldo cuando falta MP4.
 
 ### 7. Recortar La Habituación
 

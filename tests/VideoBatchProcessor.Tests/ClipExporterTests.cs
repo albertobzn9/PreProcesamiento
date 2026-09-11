@@ -32,7 +32,9 @@ public sealed class ClipExporterTests : IDisposable
         Assert.True(File.Exists(output));
         Assert.False(Directory.EnumerateFiles(_directory, "*.partial.mp4").Any());
         Assert.Equal("1.83333333", ValueAfter(runner.Arguments!, "-ss"));
-        Assert.Equal("1.16666667", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal("35", ValueAfter(runner.Arguments!, "-frames:v"));
+        Assert.Contains("-shortest", runner.Arguments!);
+        Assert.DoesNotContain("-t", runner.Arguments!);
         Assert.Equal("crop=100:80:10:20,hflip,vflip,hflip", ValueAfter(runner.Arguments!, "-vf"));
         Assert.Equal(55, result.StartFrameIndex);
         Assert.Equal(89, result.EndFrameIndex);
@@ -94,7 +96,7 @@ public sealed class ClipExporterTests : IDisposable
 
         Assert.True(result.Succeeded);
         Assert.Equal("1.83333333", ValueAfter(runner.Arguments!, "-ss"));
-        Assert.Equal("1.33333333", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal("40", ValueAfter(runner.Arguments!, "-frames:v"));
         Assert.Equal(55, result.StartFrameIndex);
         Assert.Equal(94, result.EndFrameIndex);
     }
@@ -115,7 +117,7 @@ public sealed class ClipExporterTests : IDisposable
 
         Assert.True(result.Succeeded);
         Assert.Equal("2", ValueAfter(runner.Arguments!, "-ss"));
-        Assert.Equal("1", ValueAfter(runner.Arguments!, "-t"));
+        Assert.Equal("30", ValueAfter(runner.Arguments!, "-frames:v"));
         Assert.Equal(60, result.StartFrameIndex);
         Assert.Equal(89, result.EndFrameIndex);
     }

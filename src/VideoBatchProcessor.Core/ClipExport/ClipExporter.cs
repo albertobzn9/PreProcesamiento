@@ -85,8 +85,7 @@ public sealed class ClipExporter
     {
         var range = exportRange ?? ResolveExportRange(request);
         var start = range.StartFrameIndex / request.SourceVideo.Fps;
-        var duration = (range.EndFrameIndex - range.StartFrameIndex + 1) /
-                       request.SourceVideo.Fps;
+        var frameCount = range.EndFrameIndex - range.StartFrameIndex + 1;
         var arguments = new List<string>
         {
             "-hide_banner",
@@ -94,12 +93,13 @@ public sealed class ClipExporter
             "-y",
             "-ss", FormatSeconds(start),
             "-i", request.SourceVideoPath,
-            "-t", FormatSeconds(duration),
             "-map", "0:v:0",
             "-map", "0:a?",
+            "-frames:v", frameCount.ToString(CultureInfo.InvariantCulture),
             "-c:v", request.Options.VideoCodec,
             "-crf", request.Options.Crf.ToString(CultureInfo.InvariantCulture),
             "-c:a", "aac",
+            "-shortest",
         };
 
         var filters = BuildVideoFilters(request.Transform);

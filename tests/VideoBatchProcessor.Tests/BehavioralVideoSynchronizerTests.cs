@@ -1,5 +1,6 @@
 using VideoBatchProcessor.Core.BehavioralData;
 using VideoBatchProcessor.Core.BehavioralSynchronization;
+using VideoBatchProcessor.Core.Diagnostics;
 using VideoBatchProcessor.Core.LightDetection;
 
 namespace VideoBatchProcessor.Tests;
@@ -65,6 +66,28 @@ public sealed class BehavioralVideoSynchronizerTests
         Assert.Equal(BehavioralVideoSynchronizationStatus.Blocked, result.Status);
         Assert.Contains(result.Findings, item =>
             item.Kind == BehavioralVideoSynchronizationFindingKind.PossibleSourceMismatch);
+    }
+
+    [Fact]
+    public void Synchronize_UsaLadosConocidosComoAnclaYEmpataTimeoutPorTiempo()
+    {
+        var result = Synchronize(
+            [
+                Interval(1, LightId.FoodRight, 102.4),
+                Interval(2, LightId.FoodRight, 122.4),
+                Interval(3, LightId.FoodLeft, 142.4),
+            ],
+            [
+                Event(1, 0, 100),
+                Event(2, -2, 120),
+                Event(3, 1, 140),
+            ]);
+
+        Assert.Equal(BehavioralVideoSynchronizationStatus.Ready, result.Status);
+        Assert.Equal(3, result.Comparison.MatchedCount);
+        Assert.Contains(result.Comparison.Rows, row =>
+            row.Status == DiagnosticComparisonStatus.Matched &&
+            row.BehavioralEvent?.Side == -2);
     }
 
     private static BehavioralVideoSynchronizationResult Synchronize(

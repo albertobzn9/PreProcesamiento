@@ -62,4 +62,25 @@ public class FrameAnalyzerBrightnessSourceTests
         Assert.Throws<ArgumentNullException>(() =>
             new FrameAnalyzerBrightnessSource(frame, null!));
     }
+
+    [Fact]
+    public void ReusableSource_ConservaLaMedicionYActualizaElSiguienteFrame()
+    {
+        var config = CircularConfig();
+        using var firstFrame = MakeFrame(foodLeft: true, foodRight: false, noiseLed: true);
+        using var secondFrame = MakeFrame(foodLeft: false, foodRight: true, noiseLed: false);
+        var expectedFirst = new FrameAnalyzerBrightnessSource(firstFrame, config);
+        var expectedSecond = new FrameAnalyzerBrightnessSource(secondFrame, config);
+        using var reusable = new ReusableFrameBrightnessSource(config);
+
+        reusable.Update(firstFrame);
+        Assert.Equal(expectedFirst.GetMeanBrightness(config.FoodLeft), reusable.GetMeanBrightness(config.FoodLeft), 10);
+        Assert.Equal(expectedFirst.GetMeanBrightness(config.FoodRight), reusable.GetMeanBrightness(config.FoodRight), 10);
+        Assert.Equal(expectedFirst.GetMeanBrightness(config.NoiseLed), reusable.GetMeanBrightness(config.NoiseLed), 10);
+
+        reusable.Update(secondFrame);
+        Assert.Equal(expectedSecond.GetMeanBrightness(config.FoodLeft), reusable.GetMeanBrightness(config.FoodLeft), 10);
+        Assert.Equal(expectedSecond.GetMeanBrightness(config.FoodRight), reusable.GetMeanBrightness(config.FoodRight), 10);
+        Assert.Equal(expectedSecond.GetMeanBrightness(config.NoiseLed), reusable.GetMeanBrightness(config.NoiseLed), 10);
+    }
 }
