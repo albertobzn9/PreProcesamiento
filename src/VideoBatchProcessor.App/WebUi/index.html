@@ -265,9 +265,9 @@
   </div>
   <div id="existing-output-modal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="existing-output-title">
     <section class="crop-dialog existing-output-dialog">
-      <header class="crop-dialog-head"><div><h2 id="existing-output-title">Ya existen resultados</h2><p>Elige qué hacer antes de procesar. Ninguna opción borra archivos automáticamente.</p></div></header>
-      <div class="existing-output-body"><p>Estas sesiones ya tienen una carpeta de clips. Puedes conservarlas y omitirlas, o archivarlas con fecha para crear una corrida nueva.</p><ul id="existing-output-list" class="existing-output-list"></ul></div>
-      <footer class="crop-dialog-footer"><span class="setup-help">Archivar conserva los clips anteriores en una carpeta separada.</span><div><button class="modal-button" data-action="cancel-existing-output">Cancelar</button><button class="modal-button" data-action="skip-existing-output">Omitir existentes</button><button class="modal-button primary" data-action="archive-existing-output">Archivar y procesar</button></div></footer>
+      <header class="crop-dialog-head"><div><h2 id="existing-output-title">Ya existen resultados</h2><p>Elige si quieres continuar, omitir o empezar una corrida nueva.</p></div></header>
+      <div class="existing-output-body"><p><strong>Continuar</strong> conserva los recortes terminados y retoma una corrida interrumpida. <strong>Archivar</strong> guarda todo lo anterior y comienza desde cero.</p><ul id="existing-output-list" class="existing-output-list"></ul></div>
+      <footer class="crop-dialog-footer"><span class="setup-help">Ninguna opción modifica los videos originales.</span><div><button class="modal-button" data-action="cancel-existing-output">Cancelar</button><button class="modal-button" data-action="skip-existing-output">Omitir</button><button class="modal-button" data-action="archive-existing-output">Archivar y reiniciar</button><button class="modal-button primary" data-action="resume-existing-output">Continuar</button></div></footer>
     </section>
   </div>
   <script src="vendor/cropper-1.6.2.min.js"></script>
@@ -639,6 +639,7 @@
       if (action === 'calibration-forward-second' && state.preview) requestCalibrationFrame(calibrationFrameIndex() + Math.max(1, Math.round(state.preview.fps)));
       if (action === 'save-calibration') saveCalibration();
       if (action === 'cancel-existing-output') closeExistingOutputDialog();
+      if (action === 'resume-existing-output') { closeExistingOutputDialog(); startBatchProcessing('ResumeIncomplete'); }
       if (action === 'skip-existing-output') { closeExistingOutputDialog(); startBatchProcessing('SkipExisting'); }
       if (action === 'archive-existing-output') { closeExistingOutputDialog(); startBatchProcessing('ArchiveAndReplace'); }
       if (action === 'analyze-light-timeline') analyzeLightTimeline();

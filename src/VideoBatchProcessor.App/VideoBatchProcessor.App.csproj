@@ -1,10 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>VideoBatchProcessor</AssemblyName>
+    <RootNamespace>VideoBatchProcessor.App</RootNamespace>
+    <Product>Video Batch Processor</Product>
+    <Description>Preprocesamiento reproducible de video para experimentos CMC.</Description>
+    <Authors>Instituto de Fisiologia Celular, UNAM</Authors>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <ApplicationIcon Condition="'$(RuntimeIdentifier)' == 'win-x64' Or $([MSBuild]::IsOSPlatform('Windows'))">Assets/Packaging/VideoBatchProcessor.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +20,18 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64')">
+    <PackageReference Include="OpenCvSharp4.runtime.osx.x64" Version="$(OpenCvSharpVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64')">
+    <PackageReference Include="OpenCvSharp4.runtime.osx.arm64" Version="$(OpenCvSharpVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')))">
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="$(OpenCvSharpVersion)" />
   </ItemGroup>
 
   <ItemGroup>

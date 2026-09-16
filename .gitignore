@@ -7,6 +7,9 @@ obj/
 artifacts/
 TestResults/
 
+# Platform media tools are staged locally for release packaging.
+vendor/ffmpeg/*/
+
 # IDE/editor state
 .vs/
 .vscode/

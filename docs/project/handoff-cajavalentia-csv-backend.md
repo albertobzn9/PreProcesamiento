@@ -93,9 +93,9 @@ Reglas conductuales que el parser debe preservar, no reinterpretar:
 - `tipo_evento=2` es sonido + LED marcador + parrilla, sin luz de comida ni
   pellet. Dura 180 s aunque la rata cruce.
 - `lado=-2` es un timeout/no cruce registrado.
-- Para clasificar el lote, comparar solo `lado` con el evento anterior válido:
-  mismo lado = no cruce y cambio de lado = cruce. `desplazamiento_s` se entrega
-  raw para trazabilidad, sin bloquear ni cambiar esa clasificación.
+- El lector conserva `lado` y `desplazamiento_s` raw; la clasificación ocurre
+  después y depende de la fase. En CP, `lado=-2` es timeout y, con lado válido,
+  `desplazamiento_s > 1` es cruce mientras `<= 1` es no cruce.
 - Para clasificar tipo, preferir `tipo_evento` sobre `estimulo`.
 
 ### `stem_palanqueos.csv`: Presiones Individuales

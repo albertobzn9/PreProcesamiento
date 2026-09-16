@@ -10,6 +10,19 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Added
 
+- Regla específica de Cruces Peligrosos: cada evento conserva el orden de la
+  fuente como `eNN`, usa siempre tipo `p` y obtiene `cr`/`nc` desde
+  `Desplaz > 1 s` o `<= 1 s`; `Lado=-2` conserva el resultado `to`.
+
+- Base reproducible de distribución `0.1.0` para Mac Apple Silicon, Mac Intel
+  y Windows x64, con identidad de aplicación, iconos, scripts de empaquetado y
+  verificación de archivos indispensables.
+- Resolución de FFmpeg/ffprobe incluidos en la aplicación, con respaldo al
+  comando del sistema únicamente durante desarrollo.
+- Procesamiento reanudable: la aplicación conserva un checkpoint por sesión,
+  reutiliza clips terminados y recupera temporales completos tras una
+  interrupción. Durante el lote también evita el reposo automático del sistema.
+
 - Los videos con nombre no compatible muestran una acción para corregirlo desde
   la lista. El cuadro valida la nomenclatura, renombra también los formatos
   alternativos cargados y nunca sobrescribe otro archivo. El nombre corregido
@@ -47,9 +60,10 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 - Antes de procesar, la app detecta resultados existentes y permite cancelar,
   omitirlos o archivarlos con fecha para crear una corrida nueva sin perder la
   evidencia anterior.
-- Los nombres de clips de evento separan ahora sus conteos: `cr1...crN` para
-  cruces y `nc1...ncN` para no cruces. `clips_exportados.csv` conserva el
-  ensayo/fila original de la fuente conductual para rastrear cada clip.
+- Los clips de evento usan `eNN` para conservar su orden conductual, mientras
+  `cr`, `nc` y `to` quedan exclusivamente en el campo de resultado.
+  `clips_exportados.csv` conserva la fila original de la fuente conductual
+  para rastrear cada clip.
 
 - `BatchOrchestrator` inicial para Cruces Seguros: recorre subcarpetas, toma
   solo sesiones fuente CS, exige el MAT correspondiente, sincroniza video-MAT,
@@ -76,9 +90,8 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 - Hoja `Segmentos planeados` dentro del XLSX diagnóstico: muestra límites,
   duración total, evidencia visual, datos MAT mapeados, clasificación de
   cruce/no cruce y comparación de lados antes de cortar cualquier video.
-- La clasificación de eventos del lote usa únicamente el `Lado` previo:
-  mismo lado = no cruce, cambio de lado = cruce. El primer evento queda como
-  no aplicable y `Desplaz` se conserva raw sin crear revisión manual.
+- La clasificación por `Lado` previo se conserva para las fases que la usan;
+  CP aplica su regla específica basada en `Desplaz`.
 - `ClipExporter` para CS: exporta segmentos con FFmpeg, crop/giro/espejo,
   contexto visual de eventos y archivo temporal seguro.
 - Pruebas para lectura MAT, intervalos de luz, Excel diagnóstico, perfil de

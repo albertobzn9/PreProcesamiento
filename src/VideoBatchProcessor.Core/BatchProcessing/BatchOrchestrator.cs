@@ -220,6 +220,8 @@ public sealed class BatchOrchestrator
         {
             switch (request.ExistingOutputPolicy)
             {
+                case ExistingOutputPolicy.ResumeIncomplete:
+                    break;
                 case ExistingOutputPolicy.SkipExisting:
                     return BatchSessionReport.Skipped(
                         candidate.VideoPath,
@@ -250,6 +252,7 @@ public sealed class BatchOrchestrator
             pairedEvidence,
             sessionOutputDirectory,
             reportProgress,
+            request.ExistingOutputPolicy == ExistingOutputPolicy.ResumeIncomplete,
             cancellationToken);
     }
 
@@ -279,8 +282,12 @@ public sealed class BatchOrchestrator
         PairedSessionEvidence pairedEvidence,
         string sessionOutputDirectory,
         Action<string, double> reportProgress,
+        bool resumeExistingOutput,
         CancellationToken cancellationToken)
     {
+        string? statusPath = null;
+        var completedClipCount = 0;
+        var totalClipCount = 0;
         try
         {
             reportProgress("Preparando metadata y evidencia", 5);
@@ -312,12 +319,17 @@ public sealed class BatchOrchestrator
             }
 
             reportProgress("Planeando recortes", 88);
+            var isCp = candidate.ParsedName!.FaseEstandar == "f4";
+            var resultClassificationRule = isCp
+                ? BehavioralResultClassificationRule.CpDisplacementThreshold
+                : BehavioralResultClassificationRule.SideTransition;
             var plan = _segmentPlanner.Plan(new SegmentPlanningInput(
                 scan.Metadata,
                 fullRange,
                 intervals,
                 pairedEvidence.Behavioral.Events,
-                synchronization));
+                synchronization,
+                resultClassificationRule));
             if (plan.Segments.Count == 0)
             {
                 return BatchSessionReport.Blocked(
@@ -328,7 +340,7 @@ public sealed class BatchOrchestrator
                     plan.Warnings);
             }
 
-            if (Directory.Exists(sessionOutputDirectory))
+            if (Directory.Exists(sessionOutputDirectory) && !resumeExistingOutput)
             {
                 return BatchSessionReport.Blocked(
                     candidate.VideoPath,
@@ -341,20 +353,28 @@ public sealed class BatchOrchestrator
             Directory.CreateDirectory(sessionOutputDirectory);
             reportProgress("Guardando diagnóstico", 91);
             var diagnosticPath = Path.Combine(sessionOutputDirectory, "diagnostico_luces.xlsx");
-            _diagnosticExporter.Export(new LightTimelineDiagnosticReport(
-                scan.Metadata,
-                fullRange,
-                request.Transform,
-                scan.Timeline,
-                intervals,
-                request.LightConfig,
-                pairedEvidence.Behavioral.Events,
-                behavioralSourcePath,
-                null), diagnosticPath);
+            if (!resumeExistingOutput || !File.Exists(diagnosticPath))
+            {
+                _diagnosticExporter.Export(new LightTimelineDiagnosticReport(
+                    scan.Metadata,
+                    fullRange,
+                    request.Transform,
+                    scan.Timeline,
+                    intervals,
+                    request.LightConfig,
+                    pairedEvidence.Behavioral.Events,
+                    behavioralSourcePath,
+                    null,
+                    resultClassificationRule), diagnosticPath);
+            }
 
             var exports = new List<BatchClipReport>();
             var segmentsToExport = SelectSegmentsForExport(plan.Segments, request.ExportMode);
+            totalClipCount = segmentsToExport.Count;
             var outputSegmentCodes = OutputSegmentCodePlanner.Create(plan.Segments);
+            var manifestPath = Path.Combine(sessionOutputDirectory, "clips_exportados.csv");
+            statusPath = Path.Combine(sessionOutputDirectory, "estado_procesamiento.txt");
+            BatchProgressStatusWriter.Write(statusPath, "En proceso", exports.Count, segmentsToExport.Count);
             for (var exportIndex = 0; exportIndex < segmentsToExport.Count; exportIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -363,14 +383,25 @@ public sealed class BatchOrchestrator
                 var outputPath = Path.Combine(
                     sessionOutputDirectory,
                     BuildOutputName(metadata, segment, outputSegmentCodes[segment]));
-                var exported = await _clipExporter.ExportAsync(new ClipExportRequest(
+                var exportRequest = new ClipExportRequest(
                     candidate.VideoPath,
                     scan.Metadata,
                     segment,
                     request.Transform,
                     outputPath,
-                    request.ClipOptions), cancellationToken);
+                    request.ClipOptions);
+                var exported = resumeExistingOutput && File.Exists(outputPath)
+                    ? CreateExistingClipResult(exportRequest)
+                    : await _clipExporter.ExportAsync(exportRequest, cancellationToken);
                 exports.Add(new BatchClipReport(segment, exported));
+                completedClipCount = exports.Count(item => item.Export.Succeeded);
+                BatchClipManifestWriter.Write(manifestPath, exports);
+                BatchProgressStatusWriter.Write(
+                    statusPath,
+                    exported.Succeeded ? "En proceso" : "Fallido",
+                    completedClipCount,
+                    segmentsToExport.Count,
+                    exported.ErrorMessage);
 
                 if (!exported.Succeeded)
                 {
@@ -386,9 +417,8 @@ public sealed class BatchOrchestrator
             }
 
             reportProgress("Guardando índice de clips", 99);
-            BatchClipManifestWriter.Write(
-                Path.Combine(sessionOutputDirectory, "clips_exportados.csv"),
-                exports);
+            BatchClipManifestWriter.Write(manifestPath, exports);
+            BatchProgressStatusWriter.Write(statusPath, "Completado", exports.Count, segmentsToExport.Count);
 
             var hasWarnings = synchronization.Status == BehavioralVideoSynchronizationStatus.Warning || plan.Warnings.Count > 0;
             return new BatchSessionReport(
@@ -403,11 +433,28 @@ public sealed class BatchOrchestrator
         }
         catch (OperationCanceledException)
         {
+            TryWriteStatus("Interrumpido", "El procesamiento fue cancelado.");
             throw;
         }
         catch (Exception exception)
         {
+            TryWriteStatus("Fallido", exception.Message);
             return BatchSessionReport.Failed(candidate.VideoPath, exception.Message);
+        }
+
+        void TryWriteStatus(string status, string detail)
+        {
+            if (statusPath is null || !Directory.Exists(sessionOutputDirectory))
+                return;
+
+            try
+            {
+                BatchProgressStatusWriter.Write(statusPath, status, completedClipCount, totalClipCount, detail);
+            }
+            catch
+            {
+                // El reporte principal conserva el error aunque el checkpoint no pueda escribirse.
+            }
         }
     }
 
@@ -524,6 +571,20 @@ public sealed class BatchOrchestrator
             .ToArray();
     }
 
+    private static ClipExportResult CreateExistingClipResult(ClipExportRequest request)
+    {
+        var range = ClipExporter.ResolveExportRange(request);
+        return new ClipExportResult(
+            true,
+            request.OutputPath,
+            range.StartFrameIndex / request.SourceVideo.Fps,
+            (range.EndFrameIndex + 1) / request.SourceVideo.Fps,
+            null,
+            range.StartFrameIndex,
+            range.EndFrameIndex,
+            WasRecovered: true);
+    }
+
     private static string DescribeSynchronizationBlock(BehavioralVideoSynchronizationResult synchronization) =>
         synchronization.Findings.Count == 0
             ? "La sincronización entre video y MAT quedó bloqueada."
@@ -586,6 +647,7 @@ public enum BatchExportMode
 public enum ExistingOutputPolicy
 {
     Block,
+    ResumeIncomplete,
     SkipExisting,
     ArchiveAndReplace,
 }
@@ -751,4 +813,29 @@ public static class BatchClipManifestWriter
     }
 
     private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+}
+
+public static class BatchProgressStatusWriter
+{
+    public static void Write(
+        string outputPath,
+        string status,
+        int completedClips,
+        int totalClips,
+        string? detail = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+
+        var lines = new List<string>
+        {
+            $"Estado: {status}",
+            $"Recortes terminados: {completedClips} de {totalClips}",
+            $"Actualizado: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+        };
+        if (!string.IsNullOrWhiteSpace(detail))
+            lines.Add($"Detalle: {detail}");
+
+        File.WriteAllLines(outputPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+    }
 }

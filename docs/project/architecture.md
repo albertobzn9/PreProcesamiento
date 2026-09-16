@@ -164,7 +164,7 @@ detallados que puedan divergir.
 | `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real con crop, giro, espejo, ROIs y umbrales ya configurados. Para evitar trabajo innecesario, convierte las ROIs una vez a coordenadas fuente, mide solo esas zonas y reutiliza buffers y máscaras entre frames. Puede limitarse a un intervalo de frames y reporta progreso real. |
 | `SessionPairingResolver` / `BatchSessionPairingAnalyzer` | Integrado; pendiente de prueba CP real | El botón de lote lee una vez cada video y MAT/CSV, compara todas las parejas posibles y solo confirma asociaciones fuertes y mutuamente preferidas. Prefiere MP4 y usa MKV como respaldo. Detecta evidencia conductual duplicada, conserva errores y exporta `emparejamiento_sesiones.csv` antes de recortar. Su progreso da el peso principal al escaneo de frames, no al número de archivos pequeños. |
 | `BehavioralVideoSynchronizer` | Implementado como base por sesión | Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Usa lados conocidos para estimar el reloj y puede empatar `Lado=-2` por tiempo sin inventarle un lado. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
-| `SegmentPlanner` | Implementado y validado para CS | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. Clasifica por lado anterior: mismo lado = no cruce; cambio = cruce; primer evento = no aplica. Falta `SoundOnly` y validación CP/DIS. |
+| `SegmentPlanner` | Implementado para CS y regla CP | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. En CP clasifica cada fila por `Desplaz`: más de 1 s = cruce, 1 s o menos = no cruce, y `Lado=-2` = timeout. Falta validar CP con video real, implementar `SoundOnly` y definir DIS. |
 | `ClipExporter` | Implementado; validado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. La conexión CP está lista para validación real. |
 | Orquestación | Integrada para CS y habilitada para validar CP | `BatchOrchestrator` ejecuta primero el emparejamiento por contenido, conserva el escaneo, bloquea parejas dudosas y escribe una carpeta `<video>_recortes` junto a cada video. La prueba rápida exporta cinco eventos/ITIs sin habituación. |
 
@@ -196,10 +196,10 @@ Output:        { Scheme="LabStandard", Initials="abs", DateCode="2601",
                  PhaseCode="f5", Day=9, Rat=4, Sex="m",
                  Treatment="stx" }
 
-Input output:  "abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4"
+Input output:  "abs_2601_f5_d9r4_m_e01_p_cr_stx.mp4"
 Output:        { Scheme="VideoBatchOutput", Initials="abs", DateCode="2601",
                  PhaseCode="f5", Day=9, Rat=4, Sex="m",
-                 SegmentCode="cr1", TrialTypeCode="p",
+                 SegmentCode="e01", TrialTypeCode="p",
                  ResultCode="cr", Treatment="stx" }
 ```
 
@@ -210,7 +210,7 @@ Campos principales:
 - `Day`: día de entrenamiento o prueba
 - `Rat`: identificador de la rata
 - `Sex`: sexo del animal si la nomenclatura lo incluye
-- `SegmentCode`: parte del video (`cr1`, `nc1`, `iti1`, `hab`, etc.), asignada por el programa al crear un clip de output. `crN` y `ncN` llevan conteos separados; el número original del evento se conserva en el CSV de exportación.
+- `SegmentCode`: parte del video (`e01`, `iti01`, `habini`, `habfin`, etc.), asignada por el programa al crear un clip de output. `eNN` conserva el orden de la fila conductual y el resultado se guarda en su propio campo.
 - `TrialTypeCode`: tipo de evento del clip de output (`s`, `p`, etc.)
 - `ResultCode`: resultado del evento (`cr`, `nc`, `to`, `na`)
 - `Treatment`: tratamiento (`stx`, `dzp`, etc.)
@@ -555,7 +555,7 @@ VideoSegment = {
   StartFrame:         int,
   EndFrame:           int,
   Side:               enum { Left, Right, None },
-  SegmentCode:        string,  // cr1, nc1, e1 (na/to), iti1, habini, habfin
+  SegmentCode:        string,  // eNN cronológico, itiNN, habini o habfin
   TrialType:          enum { Safe, Conflict, SoundOnly, ITI, Habituation },
   Result:             enum { Crossing, NoCrossing, Timeout, NotApplicable },
   BehavioralEventIndex:int?,   // evento/fila correspondiente de la fuente conductual
@@ -586,9 +586,10 @@ VideoSegment = {
 4. **El planner crea un clip de evento solo para una fila conductual validada.**
    Una señal visual sin fila compatible queda como hallazgo; nunca se convierte
    en un ensayo ni desplaza la tabla por orden.
-5. **El resultado del lote se decide por lado:** con un lado previo válido,
-   mismo lado significa no cruce y cambio de lado significa cruce. `Desplaz`
-   se conserva como evidencia raw, pero no cambia esa etiqueta automática.
+5. **El resultado se decide con la regla de la fase:** en CP, `Lado=-2` es
+   timeout y, con lado válido, `Desplaz > 1 s` significa cruce mientras
+   `Desplaz <= 1 s` significa no cruce. La comparación de lados permanece
+   separada para las fases que la requieran.
 
 Por eso los clips no se recortan "solo desde las luces" ni "solo desde el
 MAT": el MAT/CSV define qué debe existir y el video aporta el desfase y los
@@ -636,11 +637,11 @@ los videos. La especificación completa está en
    regla de luces apagadas se verifica como calidad, no se asume ciegamente.
 8. El primer ensayo siempre es seguro/de comida; sirve como contexto del
    protocolo, no sustituye la sincronización ni la detección.
-9. Para cruce/no cruce/timeout: después del primer evento con lado conocido,
-   mismo `Lado` significa no cruce y cambio de `Lado` significa cruce. El primer
-   evento queda como `No aplica` porque no hay lado anterior; `Lado=-2` es
-   timeout. `Desplaz` y latencia de palanqueo se conservan como datos raw, pero
-   no bloquean ni cambian la clasificación automática del lote.
+9. Para CP: `Lado=-2` significa timeout; en cualquier otro evento,
+   `Desplaz > 1 s` significa cruce y `Desplaz <= 1 s` significa no cruce. La
+   regla también se aplica al primer evento. El código de segmento conserva el
+   orden de la fuente como `e01`, `e02`, `e03`..., el tipo siempre es `p` y el
+   resultado queda en `cr`, `nc` o `to`. DIS se definirá después de validar CP.
 
 **Timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. `FoodLightStart` y `FoodLightEnd` son límites visuales que se comparan con el inicio MATLAB estimado y `TiempoAbs`; no se asumen idénticos. En un evento `SoundOnly`, `WarningStart` es el inicio relevante y `FoodLightStart` queda vacío.
 
@@ -650,12 +651,13 @@ inicio/final real. En la validación completa CS de `exp_0526_cs_d4r4` produjo
 1 habituación inicial, 67 eventos, 66 ITIs y 1 habituación final a partir de
 67/67 empates MAT-video. El exportador diagnóstico deja esa propuesta en la
 hoja `Segmentos planeados`, con duración total y comparación de lado visible,
-para revisión antes de generar clips. `SoundOnly`,
-asociación LED de riesgo con videos reales, conexión UI de revisión y
-exportación siguen fuera de esta primera versión.
+para revisión antes de generar clips. La regla específica de CP ya está
+implementada y probada de forma aislada; todavía falta validarla de extremo a
+extremo con video real. `SoundOnly` y DIS siguen fuera de esta etapa.
 
 **Prueba aislada:** Sí. Hay pruebas para habituación/eventos/ITI/final, rango
-parcial, sincronización bloqueada y clasificación por comparación de lados.
+parcial, sincronización bloqueada, comparación de lados y la regla CP por
+`Desplaz`, incluido el umbral exacto de 1 s y timeout.
 
 **Aclaración de nombres:** `LightTimeline` y `BehavioralEvent` son estructuras de datos, no módulos.
 
@@ -816,9 +818,14 @@ ExportAsync(clipExportRequest) -> ClipExportResult
 Cada `ExportClip` incluye video de entrada, segmento, configuración de transformaciones y nombre final. Usa FFmpeg con `-ss`/`-to` sobre el reloj del video fuente y filtros de crop/rotación/flip en un solo paso por clip. Nombra cada archivo según la nomenclatura de output del Video Batch Processor.
 
 Esta primera versión recibe la metadata que ya leyó `VideoReader` y ejecuta
-FFmpeg como proceso interno. La detección y empaquetado de FFmpeg/ffprobe para
-macOS y Windows será responsabilidad de la aplicación antes del primer release;
-no será una tarea de la interfaz ni del investigador.
+FFmpeg como proceso interno. En una aplicación empaquetada, `MediaToolLocator`
+busca primero `ffmpeg` y `ffprobe` en la carpeta interna `tools/`; el comando
+instalado en el sistema queda solo como respaldo para desarrollo. Los scripts
+de release generan entregas separadas para Mac Apple Silicon, Mac Intel y
+Windows x64 y se detienen si las herramientas portables no están presentes.
+Elegir esos binarios, documentar su licencia y validar cada plataforma sigue
+siendo obligatorio antes del primer release; no será tarea de la interfaz ni
+del investigador.
 
 El perfil inicial previsto para clips destinados a DLC es H.264 (`libx264`) con
 `CRF 18`, sujeto a validación con videos reales. No se aplica un trim global
@@ -829,7 +836,17 @@ en los bordes reales del video. Habituación e ITIs conservan exactamente sus
 límites planeados. `clips_exportados.csv` conserva ambas referencias: el rango
 lógico del evento y el rango físico finalmente escrito. Cada clip se escribe
 primero como archivo temporal y solo se renombra como salida final si FFmpeg
-termina correctamente.
+termina correctamente. El lote guarda `clips_exportados.csv` y
+`estado_procesamiento.txt` después de cada recorte. Si una corrida se
+interrumpe, la opción **Continuar** conserva los clips terminados, valida por
+número de frames cualquier temporal completo y retoma desde el siguiente; un
+temporal incompleto se descarta y se vuelve a crear. FFmpeg se ejecuta sin leer
+la terminal (`-nostdin`).
+
+Mientras existe un procesamiento activo, la aplicación solicita a macOS o
+Windows que no entren en reposo automático. La pantalla sí puede apagarse. Un
+reposo forzado por el usuario, cerrar la tapa o quedarse sin batería no puede
+garantizarse, por lo que la reanudación sigue siendo necesaria.
 
 Al finalizar, el exportador entrega al `BatchReport` una entrada por clip con
 video fuente, MAT/CSV asociado, perfil de cámara, desfase de la sesión,
@@ -847,7 +864,9 @@ cae al borde del video.
 
 **Prueba aislada:** Sí. Hay pruebas para contexto de cinco frames en eventos,
 límite del video, ITIs sin contexto extra, filtros de cámara y limpieza de
-salida parcial si FFmpeg falla.
+salida parcial si FFmpeg falla. También se prueba la recuperación de un
+temporal completo, el reemplazo de uno incompleto y el checkpoint legible del
+lote.
 
 ---
 

@@ -32,7 +32,8 @@ public sealed class LightTimelineDiagnosticExcelExporter
             report.ScanRange,
             report.VisualIntervals,
             report.BehavioralEvents,
-            synchronization));
+            synchronization,
+            report.ResultClassificationRule));
         WriteSummary(workbook.Worksheets.Add("Resumen"), report, synchronization, planning);
         WriteCameraProfile(workbook.Worksheets.Add("Perfil de camara"), report);
         WriteVisualIntervals(workbook.Worksheets.Add("Eventos video"), report.VisualIntervals);

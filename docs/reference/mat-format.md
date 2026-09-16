@@ -40,7 +40,7 @@ Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Po
 | 4 | **TiempoAbs** | float (s) | Segundos desde que MATLAB crea su reloj interno, antes de mensajes modales y de la habituación inicial. En un evento con palanqueo, registra el momento MATLAB de ese evento. Junto con `Latencia` permite calcular `inicio MATLAB estimado = TiempoAbs - Latencia` para compararlo con el video. |
 | 5 | **PalancasIzq** | int (acumulado) | Presiones acumuladas en la palanca izquierda hasta este evento |
 | 6 | **PalancasDer** | int (acumulado) | Presiones acumuladas en la palanca derecha hasta este evento |
-| 7 | **Desplaz** | float | Latencia asociada al sensor de desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. Se conserva raw para trazabilidad, pero no modifica la clasificación por comparación de `Lado`. **~180** = timeout. |
+| 7 | **Desplaz** | float | Latencia asociada al sensor de desplazamiento. Se mide con sensores infrarrojos esparcidos linealmente en toda la caja. En CP decide `cr`/`nc` con el umbral de 1 s; siempre se conserva raw para trazabilidad. Un valor cercano al límite de la fase suele acompañar un timeout. |
 | 8 | **TipoEvento** | `0`, `1`, `2` | Solo existe en archivos `N×9`. **0** = seguro con comida · **1** = riesgo/conflicto con comida · **2** = solo ruido, LED y parrilla, sin luz de comida ni recompensa. |
 
 Los archivos históricos `N×8` no cambian. Para ellos, el parser conserva la interpretación existente: `Estim=0` representa seguro y `Estim=1` representa conflicto con comida, porque esos datos fueron producidos antes de que existiera el evento de solo ruido.
@@ -52,9 +52,22 @@ sonido.
 
 ### Regla Para Clasificar Cruce
 
-El parser debe conservar `Lado` y `Desplaz` raw. Para el resultado operativo
-del lote, solo compara `Lado` con el último lado válido: mismo lado = no cruce;
-cambio de lado = cruce.
+El parser conserva `Lado` y `Desplaz` raw. La clasificación posterior depende
+de la fase y no debe imponerse dentro del parser.
+
+Para **Cruces Peligrosos (CP / `f4`)**:
+
+| Dato | Resultado de CP |
+|------|-----------------|
+| `Lado = -2` | Timeout (`to`). |
+| `Lado` válido y `Desplaz > 1 s` | Cruce (`cr`). |
+| `Lado` válido y `Desplaz <= 1 s` | No cruce (`nc`). |
+
+Cada fila mantiene su orden original como segmento `eNN`, incluso cuando su
+resultado sea `nc` o `to`. El código `eNN` identifica el evento cronológico;
+el resultado se consulta por separado.
+
+Para las fases que todavía usan comparación de lado:
 
 | Comparación con el último `Lado` conocido (`0` o `1`) | Resultado del lote |
 |--------------------------------------------------------|--------------------|
@@ -63,9 +76,9 @@ cambio de lado = cruce.
 | No hay lado anterior | No aplica (primer evento). |
 | `Lado = -2` | Timeout. |
 
-Un timeout no actualiza el último lado válido. `Desplaz` y la latencia de
-palanqueo se conservan para trazabilidad, pero no sustituyen ni modifican esta
-regla de comparación de lados.
+Un timeout no actualiza el último lado válido en esa comparación. Esta regla no
+se aplica a CP, donde `Desplaz` sí decide el resultado después de descartar
+`Lado=-2`. La regla definitiva de DIS se cerrará después de validar CP.
 
 ---
 
@@ -123,6 +136,10 @@ Lectura rápida:
 
 - Todos los eventos tienen `Estim=1`.
 - `Lado=-2` marca timeout.
+- Con un `Lado` válido, `Desplaz > 1 s` es cruce y `Desplaz <= 1 s` es no
+  cruce, sin comparar con el ensayo anterior.
+- El evento conserva su número cronológico como `eNN`; `resultado` indica
+  `cr`, `nc` o `to`.
 - En CP, el valor de timeout esperado cambia por día: ~30, 30, 60, 90 o 120 s.
 
 ### DIS: `exp_0126_dis_d2r1.mat`

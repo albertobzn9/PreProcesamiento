@@ -56,16 +56,16 @@ en la interfaz.
 | MAT histórico | Implementado para MAT Level-5 N×8/N×9 | `MatV5MatrixReader` lee la matriz binaria sin MATLAB ni modificar el archivo; se comprobó con `exp_0526_cs_d4r4.mat` (67×8). MAT HDF5/v7.3 todavía no está cubierto. |
 | Sincronización video-conducta por sesión | Implementada y probada | `BehavioralVideoSynchronizer` estima desfase por sesión y devuelve listo/aviso/bloqueo sin cambiar archivos. `BatchOrchestrator` ya la aplica antes de exportar cada sesión CS. |
 | Emparejamiento automático por lote | Integrado; pendiente de prueba CP real | `Procesar sesiones` ejecuta `BatchSessionPairingAnalyzer` antes de recortar. Lee cada entrada una vez, compara todas las combinaciones y solo confirma parejas fuertes. Detecta MAT duplicados, nombres cruzados, ambigüedades y archivos sin pareja en `emparejamiento_sesiones.csv`. MP4 tiene prioridad y MKV funciona como respaldo. El nombre nunca decide la pareja. Una discrepancia se detiene y la interfaz permite elegir otra tabla para comprobarla u omitir el video. La barra pondera el avance por frames de video para no aparentar un bloqueo después de leer muchos MAT pequeños. |
-| SegmentPlanner inicial | Implementado, probado y validado con CS completo | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En `exp_0526_cs_d4r4` empató 67/67 eventos y planeó 135 segmentos. Para cada evento posterior al primero, mismo lado es no cruce y cambio de lado es cruce; `Desplaz` se conserva raw sin bloquear el lote. Los ITIs mantienen el número del evento anterior (`iti1`, `iti2`, etc.). Falta `SoundOnly`, UI de resumen y validación CP/DIS. |
-| Procesamiento por lote CS/CP | CS validado; CP listo para prueba acotada | `Procesar sesiones` toma la cámara y calibración confirmadas de una sesión de referencia y puede procesar uno o muchos videos. Primero confirma cada MAT/CSV por contenido, reutiliza ese escaneo para sincronizar y exportar, y bloquea parejas dudosas. La prueba rápida crea cinco clips de eventos/ITIs sin habituación. Cada carpeta termina en `_recortes` y conserva diagnóstico y `clips_exportados.csv`; los eventos reciben cinco frames de contexto antes y después. La barra no muestra 100 % hasta terminar los clips y reportes. |
+| SegmentPlanner inicial | Implementado, probado y validado con CS completo; regla CP implementada | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En CP usa `Lado=-2` para timeout y clasifica los demás eventos con `Desplaz > 1 s` como cruce o `<= 1 s` como no cruce. Los ITIs mantienen el número del evento anterior (`iti01`, `iti02`, etc.). Falta `SoundOnly`, validación CP completa y definición de DIS. |
+| Procesamiento por lote CS/CP | CS validado; CP listo para prueba real | En CP, cada evento conserva su orden como `e01`, `e02`, `e03`..., el tipo siempre es `p` y el resultado es `cr`, `nc` o `to`. `Procesar sesiones` toma la cámara y calibración confirmadas de una sesión de referencia y puede procesar uno o muchos videos. Primero confirma cada MAT/CSV por contenido, reutiliza ese escaneo para sincronizar y exportar, y bloquea parejas dudosas. La prueba rápida crea cinco clips de eventos/ITIs sin habituación. Cada carpeta termina en `_recortes` y conserva diagnóstico, `clips_exportados.csv` y un checkpoint de progreso; los eventos reciben cinco frames de contexto antes y después. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
 | CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`. Junto con las ROIs se guarda un perfil local, asociado a la ruta del video, en coordenadas del video fuente; al reabrirlo se convierte al frame preparado que usa el escáner. |
 | Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado y los conserva en el perfil local del video. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **202 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 202 pruebas.
+El estado actual compila y tiene **211 pruebas** aprobadas. La interfaz también
+compila con Avalonia 12 y mantiene esas 211 pruebas.
 
 ## Interfaz Actual
 
@@ -182,7 +182,9 @@ raw, sin generar trabajo manual.
 ### Backend posterior
 
 1. Asignación explícita de un perfil de cámara reutilizable a varias sesiones.
-2. Empaquetado administrado de FFmpeg/ffprobe para macOS y Windows.
+2. Completar el empaquetado administrado: la base `.app`/Windows y la detección
+   interna de FFmpeg/ffprobe ya existen; faltan elegir binarios portables con
+   licencia trazable, probarlos en las tres plataformas y firmar las entregas.
 3. Habilitar lotes CP completos y después extender `BatchOrchestrator` a DIS,
    una vez aprobada la prueba real acotada.
 4. Lector del manifiesto de captura de CajaValentia y compatibilidad del CSV

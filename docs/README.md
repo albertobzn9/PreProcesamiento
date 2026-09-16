@@ -35,7 +35,7 @@
 
 ## Development
 
-- [Light Module Handoff](development/eric-workplan.md): cierre de la contribución de Eric y punto de partida para el desarrollo restante.
+- [Release Packaging](development/release-packaging.md): creación y validación de paquetes para Mac Apple Silicon, Mac Intel y Windows x64.
 - [Behavioral Data And Video Synchronization Guide](development/mat-video-synchronization-guide.md): por qué la fuente conductual acompaña al video y cómo se asociarán sus eventos sin forzar una sincronía perfecta.
 - [SessionSetup, CameraSetup, LightMarker And Calibration Manual Test](development/session-setup-manual-test.md): cómo validar carga, nomenclatura, preview, configuración de cámara, marcado de luces y calibración ON/OFF conectados al Core.
 

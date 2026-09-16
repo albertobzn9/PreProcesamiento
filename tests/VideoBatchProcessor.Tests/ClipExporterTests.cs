@@ -33,6 +33,7 @@ public sealed class ClipExporterTests : IDisposable
         Assert.False(Directory.EnumerateFiles(_directory, "*.partial.mp4").Any());
         Assert.Equal("1.83333333", ValueAfter(runner.Arguments!, "-ss"));
         Assert.Equal("35", ValueAfter(runner.Arguments!, "-frames:v"));
+        Assert.Contains("-nostdin", runner.Arguments!);
         Assert.Contains("-shortest", runner.Arguments!);
         Assert.DoesNotContain("-t", runner.Arguments!);
         Assert.Equal("crop=100:80:10:20,hflip,vflip,hflip", ValueAfter(runner.Arguments!, "-vf"));
@@ -40,6 +41,46 @@ public sealed class ClipExporterTests : IDisposable
         Assert.Equal(89, result.EndFrameIndex);
         Assert.Equal(55d / 30d, result.StartSeconds);
         Assert.Equal(3, result.EndExclusiveSeconds);
+    }
+
+    [Fact]
+    public async Task ExportAsync_RecuperaTemporalCompletoSinVolverAEjecutarFfmpeg()
+    {
+        var source = Path.Combine(_directory, "resume-source.mp4");
+        var output = Path.Combine(_directory, "resume-clip.mp4");
+        var partial = Path.Combine(_directory, ".resume-clip.previous.partial.mp4");
+        await File.WriteAllTextAsync(source, "source");
+        await File.WriteAllTextAsync(partial, "completed partial");
+        var runner = new SuccessfulRunner();
+
+        var result = await new ClipExporter(runner, new FixedClipInspector(isComplete: true))
+            .ExportAsync(Request(source, output));
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.WasRecovered);
+        Assert.True(File.Exists(output));
+        Assert.False(File.Exists(partial));
+        Assert.Null(runner.Arguments);
+    }
+
+    [Fact]
+    public async Task ExportAsync_DescartaTemporalIncompletoYVuelveAEjecutarFfmpeg()
+    {
+        var source = Path.Combine(_directory, "retry-source.mp4");
+        var output = Path.Combine(_directory, "retry-clip.mp4");
+        var partial = Path.Combine(_directory, ".retry-clip.previous.partial.mp4");
+        await File.WriteAllTextAsync(source, "source");
+        await File.WriteAllTextAsync(partial, "incomplete partial");
+        var runner = new SuccessfulRunner();
+
+        var result = await new ClipExporter(runner, new FixedClipInspector(isComplete: false))
+            .ExportAsync(Request(source, output));
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.WasRecovered);
+        Assert.True(File.Exists(output));
+        Assert.False(File.Exists(partial));
+        Assert.NotNull(runner.Arguments);
     }
 
     [Fact]
@@ -122,6 +163,37 @@ public sealed class ClipExporterTests : IDisposable
         Assert.Equal(89, result.EndFrameIndex);
     }
 
+    [Theory]
+    [InlineData(false, "ffmpeg")]
+    [InlineData(true, "ffmpeg.exe")]
+    public void MediaToolLocator_SinHerramientaEmpaquetadaUsaElComandoDelSistema(
+        bool isWindows,
+        string expected)
+    {
+        var baseDirectory = Path.Combine(_directory, Guid.NewGuid().ToString("N"));
+
+        var result = MediaToolLocator.Resolve(baseDirectory, "ffmpeg", isWindows);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(false, "ffmpeg")]
+    [InlineData(true, "ffmpeg.exe")]
+    public async Task MediaToolLocator_PrefiereLaHerramientaIncluidaEnLaAplicacion(
+        bool isWindows,
+        string executableName)
+    {
+        var baseDirectory = Directory.CreateDirectory(Path.Combine(_directory, Guid.NewGuid().ToString("N"))).FullName;
+        var toolsDirectory = Directory.CreateDirectory(Path.Combine(baseDirectory, "tools")).FullName;
+        var expected = Path.Combine(toolsDirectory, executableName);
+        await File.WriteAllTextAsync(expected, "test");
+
+        var result = MediaToolLocator.Resolve(baseDirectory, "ffmpeg", isWindows);
+
+        Assert.Equal(expected, result);
+    }
+
     public void Dispose() => Directory.Delete(_directory, recursive: true);
 
     private static ClipExportRequest Request(string source, string output) =>
@@ -183,5 +255,10 @@ public sealed class ClipExporterTests : IDisposable
     {
         public Task<FfmpegExecutionResult> RunAsync(string executablePath, IReadOnlyList<string> arguments, CancellationToken cancellationToken) =>
             Task.FromResult(FfmpegExecutionResult.Failure("falló para prueba"));
+    }
+
+    private sealed class FixedClipInspector(bool isComplete) : IExportedClipInspector
+    {
+        public bool HasExactFrameCount(string path, int expectedFrameCount) => isComplete;
     }
 }

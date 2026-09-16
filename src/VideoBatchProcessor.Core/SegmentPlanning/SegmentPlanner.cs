@@ -78,7 +78,10 @@ public sealed class SegmentPlanner
                 }
             }
 
-            var classification = ClassifyResult(matched.Event, previousSides.GetValueOrDefault(matched.Event.EventNumber));
+            var classification = ClassifyResult(
+                matched.Event,
+                previousSides.GetValueOrDefault(matched.Event.EventNumber),
+                input.ResultClassificationRule);
 
             var offset = input.Synchronization.Comparison.EstimatedStartOffsetSeconds;
             var mappedBehavioralStart = offset is null
@@ -270,10 +273,21 @@ public sealed class SegmentPlanner
         return result;
     }
 
-    private static PlannedBehavioralResult ClassifyResult(BehavioralEvent item, int? previousSide)
+    private static PlannedBehavioralResult ClassifyResult(
+        BehavioralEvent item,
+        int? previousSide,
+        BehavioralResultClassificationRule rule)
     {
         if (item.Side == -2)
             return PlannedBehavioralResult.Timeout;
+
+        if (rule == BehavioralResultClassificationRule.CpDisplacementThreshold)
+        {
+            return item.CrossingLatencySeconds > 1d
+                ? PlannedBehavioralResult.Crossing
+                : PlannedBehavioralResult.NoCrossing;
+        }
+
         if (previousSide is null)
             return PlannedBehavioralResult.NotApplicable;
 
@@ -334,7 +348,14 @@ public sealed record SegmentPlanningInput(
     LightTimelineScanRange ScanRange,
     IReadOnlyList<LightEventInterval> VisualIntervals,
     IReadOnlyList<BehavioralEvent> BehavioralEvents,
-    BehavioralVideoSynchronizationResult Synchronization);
+    BehavioralVideoSynchronizationResult Synchronization,
+    BehavioralResultClassificationRule ResultClassificationRule = BehavioralResultClassificationRule.SideTransition);
+
+public enum BehavioralResultClassificationRule
+{
+    SideTransition,
+    CpDisplacementThreshold,
+}
 
 public sealed record SegmentPlanningResult(
     IReadOnlyList<PlannedVideoSegment> Segments,

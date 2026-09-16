@@ -28,8 +28,9 @@ public class NomenclatureParserTests
 
     [Fact] public void VbpOutput_DetectaScheme()
     {
-        Assert.True(_parser.TryParse("abs_2201_f2_d7r1_m_e1_s_cr_stx.mp4", out var r));
+        Assert.True(_parser.TryParse("abs_2201_f2_d7r1_m_e01_s_cr_stx.mp4", out var r));
         Assert.Equal(NamingScheme.VideoBatchOutput, r.Scheme);
+        Assert.Equal(1, r.SegmentoNumero);
     }
 
     [Fact] public void VbpOutput_NoEsSesionFuente()
@@ -234,7 +235,7 @@ public class NomenclatureParserTests
 
     [Fact] public void VbpOutput_ITI()
     {
-        _parser.TryParse("abs_2201_f2_d7r1_m_iti1_na_na_stx.mp4", out var r);
+        _parser.TryParse("abs_2201_f2_d7r1_m_iti01_na_na_stx.mp4", out var r);
         Assert.Equal(TipoSegmento.ITI,            r.SegmentoTipo);
         Assert.Equal(1,                           r.SegmentoNumero);
         Assert.Equal(TipoEnsayo.NoAplica,         r.Tipo);
@@ -288,15 +289,15 @@ public class NomenclatureParserTests
     [Fact] public void Build_Evento_Cruce()
     {
         var n = NomenclatureParser.BuildVbpOutputName(
-            "abs","2201","f2",7,1,"m","e1","s","cr","stx");
-        Assert.Equal("abs_2201_f2_d7r1_m_e1_s_cr_stx.mp4", n);
+            "abs","2201","f2",7,1,"m","e01","s","cr","stx");
+        Assert.Equal("abs_2201_f2_d7r1_m_e01_s_cr_stx.mp4", n);
     }
 
     [Fact] public void Build_ITI()
     {
         var n = NomenclatureParser.BuildVbpOutputName(
-            "abs","2201","f2",7,1,"m","iti1","na","na","stx");
-        Assert.Equal("abs_2201_f2_d7r1_m_iti1_na_na_stx.mp4", n);
+            "abs","2201","f2",7,1,"m","iti01","na","na","stx");
+        Assert.Equal("abs_2201_f2_d7r1_m_iti01_na_na_stx.mp4", n);
     }
 
     [Fact] public void Build_Habituacion_Dzp()

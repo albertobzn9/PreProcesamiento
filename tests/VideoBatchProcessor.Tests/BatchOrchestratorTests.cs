@@ -85,7 +85,7 @@ public sealed class BatchOrchestratorTests : IDisposable
     }
 
     [Fact]
-    public void OutputSegmentCodePlanner_EnumeraCrucesYNoCrucesPorSeparado()
+    public void OutputSegmentCodePlanner_ConservaOrdenConductualIndependienteDelResultado()
     {
         var first = Segment(1, PlannedBehavioralResult.NotApplicable, 1);
         var noCrossingOne = Segment(2, PlannedBehavioralResult.NoCrossing, 2);
@@ -97,11 +97,39 @@ public sealed class BatchOrchestratorTests : IDisposable
             crossingTwo, noCrossingTwo, first, crossingOne, noCrossingOne,
         ]);
 
-        Assert.Equal("e1", codes[first]);
-        Assert.Equal("nc1", codes[noCrossingOne]);
-        Assert.Equal("cr1", codes[crossingOne]);
-        Assert.Equal("nc2", codes[noCrossingTwo]);
-        Assert.Equal("cr2", codes[crossingTwo]);
+        Assert.Equal("e01", codes[first]);
+        Assert.Equal("e02", codes[noCrossingOne]);
+        Assert.Equal("e03", codes[crossingOne]);
+        Assert.Equal("e04", codes[noCrossingTwo]);
+        Assert.Equal("e05", codes[crossingTwo]);
+    }
+
+    [Fact]
+    public void OutputSegmentCodePlanner_EnCpMantieneOrdenCronologicoAunqueCambieElResultado()
+    {
+        var noCrossing = Segment(1, PlannedBehavioralResult.NoCrossing, 1);
+        var crossing = Segment(2, PlannedBehavioralResult.Crossing, 2);
+        var timeout = Segment(3, PlannedBehavioralResult.Timeout, 3);
+
+        var codes = OutputSegmentCodePlanner.Create([noCrossing, crossing, timeout]);
+
+        Assert.Equal("e01", codes[noCrossing]);
+        Assert.Equal("e02", codes[crossing]);
+        Assert.Equal("e03", codes[timeout]);
+    }
+
+    [Fact]
+    public void OutputSegmentCodePlanner_NombraCadaItiConElEventoAnterior()
+    {
+        var eventOne = Segment(1, PlannedBehavioralResult.Crossing, 1);
+        var itiOne = eventOne with { Kind = PlannedSegmentKind.InterTrialInterval, Sequence = 2 };
+        var eventTwo = Segment(3, PlannedBehavioralResult.NoCrossing, 2);
+
+        var codes = OutputSegmentCodePlanner.Create([eventTwo, itiOne, eventOne]);
+
+        Assert.Equal("e01", codes[eventOne]);
+        Assert.Equal("iti01", codes[itiOne]);
+        Assert.Equal("e02", codes[eventTwo]);
     }
 
     [Fact]
@@ -145,6 +173,8 @@ public sealed class BatchOrchestratorTests : IDisposable
 
         var lines = File.ReadAllLines(path);
         Assert.Equal(2, lines.Length);
+        Assert.Contains("archivo_clip", lines[0]);
+        Assert.Contains("abs_2605_f2_d4r1_m_e2_s_cr_stx.mp4", lines[1]);
         Assert.Contains("00:00:03.000", lines[1]);
         Assert.Contains("00:00:05.000", lines[1]);
         Assert.Contains("90,149,\"00:00:03.000\",\"00:00:04.966\",85,154", lines[1]);
@@ -166,6 +196,20 @@ public sealed class BatchOrchestratorTests : IDisposable
 
         Assert.True(progress.IsComplete);
         Assert.Equal(100, progress.Percent);
+    }
+
+    [Fact]
+    public void BatchProgressStatusWriter_DejaUnCheckpointLegible()
+    {
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "estado_procesamiento.txt");
+
+        BatchProgressStatusWriter.Write(path, "En proceso", 2, 15, "Exportando el tercer recorte");
+
+        var content = File.ReadAllText(path);
+        Assert.Contains("Estado: En proceso", content);
+        Assert.Contains("Recortes terminados: 2 de 15", content);
+        Assert.Contains("Detalle: Exportando el tercer recorte", content);
     }
 
     public void Dispose()

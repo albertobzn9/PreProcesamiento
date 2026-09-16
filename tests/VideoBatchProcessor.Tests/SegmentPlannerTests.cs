@@ -111,6 +111,44 @@ public sealed class SegmentPlannerTests
         Assert.Equal(PlannedBehavioralResult.Crossing, events[2].Result);
     }
 
+    [Fact]
+    public void Plan_EnCpClasificaCadaEventoSoloConDesplazYRespetaTimeout()
+    {
+        var intervals = new[]
+        {
+            Interval(1, LightId.FoodRight, 30, 59),
+            Interval(2, LightId.FoodRight, 90, 119),
+            Interval(3, LightId.FoodLeft, 150, 179),
+            Interval(4, LightId.FoodLeft, 210, 239),
+        };
+        var events = new[]
+        {
+            Event(1, side: 0, estimatedStart: 0, crossing: 0.2, BehavioralEventType.ConflictWithFood),
+            Event(2, side: 0, estimatedStart: 2, crossing: 2.1, BehavioralEventType.ConflictWithFood),
+            Event(3, side: -2, estimatedStart: 4, crossing: 30, BehavioralEventType.ConflictWithFood),
+            Event(4, side: 1, estimatedStart: 6, crossing: 1, BehavioralEventType.ConflictWithFood),
+        };
+        var rows = intervals.Zip(events, (interval, behavioral) =>
+            new LightTimelineDiagnosticComparisonRow(interval, behavioral, 0, DiagnosticComparisonStatus.Matched, "matched")).ToArray();
+        var synchronization = new BehavioralVideoSynchronizationResult(
+            BehavioralVideoSynchronizationStatus.Ready,
+            "/tmp/session.mat",
+            new LightTimelineDiagnosticComparison(1, rows),
+            []);
+        var input = Input(intervals, events, synchronization) with
+        {
+            ResultClassificationRule = BehavioralResultClassificationRule.CpDisplacementThreshold,
+        };
+
+        var result = new SegmentPlanner().Plan(input);
+        var plannedEvents = result.Segments.Where(item => item.Kind == PlannedSegmentKind.Event).ToArray();
+
+        Assert.Equal(PlannedBehavioralResult.NoCrossing, plannedEvents[0].Result);
+        Assert.Equal(PlannedBehavioralResult.Crossing, plannedEvents[1].Result);
+        Assert.Equal(PlannedBehavioralResult.Timeout, plannedEvents[2].Result);
+        Assert.Equal(PlannedBehavioralResult.NoCrossing, plannedEvents[3].Result);
+    }
+
     private static SegmentPlanningInput Input(
         IReadOnlyList<LightEventInterval> intervals,
         IReadOnlyList<BehavioralEvent> events,
@@ -150,6 +188,11 @@ public sealed class SegmentPlannerTests
     private static LightEventInterval Interval(int sequence, LightId light, int onFrame, int offFrame) =>
         new(sequence, light, onFrame, onFrame / 30d, offFrame, offFrame / 30d);
 
-    private static BehavioralEvent Event(int number, int side, double estimatedStart, double crossing) =>
-        new(number, side, 0, 0.5, estimatedStart + 0.5, 0, 0, crossing, BehavioralEventType.SafeFood, []);
+    private static BehavioralEvent Event(
+        int number,
+        int side,
+        double estimatedStart,
+        double crossing,
+        BehavioralEventType eventType = BehavioralEventType.SafeFood) =>
+        new(number, side, 0, 0.5, estimatedStart + 0.5, 0, 0, crossing, eventType, []);
 }

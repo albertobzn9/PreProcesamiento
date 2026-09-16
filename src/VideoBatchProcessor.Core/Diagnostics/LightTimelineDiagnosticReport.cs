@@ -1,5 +1,6 @@
 using VideoBatchProcessor.Core.BehavioralData;
 using VideoBatchProcessor.Core.LightDetection;
+using VideoBatchProcessor.Core.SegmentPlanning;
 using VideoBatchProcessor.Core.VideoReader;
 using VideoBatchProcessor.Core.VideoTransform;
 
@@ -18,4 +19,5 @@ public sealed record LightTimelineDiagnosticReport(
     LightDetectionConfig LightConfig,
     IReadOnlyList<BehavioralEvent> BehavioralEvents,
     string? BehavioralSourcePath,
-    string? BehavioralReadError);
+    string? BehavioralReadError,
+    BehavioralResultClassificationRule ResultClassificationRule = BehavioralResultClassificationRule.SideTransition);

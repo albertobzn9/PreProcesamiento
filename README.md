@@ -106,6 +106,11 @@ La aplicación activa se puede ejecutar con:
 dotnet run --project src/VideoBatchProcessor.App/VideoBatchProcessor.App.csproj
 ```
 
+La preparación de paquetes `.app` y Windows se describe en la
+[guía de empaquetado](docs/development/release-packaging.md). Los paquetes son
+autónomos respecto de .NET y deben incluir FFmpeg/FFprobe portables antes de
+distribuirse.
+
 El prototipo histórico se puede ejecutar con:
 
 ```bash

@@ -13,6 +13,7 @@ using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SessionResolver;
 using VideoBatchProcessor.Core.SessionFiles;
 using VideoBatchProcessor.Core.SessionPairing;
+using VideoBatchProcessor.Core.SegmentPlanning;
 using VideoBatchProcessor.Core.VideoReader;
 using VideoBatchProcessor.Core.VideoTransform;
 
@@ -690,7 +691,10 @@ public sealed partial class MainWindow : Window
                 lightConfig,
                 behavioralEvidence.Events,
                 behavioralEvidence.SourcePath,
-                behavioralEvidence.Error);
+                behavioralEvidence.Error,
+                entry.ParsedName.FaseEstandar == "f4"
+                    ? BehavioralResultClassificationRule.CpDisplacementThreshold
+                    : BehavioralResultClassificationRule.SideTransition);
 
             await Task.Run(() => new LightTimelineDiagnosticExcelExporter().Export(report, output.Path.LocalPath));
             await SendToWebAsync(new
@@ -880,6 +884,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            using var sleepGuard = ProcessingSleepGuard.PreventIdleSleep();
             await SendToWebAsync(new
             {
                 type = "batchProcessingStarted",
@@ -950,6 +955,7 @@ public sealed partial class MainWindow : Window
 
         policy = policyProperty.GetString() switch
         {
+            "ResumeIncomplete" => ExistingOutputPolicy.ResumeIncomplete,
             "SkipExisting" => ExistingOutputPolicy.SkipExisting,
             "ArchiveAndReplace" => ExistingOutputPolicy.ArchiveAndReplace,
             _ => ExistingOutputPolicy.Block,

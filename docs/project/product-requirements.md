@@ -125,11 +125,10 @@ En ensayos de riesgo/conflicto, el LED de ruido blanco y el sonido se encienden 
 
 El programa corta cada ensayo o segmento relevante en su propio video, usando la nomenclatura de output definida en [Naming Convention](../reference/naming-convention.md):
 
-- `abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4` → primer cruce, peligroso
-- `abs_2601_f5_d9r4_m_cr2_s_cr_stx.mp4` → segundo cruce, seguro
-- `abs_2601_f5_d9r4_m_nc1_p_nc_stx.mp4` → primer no cruce, peligroso
-- `abs_2601_f5_d9r4_m_iti1_na_na_stx.mp4` → ITI posterior al evento 1
-- `abs_2601_f5_d9r4_m_hab_na_na_stx.mp4` → habituación
+- `abs_2601_f5_d9r4_m_e01_p_cr_stx.mp4` → evento 1, peligroso, con cruce
+- `abs_2601_f5_d9r4_m_e02_s_nc_stx.mp4` → evento 2, seguro, sin cruce
+- `abs_2601_f5_d9r4_m_iti02_na_na_stx.mp4` → ITI posterior al evento 2
+- `abs_2601_f5_d9r4_m_habini_na_na_stx.mp4` → habituación inicial
 - ...
 - También corta los ensayos donde la rata **no cruzó** (esos son importantes para el análisis).
 
@@ -141,7 +140,11 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 
 **Por la luz:** si en el ensayo anterior la luz se encendió del mismo lado, la rata ya está en ese lado, así que no necesita cruzar. Pero esto no siempre funciona (a veces la rata no cruzó y se quedó donde estaba). Esta inferencia puede servir como heurística inicial.
 
-**Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y tipo de evento. Para el lote, el programa determina cruce/no cruce comparando el lado con el evento anterior válido; `Desplaz` permanece como dato raw y no genera una alerta manual.
+**Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un
+CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y
+tipo de evento. La regla depende de la fase. En CP, después de identificar
+timeouts con `Lado=-2`, el programa usa `Desplaz > 1 s` para cruce y
+`Desplaz <= 1 s` para no cruce. El valor raw se conserva en el reporte.
 
 Combinando ambas fuentes se obtiene mejor trazabilidad: el video define los tiempos visuales y la fuente conductual define las etiquetas. La asociación no presupone relojes idénticos: mide el desfase entre el inicio visual de comida y el inicio MATLAB estimado, además del tiempo que la luz sigue visible después del palanqueo registrado. El LED de ruido conserva por separado el periodo visual previo de advertencia. La UI debe mostrar estas discrepancias para revisión antes de exportar. Ver [Sincronización video-conducta de CajaValentia](sincronizacion-video-mat-cajavalentia.md) para el procedimiento y los campos que deben conservarse.
 
@@ -161,11 +164,12 @@ Con los valores iniciales del proyecto, la app solo destaca las excepciones úti
 
 ### 8. Clasificación Conductual Por Lote
 
-La app clasifica automáticamente cada evento con comida comparando `Lado` con
-el evento anterior válido: mismo lado = no cruce; cambio de lado = cruce.
-El primer evento queda como `No aplica` porque no existe un lado anterior, y
-`Lado=-2` se conserva como timeout. `Desplaz` sigue disponible en el reporte
-raw, pero no cambia la clasificación ni obliga a revisar video por video.
+La app selecciona la regla según la fase. En CP, cada fila conductual es un
+evento cronológico `eNN`, su tipo siempre es `p` y su resultado es: `to` cuando
+`Lado=-2`, `cr` cuando `Desplaz > 1 s`, o `nc` cuando `Desplaz <= 1 s`. Esto
+incluye el primer evento y no requiere compararlo con el anterior. La fuente
+raw se conserva en el reporte. La regla definitiva de DIS se abordará después
+de validar CP.
 
 ### 9. Herramientas De Video Y Calidad De Exportación
 
@@ -232,13 +236,12 @@ Cada video fuente genera junto a él una carpeta con el mismo nombre y el sufijo
 ```
 videos_procesados/
 ├── abs_2601_f5_d9r4_m/
-│   ├── abs_2601_f5_d9r4_m_cr1_p_cr_stx.mp4     (primer cruce, peligroso)
-│   ├── abs_2601_f5_d9r4_m_cr2_s_cr_stx.mp4     (segundo cruce, seguro)
-│   ├── abs_2601_f5_d9r4_m_nc1_s_nc_stx.mp4     (primer no cruce, seguro)
-│   ├── abs_2601_f5_d9r4_m_iti1_na_na_stx.mp4   (ITI posterior al evento 1)
-│   ├── abs_2601_f5_d9r4_m_hab_na_na_stx.mp4    (habituación)
+│   ├── abs_2601_f5_d9r4_m_e01_p_cr_stx.mp4     (evento 1, peligroso, cruce)
+│   ├── abs_2601_f5_d9r4_m_e02_s_nc_stx.mp4     (evento 2, seguro, no cruce)
+│   ├── abs_2601_f5_d9r4_m_iti02_na_na_stx.mp4  (ITI posterior al evento 2)
+│   ├── abs_2601_f5_d9r4_m_habini_na_na_stx.mp4 (habituación inicial)
 │   ├── ...
-│   └── abs_2601_f5_d9r4_m_cr30_s_cr_stx.mp4    (cruce 30, seguro)
+│   └── abs_2601_f5_d9r4_m_e30_s_cr_stx.mp4     (evento 30, seguro, cruce)
 ├── abs_2601_f5_d9r3_m/
 │   └── ...
 └── reporte.csv            (resumen de todo lo procesado)

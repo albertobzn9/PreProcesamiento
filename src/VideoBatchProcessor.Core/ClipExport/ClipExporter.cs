@@ -13,10 +13,14 @@ namespace VideoBatchProcessor.Core.ClipExport;
 public sealed class ClipExporter
 {
     private readonly IFfmpegRunner _ffmpegRunner;
+    private readonly IExportedClipInspector _clipInspector;
 
-    public ClipExporter(IFfmpegRunner? ffmpegRunner = null)
+    public ClipExporter(
+        IFfmpegRunner? ffmpegRunner = null,
+        IExportedClipInspector? clipInspector = null)
     {
         _ffmpegRunner = ffmpegRunner ?? new FfmpegProcessRunner();
+        _clipInspector = clipInspector ?? new OpenCvExportedClipInspector();
     }
 
     public async Task<ClipExportResult> ExportAsync(
@@ -31,10 +35,16 @@ public sealed class ClipExporter
         var outputDirectory = Path.GetDirectoryName(request.OutputPath)!;
         Directory.CreateDirectory(outputDirectory);
 
+        var exportRange = ResolveExportRange(request);
+        var expectedFrameCount = exportRange.EndFrameIndex - exportRange.StartFrameIndex + 1;
+        var recovered = TryRecoverCompletedTemporaryFile(request.OutputPath, exportRange, request.SourceVideo.Fps, expectedFrameCount);
+        if (recovered is not null)
+            return recovered;
+
+        DeleteStaleTemporaryFiles(request.OutputPath);
         var temporaryPath = CreateTemporaryPath(request.OutputPath);
         try
         {
-            var exportRange = ResolveExportRange(request);
             var arguments = BuildArguments(request, temporaryPath, exportRange);
             var execution = await _ffmpegRunner.RunAsync(
                 request.Options.FfmpegPath,
@@ -90,6 +100,7 @@ public sealed class ClipExporter
         {
             "-hide_banner",
             "-loglevel", "error",
+            "-nostdin",
             "-y",
             "-ss", FormatSeconds(start),
             "-i", request.SourceVideoPath,
@@ -196,6 +207,47 @@ public sealed class ClipExporter
         return Path.Combine(directory, $".{stem}.{Guid.NewGuid():N}.partial{extension}");
     }
 
+    private ClipExportResult? TryRecoverCompletedTemporaryFile(
+        string outputPath,
+        ClipExportFrameRange exportRange,
+        double fps,
+        int expectedFrameCount)
+    {
+        foreach (var candidate in FindTemporaryFiles(outputPath).OrderByDescending(File.GetLastWriteTimeUtc))
+        {
+            if (!_clipInspector.HasExactFrameCount(candidate, expectedFrameCount))
+                continue;
+
+            File.Move(candidate, outputPath);
+            DeleteStaleTemporaryFiles(outputPath);
+            return new ClipExportResult(
+                true,
+                outputPath,
+                exportRange.StartFrameIndex / fps,
+                (exportRange.EndFrameIndex + 1) / fps,
+                null,
+                exportRange.StartFrameIndex,
+                exportRange.EndFrameIndex,
+                WasRecovered: true);
+        }
+
+        return null;
+    }
+
+    private static void DeleteStaleTemporaryFiles(string outputPath)
+    {
+        foreach (var path in FindTemporaryFiles(outputPath))
+            TryDelete(path);
+    }
+
+    private static IEnumerable<string> FindTemporaryFiles(string outputPath)
+    {
+        var directory = Path.GetDirectoryName(outputPath)!;
+        var stem = Path.GetFileNameWithoutExtension(outputPath);
+        var extension = Path.GetExtension(outputPath);
+        return Directory.EnumerateFiles(directory, $".{stem}.*.partial{extension}", SearchOption.TopDirectoryOnly);
+    }
+
     private static double EndExclusiveSeconds(PlannedVideoSegment segment, double fps) =>
         (segment.EndFrameIndex + 1) / fps;
 
@@ -226,11 +278,28 @@ public sealed record ClipExportRequest(
 
 public sealed record ClipExportOptions
 {
-    public string FfmpegPath { get; init; } = "ffmpeg";
+    public string FfmpegPath { get; init; } = MediaToolLocator.ResolveFfmpegPath();
     public string VideoCodec { get; init; } = "libx264";
     public int Crf { get; init; } = 18;
     public int EventContextFramesBefore { get; init; } = 5;
     public int EventContextFramesAfter { get; init; } = 5;
+}
+
+public static class MediaToolLocator
+{
+    public static string ResolveFfmpegPath() => Resolve(AppContext.BaseDirectory, "ffmpeg", OperatingSystem.IsWindows());
+
+    public static string ResolveFfprobePath() => Resolve(AppContext.BaseDirectory, "ffprobe", OperatingSystem.IsWindows());
+
+    public static string Resolve(string baseDirectory, string toolName, bool isWindows)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+
+        var executableName = isWindows ? $"{toolName}.exe" : toolName;
+        var bundledPath = Path.Combine(baseDirectory, "tools", executableName);
+        return File.Exists(bundledPath) ? bundledPath : executableName;
+    }
 }
 
 public sealed record ClipExportResult(
@@ -240,7 +309,8 @@ public sealed record ClipExportResult(
     double? EndExclusiveSeconds,
     string? ErrorMessage,
     int? StartFrameIndex = null,
-    int? EndFrameIndex = null)
+    int? EndFrameIndex = null,
+    bool WasRecovered = false)
 {
     public static ClipExportResult Failed(string outputPath, string errorMessage) =>
         new(false, outputPath, null, null, errorMessage);
@@ -254,6 +324,30 @@ public interface IFfmpegRunner
         string executablePath,
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken);
+}
+
+public interface IExportedClipInspector
+{
+    bool HasExactFrameCount(string path, int expectedFrameCount);
+}
+
+internal sealed class OpenCvExportedClipInspector : IExportedClipInspector
+{
+    public bool HasExactFrameCount(string path, int expectedFrameCount)
+    {
+        try
+        {
+            if (!VideoBatchProcessor.Core.VideoReader.VideoReader.TryOpen(path, out var reader, out _))
+                return false;
+
+            using (reader)
+                return reader!.Metadata.TotalFrames == expectedFrameCount;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 public sealed record FfmpegExecutionResult(bool Succeeded, string? ErrorMessage)

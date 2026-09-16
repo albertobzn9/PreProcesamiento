@@ -4,25 +4,12 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <OpenCvSharpVersion>4.13.0.20260627</OpenCvSharpVersion>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="OpenCvSharp4" Version="$(OpenCvSharpVersion)" />
         <PackageReference Include="ClosedXML" Version="0.105.0" />
         <PackageReference Include="MathNet.Numerics.Data.Matlab" Version="5.0.0" />
-    </ItemGroup>
-
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64'">
-        <PackageReference Include="OpenCvSharp4.runtime.osx.x64" Version="$(OpenCvSharpVersion)" />
-    </ItemGroup>
-
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">
-        <PackageReference Include="OpenCvSharp4.runtime.osx.arm64" Version="$(OpenCvSharpVersion)" />
-    </ItemGroup>
-
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-        <PackageReference Include="OpenCvSharp4.runtime.win" Version="$(OpenCvSharpVersion)" />
     </ItemGroup>
 
 </Project>

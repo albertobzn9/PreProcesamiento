@@ -2,5 +2,6 @@
   <PropertyGroup>
     <!-- Keep local builds independent from NuGet vulnerability-audit network calls. -->
     <NuGetAudit>false</NuGetAudit>
+    <OpenCvSharpVersion>4.13.0.20260627</OpenCvSharpVersion>
   </PropertyGroup>
 </Project>

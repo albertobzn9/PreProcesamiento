@@ -20,7 +20,8 @@ public sealed class NomenclatureParser
 
     /// <summary>
     /// VBP Output — 9 tokens: ini_YYMM_fN_dNrN_sexo_seg_tipo_res_trat
-    /// Ejemplos: abs_2601_f5_d1r3_m_cr1_p_cr_stx y el formato histórico e1.
+    /// Ejemplos: abs_2601_f5_d1r3_m_e01_p_cr_stx y formatos históricos con
+    /// segmentos <c>crN</c> o <c>ncN</c>.
     /// </summary>
     private static readonly Regex s_vbpOutput = new(
         @"^(?<ini>[a-z]{2,5})_(?<fecha>\d{4})_(?<fase>f\d+)_d(?<dia>\d+)r(?<rata>\d+)" +
@@ -95,8 +96,8 @@ public sealed class NomenclatureParser
     /// YYMM (ej. "2601" = enero 2026). Si la fuente es un archivo legacy (MMYY),
     /// convertir primero con <see cref="ConvertirFechaAYYMM"/>.
     /// </para>
-    /// Ejemplo: BuildVbpOutputName("abs","2601","f5",1,3,"m","e1","p","cr","stx")
-    ///          → "abs_2601_f5_d1r3_m_e1_p_cr_stx.mp4"
+    /// Ejemplo: BuildVbpOutputName("abs","2601","f5",1,3,"m","e01","p","cr","stx")
+    ///          → "abs_2601_f5_d1r3_m_e01_p_cr_stx.mp4"
     /// </summary>
     public static string BuildVbpOutputName(
         string iniciales,
