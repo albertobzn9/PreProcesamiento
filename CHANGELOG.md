@@ -8,6 +8,8 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
 ### Fixed
 
 - Calibración: imagen y círculos ROI comparten ahora el mismo tamaño visible,

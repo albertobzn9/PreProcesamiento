@@ -190,9 +190,10 @@ raw, sin generar trabajo manual.
 ### Backend posterior
 
 1. Asignación explícita de un perfil de cámara reutilizable a varias sesiones.
-2. Completar el empaquetado administrado: la base `.app`/Windows y la detección
-   interna de FFmpeg/ffprobe ya existen; faltan elegir binarios portables con
-   licencia trazable, probarlos en las tres plataformas y firmar las entregas.
+2. Validar manualmente el paquete Windows `0.2.0` en una PC del laboratorio.
+   Mac Apple Silicon y la máquina virtual Windows ya generan paquetes autónomos
+   con FFmpeg/ffprobe trazables; Mac Intel se omite en esta versión. La firma
+   pública/notarización queda para una entrega fuera del laboratorio.
 3. Ampliar la validación DIS a otras sesiones antes de publicar una nueva app.
 4. Lector del manifiesto de captura de CajaValentia y compatibilidad del CSV
    actual de 10 columnas antes de habilitar procesamiento automático.

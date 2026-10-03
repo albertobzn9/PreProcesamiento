@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/src/VideoBatchProcessor.App/VideoBatchProcessor.App.csproj"
 RID="${1:-osx-arm64}"
-VERSION="${VBP_VERSION:-0.1.0}"
+VERSION="${VBP_VERSION:-0.2.0}"
 BUILD_NUMBER="${VBP_BUILD_NUMBER:-1}"
 FFMPEG_DIR="${VBP_FFMPEG_DIR:-$ROOT/vendor/ffmpeg/$RID}"
 OUTPUT_ROOT="$ROOT/artifacts/release/$VERSION/$RID"
@@ -40,6 +40,9 @@ mkdir -p "$PUBLISH_DIR/tools"
 cp "$FFMPEG_DIR/ffmpeg" "$PUBLISH_DIR/tools/ffmpeg"
 cp "$FFMPEG_DIR/ffprobe" "$PUBLISH_DIR/tools/ffprobe"
 chmod 755 "$PUBLISH_DIR/tools/ffmpeg" "$PUBLISH_DIR/tools/ffprobe"
+for notice in "$FFMPEG_DIR"/*.txt; do
+  [[ -f "$notice" ]] && cp "$notice" "$PUBLISH_DIR/tools/"
+done
 
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp -R "$PUBLISH_DIR/." "$APP_DIR/Contents/MacOS/"
@@ -63,6 +66,7 @@ fi
 
 codesign --verify --deep --strict "$APP_DIR"
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
+shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
 
 "$ROOT/scripts/verify-package.sh" "$APP_DIR" "$RID"
 echo "Paquete creado: $ZIP_PATH"

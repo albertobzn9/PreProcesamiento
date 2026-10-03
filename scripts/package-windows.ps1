@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.0",
+    [string]$Version = "0.2.0",
     [string]$FfmpegDirectory = ""
 )
 
@@ -36,6 +36,8 @@ $ToolsDirectory = Join-Path $PublishDirectory "tools"
 New-Item $ToolsDirectory -ItemType Directory -Force | Out-Null
 Copy-Item $Ffmpeg (Join-Path $ToolsDirectory "ffmpeg.exe")
 Copy-Item $Ffprobe (Join-Path $ToolsDirectory "ffprobe.exe")
+Get-ChildItem $FfmpegDirectory -Filter "*.txt" -File -ErrorAction SilentlyContinue |
+    Copy-Item -Destination $ToolsDirectory
 
 foreach ($RequiredPath in @(
     (Join-Path $PublishDirectory "VideoBatchProcessor.exe"),
@@ -47,4 +49,6 @@ foreach ($RequiredPath in @(
 }
 
 Compress-Archive -Path "$PublishDirectory/*" -DestinationPath $ZipPath -Force
+$Digest = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$ZipPath.sha256" -Value "$Digest  $(Split-Path $ZipPath -Leaf)"
 Write-Host "Paquete creado: $ZipPath"

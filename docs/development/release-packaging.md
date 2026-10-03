@@ -18,10 +18,12 @@ La aplicación tiene nombre y versión, elige el runtime nativo de OpenCV según
 el paquete y busca primero FFmpeg dentro de su propia carpeta `tools/`. En
 desarrollo conserva como respaldo el FFmpeg instalado en el sistema.
 
-El paquete `osx-arm64` se generó y verificó localmente para la validación
-interna de CS/CP. Todavía no existe un release público: falta probar el paquete
-en Mac Intel y Windows, registrar el origen/licencia de los binarios que se
-distribuirán y firmar/notarizar cualquier entrega fuera del laboratorio.
+La versión interna `0.2.0` se distribuye para Mac Apple Silicon y Windows x64.
+Mac se construye y prueba localmente; Windows se construye dentro de una máquina
+virtual efímera de GitHub Actions. Mac Intel se omite en esta versión por
+decisión del proyecto. Ambas entregas incluyen FFmpeg/FFprobe portables, aviso
+de procedencia y una huella SHA-256. La app de Mac usa firma local; una entrega
+pública fuera del laboratorio todavía requiere Developer ID y notarización.
 
 ## Crear La Aplicación De macOS
 
@@ -32,23 +34,25 @@ Colocar primero FFmpeg y FFprobe en `vendor/ffmpeg/osx-arm64/` o
 ./scripts/package-macos.sh osx-arm64
 ```
 
-El resultado queda en `artifacts/release/0.1.0/osx-arm64/` como `.app` y `.zip`.
+El resultado queda en `artifacts/release/0.2.0/osx-arm64/` como `.app`, `.zip` y
+archivo `.sha256`.
 Sin una identidad de Apple, el script aplica una firma local apropiada solo
 para pruebas. La entrega fuera del equipo de desarrollo requiere Developer ID,
 Hardened Runtime y notarización.
 
 ## Crear La Aplicación De Windows
 
-En una computadora Windows, colocar `ffmpeg.exe` y `ffprobe.exe` en
-`vendor/ffmpeg/win-x64/` y ejecutar PowerShell:
+El workflow manual `Build Windows release` usa una máquina virtual Windows x64,
+verifica la descarga fijada de FFmpeg, ejecuta las pruebas y llama:
 
 ```powershell
-./scripts/package-windows.ps1
+./scripts/package-windows.ps1 -Version 0.2.0
 ```
 
-El resultado contiene `VideoBatchProcessor.exe` y todas sus dependencias en un
-ZIP. Esta primera forma es adecuada para validación interna. Después de probarla
-se puede crear un instalador MSIX firmado.
+El resultado contiene `VideoBatchProcessor.exe`, todas sus dependencias, las
+herramientas multimedia y su archivo `.sha256` dentro del artefacto del workflow.
+Esta forma es adecuada para validación interna. Después de probarla manualmente
+en una computadora del laboratorio se puede crear un instalador MSIX firmado.
 
 ## Validación Obligatoria
 
@@ -61,8 +65,9 @@ En una computadora que no tenga el repositorio ni .NET instalado:
 5. Confirmar el XLSX y los clips exportados.
 6. Cerrar y abrir nuevamente para comprobar el perfil guardado.
 
-Esta validación debe realizarse en Apple Silicon, Mac Intel y Windows x64. Un paquete compilado pero no ejecutado en su sistema destino no se considera
-aprobado.
+Para `0.2.0`, esta validación debe realizarse en Apple Silicon y Windows x64.
+El workflow de Windows comprueba compilación, pruebas, estructura y arranque;
+la prueba manual completa en una PC del laboratorio sigue siendo obligatoria.
 
 ## Decisión Sobre FFmpeg
 

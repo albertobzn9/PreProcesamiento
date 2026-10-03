@@ -1,0 +1,82 @@
+name: Build Windows release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        default: 0.2.0
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-2025
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run automated tests
+        shell: pwsh
+        run: dotnet test VideoBatchProcessor.sln --configuration Release
+
+      - name: Download verified FFmpeg 9.0.2
+        shell: pwsh
+        run: |
+          $url = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip"
+          $expectedHash = "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
+          $archive = Join-Path $env:RUNNER_TEMP "ffmpeg-9.0.2-essentials_build.zip"
+          $expanded = Join-Path $env:RUNNER_TEMP "ffmpeg"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+              throw "FFmpeg checksum mismatch: $actualHash"
+          }
+          Expand-Archive -Path $archive -DestinationPath $expanded
+          $ffmpeg = Get-ChildItem $expanded -Filter ffmpeg.exe -File -Recurse | Select-Object -First 1
+          $ffprobe = Get-ChildItem $expanded -Filter ffprobe.exe -File -Recurse | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "FFmpeg package is incomplete." }
+          $destination = Join-Path $PWD "vendor/ffmpeg/win-x64"
+          New-Item $destination -ItemType Directory -Force | Out-Null
+          Copy-Item $ffmpeg.FullName (Join-Path $destination "ffmpeg.exe")
+          Copy-Item $ffprobe.FullName (Join-Path $destination "ffprobe.exe")
+          @"
+          FFmpeg 9.0.2 essentials build for Windows x64
+          Source: $url
+          Archive SHA-256: $expectedHash
+          Build provider: https://www.gyan.dev/ffmpeg/builds/
+          FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/n9.0.2
+          License: GPLv3; see https://www.gnu.org/licenses/gpl-3.0.html
+          "@ | Set-Content (Join-Path $destination "FFMPEG-SOURCE.txt")
+
+      - name: Build self-contained Windows package
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -Version "${{ inputs.version }}"
+
+      - name: Smoke test packaged application
+        shell: pwsh
+        run: |
+          $app = Join-Path $PWD "artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor/VideoBatchProcessor.exe"
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 10
+          $process.Refresh()
+          if ($process.HasExited) {
+              throw "Packaged application exited during the launch smoke test (code $($process.ExitCode))."
+          }
+          Stop-Process -Id $process.Id -Force
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v6
+        with:
+          name: VideoBatchProcessor-${{ inputs.version }}-win-x64
+          path: |
+            artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64.zip
+            artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64.zip.sha256
+          if-no-files-found: error
