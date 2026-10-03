@@ -10,22 +10,26 @@ public sealed class BatchOrchestratorTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"vbp-batch-{Guid.NewGuid():N}");
 
     [Fact]
-    public void DiscoverCandidates_RecorreSubcarpetasYSeleccionaSesionesCsYCpFuente()
+    public void DiscoverCandidates_RecorreSubcarpetasYSeleccionaSesionesCsCpYDisFuente()
     {
         var nested = Path.Combine(_directory, "entrenamiento-a");
         Directory.CreateDirectory(nested);
         Create(nested, "exp_0126_cs_d1r1.mp4");
         Create(nested, "abs_2601_f2_d1r2_m_stx.mkv");
         Create(nested, "exp_0126_cp_d1r3.mp4");
+        Create(nested, "exp_0126_dis_d1r3.mp4");
+        Create(nested, "abs_2601_f5_d1r4_m_stx.mkv");
+        Create(nested, "abs_2601_f5_d1r4_m_e01_p_cr_stx.mp4");
         Create(nested, "abs_2601_f2_d1r2_m_e1_s_na_stx.mp4");
         Create(nested, "prueba.mp4");
 
         var candidates = new BatchOrchestrator().DiscoverCandidates(_directory);
 
-        Assert.Equal(5, candidates.Count);
-        Assert.Equal(3, candidates.Count(item => item.IsSupportedSource));
+        Assert.Equal(8, candidates.Count);
+        Assert.Equal(5, candidates.Count(item => item.IsSupportedSource));
         Assert.Equal(2, candidates.Count(item => item.IsCsSource));
         Assert.Single(candidates, item => item.IsCpSource);
+        Assert.Equal(2, candidates.Count(item => item.IsDisSource));
         Assert.Contains(candidates, item => item.VideoPath.EndsWith("exp_0126_cs_d1r1.mp4", StringComparison.Ordinal) && item.IsCsSource);
         Assert.Contains(candidates, item => item.VideoPath.EndsWith("abs_2601_f2_d1r2_m_stx.mkv", StringComparison.Ordinal) && item.IsCsSource);
         Assert.All(candidates.Where(item => !item.IsSupportedSource), item => Assert.False(string.IsNullOrWhiteSpace(item.SkipReason)));

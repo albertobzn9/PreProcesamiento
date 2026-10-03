@@ -1,4 +1,5 @@
 using VideoBatchProcessor.Core.BehavioralData;
+using VideoBatchProcessor.Core.BatchProcessing;
 using VideoBatchProcessor.Core.BehavioralSynchronization;
 using VideoBatchProcessor.Core.Diagnostics;
 using VideoBatchProcessor.Core.LightDetection;
@@ -9,6 +10,88 @@ namespace VideoBatchProcessor.Tests;
 
 public sealed class SegmentPlannerTests
 {
+    [Theory]
+    [InlineData("f2", BehavioralResultClassificationRule.SideTransition)]
+    [InlineData("f4", BehavioralResultClassificationRule.DisplacementThreshold)]
+    [InlineData("f5", BehavioralResultClassificationRule.DisplacementThreshold)]
+    public void ReglaPorFase_ConservaCsYComparteDesplazamientoEnCpYDis(
+        string phase, BehavioralResultClassificationRule expected) =>
+        Assert.Equal(expected, SegmentPlanner.GetResultClassificationRule(phase));
+
+    [Theory]
+    [InlineData(BehavioralEventType.SafeFood, 0, 0.999, PlannedBehavioralResult.NoCrossing)]
+    [InlineData(BehavioralEventType.SafeFood, 1, 1, PlannedBehavioralResult.NoCrossing)]
+    [InlineData(BehavioralEventType.SafeFood, 0, 1.001, PlannedBehavioralResult.Crossing)]
+    [InlineData(BehavioralEventType.SafeFood, -2, 180, PlannedBehavioralResult.Timeout)]
+    [InlineData(BehavioralEventType.ConflictWithFood, 0, 0.999, PlannedBehavioralResult.NoCrossing)]
+    [InlineData(BehavioralEventType.ConflictWithFood, 1, 1, PlannedBehavioralResult.NoCrossing)]
+    [InlineData(BehavioralEventType.ConflictWithFood, 0, 1.001, PlannedBehavioralResult.Crossing)]
+    [InlineData(BehavioralEventType.ConflictWithFood, -2, 180, PlannedBehavioralResult.Timeout)]
+    public void Plan_DisClasificaDesdeElPrimerEventoEnAmbosTipos(
+        BehavioralEventType type, int side, double displacement, PlannedBehavioralResult expected)
+    {
+        var interval = Interval(1, side == 1 ? LightId.FoodLeft : LightId.FoodRight, 60, 89);
+        var behavioral = Event(1, side, 0, displacement, type);
+        var synchronization = new BehavioralVideoSynchronizationResult(
+            BehavioralVideoSynchronizationStatus.Warning, "/tmp/dis.mat",
+            new LightTimelineDiagnosticComparison(2,
+                [new(interval, behavioral, 0, DiagnosticComparisonStatus.Matched, "matched")]), []);
+
+        var result = new SegmentPlanner().Plan(Input([interval], [behavioral], synchronization) with
+        {
+            ResultClassificationRule = SegmentPlanner.GetResultClassificationRule("f5"),
+        });
+
+        var segment = Assert.Single(result.Segments, item => item.Kind == PlannedSegmentKind.Event);
+        Assert.Equal(expected, segment.Result);
+    }
+
+    [Fact]
+    public void Plan_DisSincronizaMezclaSeguroRiesgoYConservaOrdenYLimites()
+    {
+        var intervals = new[]
+        {
+            Interval(1, LightId.FoodRight, 30, 59),
+            Interval(2, LightId.NoiseLed, 75, 119),
+            Interval(3, LightId.FoodRight, 90, 119),
+            Interval(4, LightId.FoodLeft, 180, 209),
+            Interval(5, LightId.NoiseLed, 225, 269),
+            Interval(6, LightId.FoodLeft, 240, 269),
+        };
+        var events = new[]
+        {
+            Event(1, 0, 0, 0.2),
+            Event(2, 0, 2, 1.001, BehavioralEventType.ConflictWithFood),
+            Event(3, 1, 5, 1),
+            Event(4, -2, 7, 180, BehavioralEventType.ConflictWithFood),
+        };
+        var synchronization = new BehavioralVideoSynchronizer().Synchronize(
+            intervals, events, new LightTimelineScanRange(0, 299), 30, "/tmp/dis.mat");
+        Assert.Equal(BehavioralVideoSynchronizationStatus.Ready, synchronization.Status);
+        Assert.Equal(4, synchronization.Comparison.MatchedCount);
+        Assert.Equal(1d, synchronization.Comparison.EstimatedStartOffsetSeconds);
+
+        var plan = new SegmentPlanner().Plan(Input(intervals, events, synchronization) with
+        {
+            ResultClassificationRule = SegmentPlanner.GetResultClassificationRule("f5"),
+        });
+        var planned = plan.Segments.Where(item => item.Kind == PlannedSegmentKind.Event).ToArray();
+        Assert.Equal(new[] { PlannedTrialType.SafeFood, PlannedTrialType.ConflictWithFood,
+            PlannedTrialType.SafeFood, PlannedTrialType.ConflictWithFood }, planned.Select(item => item.TrialType!.Value));
+        Assert.Equal(new[] { PlannedBehavioralResult.NoCrossing, PlannedBehavioralResult.Crossing,
+            PlannedBehavioralResult.NoCrossing, PlannedBehavioralResult.Timeout }, planned.Select(item => item.Result));
+        Assert.Equal(new[] { 30, 75, 180, 225 }, planned.Select(item => item.StartFrameIndex));
+        Assert.Equal(new[] { 59, 119, 209, 269 }, planned.Select(item => item.EndFrameIndex));
+        Assert.Empty(plan.Warnings);
+        var codes = OutputSegmentCodePlanner.Create(plan.Segments);
+        Assert.Equal(new[] { "habini", "e01", "iti01", "e02", "iti02", "e03", "iti03", "e04", "habfin" },
+            plan.Segments.Select(item => codes[item]));
+        Assert.Equal(0, plan.Segments[0].StartFrameIndex);
+        Assert.Equal(299, plan.Segments[^1].EndFrameIndex);
+        for (var i = 1; i < plan.Segments.Count; i++)
+            Assert.Equal(plan.Segments[i - 1].EndFrameIndex + 1, plan.Segments[i].StartFrameIndex);
+    }
+
     [Fact]
     public void Plan_ConstruyeHabituacionEventosItiYHabituacionFinalDesdeEventosEmpatados()
     {
@@ -137,7 +220,7 @@ public sealed class SegmentPlannerTests
             []);
         var input = Input(intervals, events, synchronization) with
         {
-            ResultClassificationRule = BehavioralResultClassificationRule.CpDisplacementThreshold,
+            ResultClassificationRule = SegmentPlanner.GetResultClassificationRule("f4"),
         };
 
         var result = new SegmentPlanner().Plan(input);

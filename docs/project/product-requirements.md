@@ -142,7 +142,7 @@ Esto se necesita para etiquetar correctamente los ensayos. Tenemos dos formas de
 
 **Por la fuente conductual:** cada sesión puede tener un `.mat` histórico o un
 CSV V1 nuevo de CajaValentia. Registra latencias, descarga, desplazamiento y
-tipo de evento. La regla depende de la fase. En CP, después de identificar
+tipo de evento. La regla depende de la fase. En CP y DIS, después de identificar
 timeouts con `Lado=-2`, el programa usa `Desplaz > 1 s` para cruce y
 `Desplaz <= 1 s` para no cruce. El valor raw se conserva en el reporte.
 
@@ -168,8 +168,10 @@ La app selecciona la regla según la fase. En CP, cada fila conductual es un
 evento cronológico `eNN`, su tipo siempre es `p` y su resultado es: `to` cuando
 `Lado=-2`, `cr` cuando `Desplaz > 1 s`, o `nc` cuando `Desplaz <= 1 s`. Esto
 incluye el primer evento y no requiere compararlo con el anterior. La fuente
-raw se conserva en el reporte. La regla definitiva de DIS se abordará después
-de validar CP.
+raw se conserva en el reporte. DIS usa la misma regla de resultado para
+eventos seguros y peligrosos; el tipo es `s` o `p` según la fuente conductual.
+La numeración `eNN` sigue el orden completo de la tabla, sin reiniciarse al
+cambiar de tipo o resultado. La primera sesión DIS real ya se procesó; falta ampliar la validación.
 
 ### 9. Herramientas De Video Y Calidad De Exportación
 

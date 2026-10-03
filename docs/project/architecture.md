@@ -164,7 +164,7 @@ detallados que puedan divergir.
 | `LightTimelineBuilder` / `LightTimelineScanner` | Implementados | Estabiliza cambios ON/OFF por luz, ignora artefactos aislados y escanea video real con crop, giro, espejo, ROIs y umbrales ya configurados. Para evitar trabajo innecesario, convierte las ROIs una vez a coordenadas fuente, mide solo esas zonas y reutiliza buffers y máscaras entre frames. Puede limitarse a un intervalo de frames y reporta progreso real. |
 | `SessionPairingResolver` / `BatchSessionPairingAnalyzer` | Integrado; pendiente de prueba CP real | El botón de lote lee una vez cada video y MAT/CSV, compara todas las parejas posibles y solo confirma asociaciones fuertes y mutuamente preferidas. Prefiere MP4 y usa MKV como respaldo. Detecta evidencia conductual duplicada, conserva errores y exporta `emparejamiento_sesiones.csv` antes de recortar. Su progreso da el peso principal al escaneo de frames, no al número de archivos pequeños. |
 | `BehavioralVideoSynchronizer` | Implementado como base por sesión | Reutiliza la comparación de lado y tiempo para estimar el desfase de una sesión, limita la comparación al rango realmente analizado y devuelve `Ready`, `Warning` o `Blocked`. Usa lados conocidos para estimar el reloj y puede empatar `Lado=-2` por tiempo sin inventarle un lado. `BatchOrchestrator` ya lo ejecuta para cada sesión CS. |
-| `SegmentPlanner` | Implementado para CS y regla CP | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. En CP clasifica cada fila por `Desplaz`: más de 1 s = cruce, 1 s o menos = no cruce, y `Lado=-2` = timeout. Falta validar CP con video real, implementar `SoundOnly` y definir DIS. |
+| `SegmentPlanner` | Implementado para CS, CP y DIS con comida | Solo crea segmentos desde filas conductuales empatadas; genera eventos, ITIs y habituación cuando el rango cubre el video completo. En `exp_0526_cs_d4r4` validó 67/67 eventos y planeó 135 segmentos. CP y DIS clasifican por `Desplaz`: más de 1 s = cruce, 1 s o menos = no cruce, y `Lado=-2` = timeout. CP d2r1 fue validado manualmente; DIS completó una sesión real (60 eventos y 121 recortes); falta ampliar la validación a otras sesiones. Falta implementar `SoundOnly`. |
 | `ClipExporter` | Implementado; validado para CS | Exporta clips mediante FFmpeg, con crop, giro/espejo, audio conservado y escritura temporal segura. En eventos agrega por defecto cinco frames antes y después como contexto visual; habituación e ITIs mantienen sus límites exactos. La conexión CP está lista para validación real. |
 | Orquestación | Integrada para CS y habilitada para validar CP | `BatchOrchestrator` ejecuta primero el emparejamiento por contenido, conserva el escaneo, bloquea parejas dudosas y escribe una carpeta `<video>_recortes` junto a cada video. La prueba rápida exporta cinco eventos/ITIs sin habituación. |
 
@@ -586,10 +586,11 @@ VideoSegment = {
 4. **El planner crea un clip de evento solo para una fila conductual validada.**
    Una señal visual sin fila compatible queda como hallazgo; nunca se convierte
    en un ensayo ni desplaza la tabla por orden.
-5. **El resultado se decide con la regla de la fase:** en CP, `Lado=-2` es
+5. **El resultado se decide con la regla de la fase:** en CP y DIS, `Lado=-2` es
    timeout y, con lado válido, `Desplaz > 1 s` significa cruce mientras
    `Desplaz <= 1 s` significa no cruce. La comparación de lados permanece
-   separada para las fases que la requieran.
+   separada para CS. En DIS la regla de desplazamiento aplica a seguros y
+   riesgo con comida, incluido el primer evento.
 
 Por eso los clips no se recortan "solo desde las luces" ni "solo desde el
 MAT": el MAT/CSV define qué debe existir y el video aporta el desfase y los
@@ -637,11 +638,12 @@ los videos. La especificación completa está en
    regla de luces apagadas se verifica como calidad, no se asume ciegamente.
 8. El primer ensayo siempre es seguro/de comida; sirve como contexto del
    protocolo, no sustituye la sincronización ni la detección.
-9. Para CP: `Lado=-2` significa timeout; en cualquier otro evento,
+9. Para CP y DIS con comida: `Lado=-2` significa timeout; con lado válido,
    `Desplaz > 1 s` significa cruce y `Desplaz <= 1 s` significa no cruce. La
    regla también se aplica al primer evento. El código de segmento conserva el
-   orden de la fuente como `e01`, `e02`, `e03`..., el tipo siempre es `p` y el
-   resultado queda en `cr`, `nc` o `to`. DIS se definirá después de validar CP.
+   orden de la fuente como `e01`, `e02`, `e03`... y el resultado queda en
+   `cr`, `nc` o `to`. En CP el tipo es `p`; en DIS se conserva `s` o `p`
+   según la fila conductual. No se reinicia la numeración al cambiar de tipo.
 
 **Timing:** en ensayos de riesgo/conflicto, el clip puede empezar en `WarningStart` para conservar el LED/ruido previo. `FoodLightStart` y `FoodLightEnd` son límites visuales que se comparan con el inicio MATLAB estimado y `TiempoAbs`; no se asumen idénticos. En un evento `SoundOnly`, `WarningStart` es el inicio relevante y `FoodLightStart` queda vacío.
 
@@ -651,13 +653,15 @@ inicio/final real. En la validación completa CS de `exp_0526_cs_d4r4` produjo
 1 habituación inicial, 67 eventos, 66 ITIs y 1 habituación final a partir de
 67/67 empates MAT-video. El exportador diagnóstico deja esa propuesta en la
 hoja `Segmentos planeados`, con duración total y comparación de lado visible,
-para revisión antes de generar clips. La regla específica de CP ya está
-implementada y probada de forma aislada; todavía falta validarla de extremo a
-extremo con video real. `SoundOnly` y DIS siguen fuera de esta etapa.
+para revisión antes de generar clips. CP d2r1 fue validado con video real.
+DIS comparte su regla de resultado y está habilitado en lote. Tiene pruebas
+automáticas de mezcla seguro/riesgo y completó `exp_0526_dis_d10r2` con 60/60
+empates y 121/121 recortes; una señal extra queda como aviso dentro de `e34`. `SoundOnly` sigue fuera de esta etapa.
 
 **Prueba aislada:** Sí. Hay pruebas para habituación/eventos/ITI/final, rango
-parcial, sincronización bloqueada, comparación de lados y la regla CP por
-`Desplaz`, incluido el umbral exacto de 1 s y timeout.
+parcial, sincronización bloqueada, comparación de lados en CS y la regla
+CP/DIS por `Desplaz`, incluido el umbral exacto de 1 s y timeout. DIS también
+prueba sincronización mixta, LED previo, orden `eNN`/`itiNN` y cobertura continua.
 
 **Aclaración de nombres:** `LightTimeline` y `BehavioralEvent` son estructuras de datos, no módulos.
 
@@ -930,13 +934,13 @@ configuración al botón `Procesar sesiones`, analiza luces como parte del flujo
 genera el Excel diagnóstico automáticamente y muestra progreso y resumen.
 La opción de prueba rápida analiza la sesión completa, pero exporta solo los
 primeros cinco segmentos que sean eventos o ITIs; no exporta habituaciones.
-`AllSegments` se usa después de revisar esos límites. Falta validar dos sesiones
-CP reales, incluida una con nombre intercambiado, antes de habilitar CP para
-lotes completos o extender el flujo a DIS.
+`AllSegments` se usa después de revisar esos límites. CS y CP ya cuentan con
+validación real; DIS con comida también completó una sesión real.
+La ausencia de MAT/CSV o de una pareja confirmada sigue bloqueando los recortes.
 
-**Prueba aislada:** Sí para descubrimiento, CS/CP, nombre intercambiado,
+**Prueba aislada:** Sí para descubrimiento, CS/CP/DIS, nombre intercambiado,
 preferencia MP4/MKV, emparejamiento y selección de cinco clips sin habituación.
-La prueba integral con videos/MAT CP reales es la siguiente validación manual.
+Conviene ampliar la validación DIS a otras sesiones y condiciones de cámara.
 
 ---
 

@@ -13,6 +13,11 @@ namespace VideoBatchProcessor.Core.SegmentPlanning;
 /// </summary>
 public sealed class SegmentPlanner
 {
+    public static BehavioralResultClassificationRule GetResultClassificationRule(string? phase) =>
+        phase is "f4" or "f5"
+            ? BehavioralResultClassificationRule.DisplacementThreshold
+            : BehavioralResultClassificationRule.SideTransition;
+
     public SegmentPlanningResult Plan(SegmentPlanningInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -281,7 +286,7 @@ public sealed class SegmentPlanner
         if (item.Side == -2)
             return PlannedBehavioralResult.Timeout;
 
-        if (rule == BehavioralResultClassificationRule.CpDisplacementThreshold)
+        if (rule == BehavioralResultClassificationRule.DisplacementThreshold)
         {
             return item.CrossingLatencySeconds > 1d
                 ? PlannedBehavioralResult.Crossing
@@ -354,7 +359,7 @@ public sealed record SegmentPlanningInput(
 public enum BehavioralResultClassificationRule
 {
     SideTransition,
-    CpDisplacementThreshold,
+    DisplacementThreshold,
 }
 
 public sealed record SegmentPlanningResult(

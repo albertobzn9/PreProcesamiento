@@ -99,16 +99,22 @@ En una sesión de discriminación, por ejemplo, los eventos podrán leerse como
 resultado de cada uno. La regla experimental que calcula esos campos depende
 de la fase; la nomenclatura solo los conserva de manera legible.
 
-### Regla Confirmada Para CP
+### Regla Confirmada Para CP Y DIS
 
-En Cruces Peligrosos (`cp` / `f4`), cada fila conductual corresponde a `eNN`.
-El tipo siempre es `p` y el resultado se obtiene así:
+En Cruces Peligrosos (`cp` / `f4`) y Discriminación (`dis` / `f5`), cada fila
+conductual corresponde a `eNN`. En CP el tipo es `p`; en DIS es `s` para
+seguro o `p` para riesgo con comida, según la tabla conductual. Ambos tipos
+usan la misma regla de resultado, incluido el primer evento:
 
 | Dato conductual | Resultado |
 |-----------------|-----------|
 | `Lado = -2` | `to` |
 | `Lado` válido y `Desplaz > 1 s` | `cr` |
 | `Lado` válido y `Desplaz <= 1 s` | `nc` |
+
+En DIS no se compara el lado con el evento anterior para decidir `cr`/`nc`.
+Los eventos de solo sonido (`TipoEvento=2`) quedan fuera de esta primera
+implementación de recortes DIS.
 
 ## Relación Entre Las Tres Nomenclaturas
 

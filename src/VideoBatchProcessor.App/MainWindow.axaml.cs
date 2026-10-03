@@ -692,9 +692,7 @@ public sealed partial class MainWindow : Window
                 behavioralEvidence.Events,
                 behavioralEvidence.SourcePath,
                 behavioralEvidence.Error,
-                entry.ParsedName.FaseEstandar == "f4"
-                    ? BehavioralResultClassificationRule.CpDisplacementThreshold
-                    : BehavioralResultClassificationRule.SideTransition);
+                SegmentPlanner.GetResultClassificationRule(entry.ParsedName.FaseEstandar));
 
             await Task.Run(() => new LightTimelineDiagnosticExcelExporter().Export(report, output.Path.LocalPath));
             await SendToWebAsync(new
@@ -888,7 +886,7 @@ public sealed partial class MainWindow : Window
             await SendToWebAsync(new
             {
                 type = "batchProcessingStarted",
-                message = $"Emparejando y procesando {selectedSessionCount} sesión(es) CS/CP con la configuración de {referenceFileName}.",
+                message = $"Emparejando y procesando {selectedSessionCount} sesión(es) CS/CP/DIS con la configuración de {referenceFileName}.",
             });
             var report = await Task.Run(() => new BatchOrchestrator().RunAsync(request, progress));
             var sessionIdsByPath = _loadedSessions.ToDictionary(

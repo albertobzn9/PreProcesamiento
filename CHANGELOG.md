@@ -10,6 +10,15 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Added
 
+- Procesamiento de Discriminación (`dis` / `f5`) con MAT/CSV: conserva el tipo
+  seguro (`s`) o riesgo con comida (`p`) y usa la misma regla de resultado que
+  CP (`Desplaz > 1 s`: `cr`; `<= 1 s`: `nc`; `Lado=-2`: `to`). Mantiene eventos
+  `eNN`, ITIs y habituaciones. La sesión real `exp_0526_dis_d10r2` completó
+  60/60 empates y 121/121 recortes; una señal extra queda como aviso dentro de
+  `e34`, sin crear otro ensayo.
+- Pruebas DIS de sincronización y segmentación de eventos seguros/peligrosos,
+  límites de 1 s, timeout, LED previo y cobertura continua.
+
 - Regla específica de Cruces Peligrosos: cada evento conserva el orden de la
   fuente como `eNN`, usa siempre tipo `p` y obtiene `cr`/`nc` desde
   `Desplaz > 1 s` o `<= 1 s`; `Lado=-2` conserva el resultado `to`.

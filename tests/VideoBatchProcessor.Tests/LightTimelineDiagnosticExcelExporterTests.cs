@@ -64,7 +64,7 @@ public sealed class LightTimelineDiagnosticExcelExporterTests : IDisposable
         using var workbook = new XLWorkbook(output);
         var segments = workbook.Worksheet("Segmentos planeados");
         Assert.Equal("Duración total (s)", segments.Cell(1, 9).GetString());
-        Assert.Equal("Cruce por lado", segments.Cell(1, 12).GetString());
+        Assert.Equal("Resultado conductual", segments.Cell(1, 12).GetString());
         Assert.Equal("Comparación de lado", segments.Cell(1, 13).GetString());
     }
 

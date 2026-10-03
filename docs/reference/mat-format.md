@@ -55,9 +55,10 @@ sonido.
 El parser conserva `Lado` y `Desplaz` raw. La clasificación posterior depende
 de la fase y no debe imponerse dentro del parser.
 
-Para **Cruces Peligrosos (CP / `f4`)**:
+Para **Cruces Peligrosos (CP / `f4`) y Discriminación (DIS / `f5`)**,
+incluido el primer evento y tanto en seguros como en riesgo con comida:
 
-| Dato | Resultado de CP |
+| Dato | Resultado de CP y DIS |
 |------|-----------------|
 | `Lado = -2` | Timeout (`to`). |
 | `Lado` válido y `Desplaz > 1 s` | Cruce (`cr`). |
@@ -67,7 +68,7 @@ Cada fila mantiene su orden original como segmento `eNN`, incluso cuando su
 resultado sea `nc` o `to`. El código `eNN` identifica el evento cronológico;
 el resultado se consulta por separado.
 
-Para las fases que todavía usan comparación de lado:
+Para **Cruces Seguros (CS / `f2`)**, se conserva la comparación de lado:
 
 | Comparación con el último `Lado` conocido (`0` o `1`) | Resultado del lote |
 |--------------------------------------------------------|--------------------|
@@ -77,8 +78,9 @@ Para las fases que todavía usan comparación de lado:
 | `Lado = -2` | Timeout. |
 
 Un timeout no actualiza el último lado válido en esa comparación. Esta regla no
-se aplica a CP, donde `Desplaz` sí decide el resultado después de descartar
-`Lado=-2`. La regla definitiva de DIS se cerrará después de validar CP.
+se aplica a CP ni DIS, donde `Desplaz` decide el resultado después de descartar
+`Lado=-2`. En DIS, `Estim` (N×8) o `TipoEvento` (N×9) distingue seguro de
+riesgo con comida; no cambia la regla de cruce.
 
 ---
 
@@ -156,9 +158,10 @@ Variable interna: `Resultados`; shape `(71, 8)`. Sirve para ver los cuatro casos
 Lectura rápida:
 
 - `Estim=0` indica seguro; `Estim=1` indica conflicto.
-- `Lado=-2` marca timeout/no cruce.
-- Cambio de `Lado` respecto al evento anterior indica cruce; lado igual indica
-  no cruce. `Desplaz` se conserva raw.
+- `Lado=-2` marca timeout (`to`), distinto de no cruce (`nc`).
+- Con lado válido, `Desplaz > 1 s` indica cruce (`cr`) y `Desplaz <= 1 s`
+  indica no cruce (`nc`), incluso en el primer evento. No se compara el lado
+  con el evento anterior; `Desplaz` se conserva raw.
 - `Latencia` y `Desplaz` pueden diferir porque representan mediciones distintas: palanqueo vs cruce/desplazamiento.
 
 ---

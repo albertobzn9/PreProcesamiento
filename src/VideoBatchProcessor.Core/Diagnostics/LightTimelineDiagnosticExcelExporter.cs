@@ -239,7 +239,7 @@ public sealed class LightTimelineDiagnosticExcelExporter
             "Duración total (s)",
             "Duración total",
             "Tipo de ensayo",
-            "Cruce por lado",
+            "Resultado conductual",
             "Comparación de lado",
             "Evento conductual",
             "Lado actual",

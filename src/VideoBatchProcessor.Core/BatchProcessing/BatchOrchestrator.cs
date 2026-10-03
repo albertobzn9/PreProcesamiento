@@ -63,7 +63,7 @@ public sealed class BatchOrchestrator
     }
 
     /// <summary>
-    /// Encuentra recursivamente sesiones fuente CS/CP y nombres legacy
+    /// Encuentra recursivamente sesiones fuente CS/CP/DIS y nombres legacy
     /// intercambiados que todavía puedan recuperarse por contenido. Omite
     /// clips de salida y fases que pertenecen a etapas posteriores.
     /// </summary>
@@ -270,8 +270,8 @@ public sealed class BatchOrchestrator
         }
         if (!parsed.IsSourceSession)
             return new BatchCandidate(videoPath, parsed, false, "Es un clip de salida; nunca se vuelve a procesar como entrada.", alternateVideoPaths);
-        if (parsed.FaseEstandar is not "f2" and not "f4")
-            return new BatchCandidate(videoPath, parsed, false, "Esta validación procesa Cruces Seguros (f2/cs) y Cruces Peligrosos (f4/cp).", alternateVideoPaths);
+        if (parsed.FaseEstandar is not "f2" and not "f4" and not "f5")
+            return new BatchCandidate(videoPath, parsed, false, "Esta validación procesa Cruces Seguros (f2/cs), Cruces Peligrosos (f4/cp) y Discriminación (f5/dis).", alternateVideoPaths);
 
         return new BatchCandidate(videoPath, parsed, true, null, alternateVideoPaths);
     }
@@ -319,10 +319,7 @@ public sealed class BatchOrchestrator
             }
 
             reportProgress("Planeando recortes", 88);
-            var isCp = candidate.ParsedName!.FaseEstandar == "f4";
-            var resultClassificationRule = isCp
-                ? BehavioralResultClassificationRule.CpDisplacementThreshold
-                : BehavioralResultClassificationRule.SideTransition;
+            var resultClassificationRule = SegmentPlanner.GetResultClassificationRule(candidate.ParsedName!.FaseEstandar);
             var plan = _segmentPlanner.Plan(new SegmentPlanningInput(
                 scan.Metadata,
                 fullRange,
@@ -490,9 +487,9 @@ public sealed class BatchOrchestrator
             error = "La evidencia coincide, pero ni el video ni la tabla tienen un nombre con día y rata recuperables.";
             return false;
         }
-        if (parsed.FaseEstandar is not "f2" and not "f4")
+        if (parsed.FaseEstandar is not "f2" and not "f4" and not "f5")
         {
-            error = "La pareja confirmada no pertenece a Cruces Seguros ni Cruces Peligrosos.";
+            error = "La pareja confirmada no pertenece a Cruces Seguros, Cruces Peligrosos ni Discriminación.";
             return false;
         }
 
@@ -531,7 +528,7 @@ public sealed class BatchOrchestrator
             PlannedTrialType.SafeFood => "s",
             PlannedTrialType.ConflictWithFood => "p",
             null => "na",
-            _ => throw new InvalidOperationException("El lote CS no debe exportar eventos de solo ruido."),
+            _ => throw new InvalidOperationException("La exportación de eventos de solo ruido todavía no está habilitada."),
         };
         var resultCode = segment.Result switch
         {
@@ -661,6 +658,7 @@ public sealed record BatchCandidate(
 {
     public bool IsCsSource => IsSupportedSource && ParsedName?.FaseEstandar == "f2";
     public bool IsCpSource => IsSupportedSource && ParsedName?.FaseEstandar == "f4";
+    public bool IsDisSource => IsSupportedSource && ParsedName?.FaseEstandar == "f5";
 }
 
 public sealed record ExistingBatchOutput(string VideoPath, string OutputDirectory);

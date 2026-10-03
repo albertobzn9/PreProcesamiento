@@ -2,13 +2,20 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 11-09-2026
+**Fecha de revisión:** 02-10-2026
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
-Ya puede coordinar y exportar sesiones completas de Cruces Seguros desde la
-interfaz. El siguiente frente es asociar automáticamente cada video con su
-MAT/CSV por contenido y validar ese preflight con Cruces Peligrosos reales.
+Ya coordina y exporta sesiones completas de CS y CP desde la interfaz,
+emparejando cada video con MAT/CSV por contenido. CP d2r1 fue validado por el
+investigador. DIS con comida está implementado y la corrida real
+`exp_0526_dis_d10r2` terminó con 60/60 eventos empatados y 121/121 recortes.
+Se verificaron duraciones y frames de 85 recortes durante la exportación;
+la revisión visual de todos los límites sigue siendo responsabilidad del usuario.
+Esta ampliación aún no está en la app publicada.
+
+La detección adicional de comida derecha en 17:55.533–17:55.900 no tenía fila
+MAT. Se conserva como aviso y dentro del clip `e34`, sin crear un ensayo extra.
 
 ## Fuente Activa
 
@@ -55,17 +62,18 @@ en la interfaz.
 | Fuente conductual CSV V1 | Implementada para contrato histórico de 9 columnas | Resolver de rutas, validación estricta y lector de eventos/palanqueos. Antes de automatizar CajaValentia falta aceptar su CSV actual de 10 columnas con `ensayo_cruce`. |
 | MAT histórico | Implementado para MAT Level-5 N×8/N×9 | `MatV5MatrixReader` lee la matriz binaria sin MATLAB ni modificar el archivo; se comprobó con `exp_0526_cs_d4r4.mat` (67×8). MAT HDF5/v7.3 todavía no está cubierto. |
 | Sincronización video-conducta por sesión | Implementada y probada | `BehavioralVideoSynchronizer` estima desfase por sesión y devuelve listo/aviso/bloqueo sin cambiar archivos. `BatchOrchestrator` ya la aplica antes de exportar cada sesión CS. |
-| Emparejamiento automático por lote | Integrado; pendiente de prueba CP real | `Procesar sesiones` ejecuta `BatchSessionPairingAnalyzer` antes de recortar. Lee cada entrada una vez, compara todas las combinaciones y solo confirma parejas fuertes. Detecta MAT duplicados, nombres cruzados, ambigüedades y archivos sin pareja en `emparejamiento_sesiones.csv`. MP4 tiene prioridad y MKV funciona como respaldo. El nombre nunca decide la pareja. Una discrepancia se detiene y la interfaz permite elegir otra tabla para comprobarla u omitir el video. La barra pondera el avance por frames de video para no aparentar un bloqueo después de leer muchos MAT pequeños. |
-| SegmentPlanner inicial | Implementado, probado y validado con CS completo; regla CP implementada | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En CP usa `Lado=-2` para timeout y clasifica los demás eventos con `Desplaz > 1 s` como cruce o `<= 1 s` como no cruce. Los ITIs mantienen el número del evento anterior (`iti01`, `iti02`, etc.). Falta `SoundOnly`, validación CP completa y definición de DIS. |
-| Procesamiento por lote CS/CP | CS validado; CP listo para prueba real | En CP, cada evento conserva su orden como `e01`, `e02`, `e03`..., el tipo siempre es `p` y el resultado es `cr`, `nc` o `to`. `Procesar sesiones` toma la cámara y calibración confirmadas de una sesión de referencia y puede procesar uno o muchos videos. Primero confirma cada MAT/CSV por contenido, reutiliza ese escaneo para sincronizar y exportar, y bloquea parejas dudosas. La prueba rápida crea cinco clips de eventos/ITIs sin habituación. Cada carpeta termina en `_recortes` y conserva diagnóstico, `clips_exportados.csv` y un checkpoint de progreso; los eventos reciben cinco frames de contexto antes y después. |
+| Emparejamiento automático por lote | Integrado; primera corrida DIS real completada | `Procesar sesiones` ejecuta `BatchSessionPairingAnalyzer` antes de recortar. Lee cada entrada una vez, compara todas las combinaciones y solo confirma parejas fuertes. Detecta MAT duplicados, nombres cruzados, ambigüedades y archivos sin pareja en `emparejamiento_sesiones.csv`. MP4 tiene prioridad y MKV funciona como respaldo. El nombre nunca decide la pareja. Una discrepancia se detiene y la interfaz permite elegir otra tabla para comprobarla u omitir el video. La barra pondera el avance por frames de video para no aparentar un bloqueo después de leer muchos MAT pequeños. |
+| SegmentPlanner inicial | CS y CP validados; primera corrida DIS real completada | Parte exclusivamente de eventos MAT/CSV ya empatados; crea habituación, eventos, ITIs y final cuando el rango es completo. En CP y DIS usa `Lado=-2` para timeout y clasifica los demás eventos con `Desplaz > 1 s` como cruce o `<= 1 s` como no cruce. Los ITIs mantienen el número del evento anterior (`iti01`, `iti02`, etc.). Falta `SoundOnly` y ampliar la validación DIS. |
+| Procesamiento por lote CS/CP/DIS | DIS probado con una sesión real | Cada evento conserva su orden como `e01`, `e02`, `e03`...; en DIS el tipo alterna entre `s` y `p` según la tabla, con resultado `cr`, `nc` o `to`. `Procesar sesiones` toma la cámara y calibración confirmadas de una sesión de referencia y puede procesar uno o muchos videos. Primero confirma cada MAT/CSV por contenido, reutiliza ese escaneo para sincronizar y exportar, y bloquea parejas dudosas. La prueba rápida crea cinco clips de eventos/ITIs sin habituación. Cada carpeta termina en `_recortes` y conserva diagnóstico, `clips_exportados.csv` y un checkpoint de progreso; los eventos reciben cinco frames de contexto antes y después. |
 | Interfaz de carga | Integrada | En macOS se verificó diseño HTML local, selector nativo y reconocimiento de nombres legacy. |
 | Preview de video | Integrado y validado manualmente en macOS | `VideoReader` devuelve el primer frame JPEG y metadata reales a la interfaz. |
 | CameraSetup inicial | Integrado y validado manualmente en macOS | Giro de 180°, espejo y recorte en modal actualizan el JPEG mostrado mediante `VideoTransformPreviewRenderer`. Junto con las ROIs se guarda un perfil local, asociado a la ruta del video, en coordenadas del video fuente; al reabrirlo se convierte al frame preparado que usa el escáner. |
 | Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado y los conserva en el perfil local del video. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-El estado actual compila y tiene **211 pruebas** aprobadas. La interfaz también
-compila con Avalonia 12 y mantiene esas 211 pruebas.
+La ampliación DIS tiene **224 pruebas** aprobadas. Incluyen la regla compartida
+CP/DIS, umbral exacto de 1 s, timeout y una sesión DIS sintética que verifica
+sincronización, límites de comida/LED, orden y cobertura continua.
 
 ## Interfaz Actual
 
@@ -185,12 +193,11 @@ raw, sin generar trabajo manual.
 2. Completar el empaquetado administrado: la base `.app`/Windows y la detección
    interna de FFmpeg/ffprobe ya existen; faltan elegir binarios portables con
    licencia trazable, probarlos en las tres plataformas y firmar las entregas.
-3. Habilitar lotes CP completos y después extender `BatchOrchestrator` a DIS,
-   una vez aprobada la prueba real acotada.
+3. Ampliar la validación DIS a otras sesiones antes de publicar una nueva app.
 4. Lector del manifiesto de captura de CajaValentia y compatibilidad del CSV
    actual de 10 columnas antes de habilitar procesamiento automático.
 
-### Próxima validación focalizada
+### Validación CP Anterior
 
 1. Cargar `exp_0526_cp_d5r1.mp4` y `exp_0526_cp_r1d5.mp4` desde la carpeta de prueba.
    `r1d5` puede corregirse con el botón **Corregir** si se conoce su nombre real,
@@ -227,13 +234,12 @@ raw, sin generar trabajo manual.
 
 ## Próximo Orden Recomendado
 
-1. Calibrar `exp_0526_cp_d5r1.mp4` y procesarlo junto con
-   `exp_0526_cp_r1d5.mp4` en modo de cinco clips.
-2. Revisar `emparejamiento_sesiones.csv` y confirmar la asociación del nombre
-   intercambiado con `exp_0526_cp_d5r2.mat`.
-3. Confirmar que ninguna pareja
-   dudosa se recorte automáticamente.
-4. Habilitar la planeación/exportación CP y después validar DIS.
+1. Elegir un video DIS real y su MAT, confirmar ROIs y calibrar comida + LED.
+2. Ejecutar la prueba de cinco clips y revisar el diagnóstico; comprobar que
+   haya ejemplos seguros y peligrosos antes de dar por validada la mezcla.
+3. Corroborar tiempos en el original, `eNN`/`itiNN`, tipo `s`/`p` y resultado
+   por desplazamiento, incluidos timeouts si existen.
+4. Repetir la validación en otra sesión; d10r2 ya completó el procesamiento.
 
 ## Lectura Para Retomar
 
