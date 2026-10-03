@@ -60,14 +60,31 @@ jobs:
         shell: pwsh
         run: ./scripts/package-windows.ps1 -Version "${{ inputs.version }}"
 
+      - name: Ensure Microsoft WebView2 Runtime is installed
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebview2Setup.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $installer
+          $install = Start-Process -FilePath $installer -ArgumentList "/silent", "/install" -PassThru -Wait
+          if ($install.ExitCode -ne 0) {
+              throw "WebView2 Runtime installer failed with code $($install.ExitCode)."
+          }
+
       - name: Smoke test packaged application
         shell: pwsh
         run: |
           $app = Join-Path $PWD "artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor/VideoBatchProcessor.exe"
+          $started = Get-Date
           $process = Start-Process -FilePath $app -PassThru
           Start-Sleep -Seconds 10
           $process.Refresh()
           if ($process.HasExited) {
+              Get-WinEvent -FilterHashtable @{ LogName = "Application"; StartTime = $started } -ErrorAction SilentlyContinue |
+                  Where-Object { $_.ProviderName -in ".NET Runtime", "Application Error" } |
+                  Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+                  Format-List |
+                  Out-String |
+                  Write-Host
               throw "Packaged application exited during the launch smoke test (code $($process.ExitCode))."
           }
           Stop-Process -Id $process.Id -Force

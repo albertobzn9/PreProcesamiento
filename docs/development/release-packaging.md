@@ -53,6 +53,9 @@ El resultado contiene `VideoBatchProcessor.exe`, todas sus dependencias, las
 herramientas multimedia y su archivo `.sha256` dentro del artefacto del workflow.
 Esta forma es adecuada para validación interna. Después de probarla manualmente
 en una computadora del laboratorio se puede crear un instalador MSIX firmado.
+La interfaz usa Microsoft WebView2: Windows 11 normalmente ya lo incluye;
+Windows 10 puede requerir instalar el runtime Evergreen de Microsoft. La máquina
+virtual lo instala antes de comprobar el arranque del paquete.
 
 ## Validación Obligatoria
 
