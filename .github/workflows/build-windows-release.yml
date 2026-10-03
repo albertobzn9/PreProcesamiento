@@ -25,7 +25,7 @@ jobs:
 
       - name: Run automated tests
         shell: pwsh
-        run: dotnet test VideoBatchProcessor.sln --configuration Release
+        run: dotnet test tests/VideoBatchProcessor.Tests/VideoBatchProcessor.Tests.csproj --configuration Release
 
       - name: Download verified FFmpeg 9.0.2
         shell: pwsh
