@@ -50,5 +50,5 @@ foreach ($RequiredPath in @(
 
 Compress-Archive -Path "$PublishDirectory/*" -DestinationPath $ZipPath -Force
 $Digest = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -Path "$ZipPath.sha256" -Value "$Digest  $(Split-Path $ZipPath -Leaf)"
+Set-Content -Path "$ZipPath.sha256" -Value "$Digest  $(Split-Path $ZipPath -Leaf)" -NoNewline
 Write-Host "Paquete creado: $ZipPath"
