@@ -66,7 +66,10 @@ fi
 
 codesign --verify --deep --strict "$APP_DIR"
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
-shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+(
+  cd "$OUTPUT_ROOT"
+  shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH").sha256"
+)
 
 "$ROOT/scripts/verify-package.sh" "$APP_DIR" "$RID"
 echo "Paquete creado: $ZIP_PATH"
