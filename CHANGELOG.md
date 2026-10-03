@@ -8,6 +8,15 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ## [Unreleased]
 
+### Fixed
+
+- Calibración: imagen y círculos ROI comparten ahora el mismo tamaño visible,
+  incluso al redimensionar la ventana. Antes la imagen podía desbordar la capa
+  de círculos y desplazarlos visualmente. No cambia las coordenadas guardadas,
+  los umbrales ni el análisis. Pruebas de interfaz en `tests/WebUi`.
+- La barra de progreso del lote muestra el estado una sola vez y mantiene el
+  porcentaje separado; antes repetía el mismo mensaje encima de la barra.
+
 ### Added
 
 - Procesamiento de Discriminación (`dis` / `f5`) con MAT/CSV: conserva el tipo
