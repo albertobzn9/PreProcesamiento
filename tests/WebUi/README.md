@@ -21,6 +21,9 @@ instalado, agregar `UI_CHANNEL=chrome` a la segunda ejecución.
 cancelar no procese y que seguir sin tabla requiera una decisión explícita.
 También comprueba la palomita de tabla leída y la persistencia de los errores.
 
+`video-setup-panel.test.cjs` cubre arrastre, límites, teclado, restauración,
+persistencia y ventanas pequeñas; verifica que cámara y calibración no cambien.
+
 La prueba integral de backend con video sintético y exportación real se activa
 indicando la ruta de FFmpeg (no usa videos ni tablas del investigador):
 

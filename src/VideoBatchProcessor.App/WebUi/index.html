@@ -20,8 +20,13 @@
     .brand p { margin:3px 0 0; color:#52647e; font-size:14px; }
     .top-actions { display:flex; align-items:center; gap:20px; color:#52647e; font-size:23px; }
     .top-actions img { width:50px; height:42px; object-fit:contain; }
-    .workspace { min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 400px; }
-    .center { min-width:0; overflow:auto; padding:30px; background:#fbfcfe; }
+    .workspace { min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 8px var(--setup-width,400px); }
+    .center { min-width:0; overflow:auto; padding:30px; background:#fbfcfe; container-type:inline-size; }
+    .setup-divider { position:relative; cursor:col-resize; touch-action:none; background:var(--surface); outline:none; }
+    .setup-divider::after { content:''; position:absolute; width:2px; height:42px; top:50%; left:3px; border-radius:2px; background:#94a3b8; transform:translateY(-50%); }
+    .setup-divider:hover, .setup-divider:focus-visible { background:#dbeafe; }
+    .setup-divider:focus-visible::after { background:var(--navy); }
+    body.resizing-setup, body.resizing-setup * { cursor:col-resize !important; user-select:none !important; }
     .dropzone { min-height:160px; padding:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; border:2px dashed #b8c0cc; border-radius:10px; background:white; transition:background .15s,border-color .15s; }
 
     .upload-icon { color:#52647e; font-size:42px; line-height:1; }
@@ -52,7 +57,7 @@
     .cell { color:#52647e; font-size:12px; font-weight:700; }
     .remove { border:0; background:transparent; color:#64748b; font-size:20px; }
     .remove:hover { color:var(--red); }
-    .right { overflow:auto; padding:27px 30px; border-left:1px solid var(--line); background:#f8fafc; }
+    .right { min-width:0; overflow:auto; padding:27px 30px; border-left:1px solid var(--line); background:#f8fafc; overflow-wrap:anywhere; }
     .settings-card { margin-bottom:20px; padding:20px; border:1px solid var(--line); border-radius:6px; background:white; }
     .settings-card h3 { display:flex; gap:10px; align-items:center; margin:0 0 22px; padding-bottom:14px; border-bottom:1px solid var(--line); font-size:15px; letter-spacing:.08em; }
     .preview-empty { color:#64748b; font-size:13px; line-height:1.45; }
@@ -192,7 +197,9 @@
     .process:disabled { cursor:wait; opacity:.7; }
     .notice { position:fixed; right:24px; bottom:78px; max-width:340px; padding:12px 15px; border:1px solid var(--line); border-radius:6px; background:white; box-shadow:0 8px 24px rgba(15,23,42,.12); color:#334155; font-size:13px; opacity:0; transform:translateY(10px); transition:.2s; pointer-events:none; }
     .notice.show { opacity:1; transform:translateY(0); }
-    @media (max-width:1100px) { .workspace { grid-template-columns:minmax(0,1fr) 340px; } .center { padding:18px; } .right { padding:20px; } .file-row { grid-template-columns:minmax(110px,1fr) 105px 32px 48px 48px 24px; gap:8px; padding:10px; } }
+    @container (max-width:620px) { .file-row { grid-template-columns:minmax(0,1fr) 115px 24px; gap:8px; padding:10px; } .file-row .cell { display:none; } .file-row .remove { grid-column:3; grid-row:1; } .file-card-head { flex-wrap:wrap; gap:10px; padding:12px; } }
+    @media (max-width:1100px) { .center { padding:18px; } .right { padding:20px; } }
+    @media (max-width:760px) { .setup-divider { display:none; } }
     @media (max-width:760px) { .workspace { display:block; overflow:auto; } .center, .right { overflow:visible; } .right { border-left:0; border-top:1px solid var(--line); } .topbar { padding:0 14px; } .brand { gap:8px; } .brand h1 { font-size:17px; } .brand img { width:42px; } .top-actions img { width:36px; } .file-row { grid-template-columns:minmax(0,1fr) 115px 24px; } .file-row .cell { display:none; } .file-row .remove { grid-column:3; grid-row:1; } .dropzone h2 { font-size:20px; } .dropzone p { text-align:center; font-size:14px; } .drop-actions { flex-wrap:wrap; justify-content:center; } .footer { padding:10px 14px; gap:12px; } .process { padding:0 12px; font-size:13px; } }
   </style>
 </head>
@@ -262,6 +269,7 @@
     </section>
   </div>
   <script src="vendor/cropper-1.6.2.min.js"></script>
+  <script src="video-setup-panel.js"></script>
   <script>
     const state = { sessions: [], selectedSessionId: null, renameSessionId: null, pairingFlags: [], preview: null, cropEditorImageDataUrl: null, imageDataUrl: null, camera: { rotation: 'None', mirrorHorizontally: false, crop: null }, lightRois: null, draftLightRois: null, roiDisplay: null, activeLight: 'foodLeft', roiZoom: 1, roiPan: { x: 0, y: 0 }, roiPanMode: false, calibration: { frame: null, offReference: null, activeReference: null, foodSide: 'FoodLeft', saved: null, requestId: 0 }, lightTimeline: null, timelineRunning: false, timelineProgress: null, timelineRangeMode: 'time', timelineRange: null, batchRunning: false };
     let cropper = null;

@@ -25,8 +25,10 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
   sincronizados en Excel e índices. Resultado conductual desconocido (`na`),
   numeración visual independiente de filas MAT y protección contra reanudar
   salidas de otro modo. El flujo con tabla conserva sus reglas.
-- Especificación de futura tabla manual Excel N×8. La importación y el ajuste
-  de ancho de Video Setup siguen pendientes.
+- Ancho ajustable de Video Setup mediante su división izquierda, con límites,
+  persistencia local, teclado y doble clic para restablecer. No cambia los datos
+  de cámara ni procesamiento; en ventanas pequeñas se conserva la vista apilada.
+- Especificación de futura tabla manual Excel N×8. La importación sigue pendiente.
 
 ## [0.2.0] - 2026-10-02
 

@@ -28,10 +28,14 @@ como aproximada y no sincronizada. No se reanuda una carpeta de modo distinto
 o desconocido; se debe archivar antes. El planner conductual y sus reglas no
 cambian. Esta excepción no implica validación experimental sin MAT.
 
-**Siguientes pasos separados:** permitir ajustar el ancho de Video Setup y,
-después, importar una tabla manual Excel N×8 con el orden definido en
+**Video Setup:** su borde izquierdo permite ajustar el ancho entre 320 y 640 px,
+sin quitar espacio mínimo a la lista. El ancho se recuerda localmente; un doble
+clic restaura el predeterminado. La división admite teclado y se oculta cuando
+los paneles se apilan en ventanas pequeñas. No modifica cámara, ROIs ni análisis.
+
+**Siguiente paso separado:** importar una tabla manual Excel N×8 con el orden definido en
 [Formato MAT](../reference/mat-format.md#tabla-manual-en-excel-pendiente).
-Ambas mejoras quedan pendientes.
+La importación queda pendiente.
 
 ## Stack tecnológico
 

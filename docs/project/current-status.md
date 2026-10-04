@@ -13,10 +13,12 @@ analizó un video sintético y exportó cinco MP4 con FFmpeg, comprobando que se
 abren y que su número de frames coincide. La tabla se detecta al cargar o
 seleccionar el video y muestra palomita solo si se pudo leer (no confirma aún
 sincronización). El avance muestra frames y los errores no desaparecen.
-El usuario reportó un bloqueo sin MAT; no se reprodujo con el video de prueba
-y falta corroborar su archivo específico. No está en la app instalada ni
-en una nueva release. Pendientes separados: ancho de Video Setup e importación
-manual Excel N×8 (ver [formato](../reference/mat-format.md#tabla-manual-en-excel-pendiente)).
+El usuario confirmó que el paso 1 funciona después de los ajustes; quedó
+guardado en el commit `0acaeae`. El paso 2 agrega ancho ajustable de Video Setup,
+con límites, memoria local y doble clic para restablecer. Sus pruebas de interfaz
+pasaron; falta la revisión del usuario. No está en la app instalada ni en una
+nueva release. Sigue pendiente importar una tabla manual Excel N×8 (ver
+[formato](../reference/mat-format.md#tabla-manual-en-excel-pendiente)).
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
