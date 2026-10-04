@@ -52,6 +52,7 @@ public sealed class LightTimelineScanner
             effectiveRange.Validate(videoFrames);
             var totalFrames = effectiveRange.FrameCount;
             var lastReportedPercent = -1;
+            var progressClock = System.Diagnostics.Stopwatch.StartNew();
             using var brightness = new ReusableFrameBrightnessSource(sourceLightConfig!);
 
             ReportProgress(0);
@@ -82,10 +83,12 @@ public sealed class LightTimelineScanner
             void ReportProgress(int framesProcessed)
             {
                 var update = new LightTimelineScanProgress(framesProcessed, totalFrames);
-                if (update.Percent <= lastReportedPercent && framesProcessed != totalFrames)
+                if (update.Percent <= lastReportedPercent && framesProcessed != totalFrames &&
+                    progressClock.Elapsed < TimeSpan.FromSeconds(1))
                     return;
 
                 lastReportedPercent = update.Percent;
+                progressClock.Restart();
                 progress?.Report(update);
             }
         }

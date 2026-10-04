@@ -20,4 +20,5 @@ public sealed record LightTimelineDiagnosticReport(
     IReadOnlyList<BehavioralEvent> BehavioralEvents,
     string? BehavioralSourcePath,
     string? BehavioralReadError,
-    BehavioralResultClassificationRule ResultClassificationRule = BehavioralResultClassificationRule.SideTransition);
+    BehavioralResultClassificationRule ResultClassificationRule = BehavioralResultClassificationRule.SideTransition,
+    bool VideoOnly = false);

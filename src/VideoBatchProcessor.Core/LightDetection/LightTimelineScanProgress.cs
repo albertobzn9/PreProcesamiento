@@ -2,7 +2,8 @@ namespace VideoBatchProcessor.Core.LightDetection;
 
 /// <summary>
 /// Avance observable de un escaneo de luces. Se reporta en porcentajes enteros
-/// para que la interfaz informe trabajo real sin recibir un mensaje por frame.
+/// y conteos de frames. El scanner avisa al cambiar de porcentaje o, si avanza
+/// más despacio, una vez por segundo mientras recibe frames.
 /// </summary>
 public sealed record LightTimelineScanProgress(
     int FramesProcessed,

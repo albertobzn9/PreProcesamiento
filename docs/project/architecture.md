@@ -1,5 +1,38 @@
 # Video Batch Processor — Propuesta de Solución
 
+## Excepción Explícita: Procesar Sin Tabla
+
+El flujo recomendado sigue siendo video + MAT/CSV validado. Al cargar o
+seleccionar un video se busca su tabla del mismo nombre en la misma carpeta;
+la palomita indica que se pudo leer, no que esté sincronizada. Si no se encuentra
+una tabla principal por nombre, la interfaz avisa antes del análisis y permite
+elegirla con `Choose MAT/CSV`, cancelar o autorizar `Continue without table`.
+La autorización aplica solo a esos videos y a esa ejecución. Los candidatos
+MAT/CSV disponibles todavía se comparan por contenido: una pareja confirmada
+usa siempre el flujo normal. Una tabla dañada o una pareja ambigua no habilitan
+esta excepción automáticamente.
+
+El escaneo informa frames procesados incluso cuando el porcentaje no cambia;
+los fallos conservan su explicación visible al terminar, sin aparentar éxito.
+
+Sin pareja y con autorización, `VisualOnlySegmentPlanner` agrupa señales de luz
+que se superponen. Produce recortes aproximados, con orden visual `e01`, `e02`,
+etc., sin crear filas MAT. No calcula desfase conductual ni resultados `cr`,
+`nc` o `to`; el resultado es desconocido (`na`). Habituación e ITI son etiquetas
+provisionales; una señal sin apagado termina en el límite analizado y genera
+aviso. Sin señales no se inventan eventos. No se usa un delay fijo para unir
+LED y comida separados, por lo que el conteo visual puede diferir del real.
+
+El Excel, `clips_exportados.csv` y `processing_mode.txt` identifican la salida
+como aproximada y no sincronizada. No se reanuda una carpeta de modo distinto
+o desconocido; se debe archivar antes. El planner conductual y sus reglas no
+cambian. Esta excepción no implica validación experimental sin MAT.
+
+**Siguientes pasos separados:** permitir ajustar el ancho de Video Setup y,
+después, importar una tabla manual Excel N×8 con el orden definido en
+[Formato MAT](../reference/mat-format.md#tabla-manual-en-excel-pendiente).
+Ambas mejoras quedan pendientes.
+
 ## Stack tecnológico
 
 | Capa | Tecnología |
@@ -464,7 +497,9 @@ Reglas actuales:
 7. `_palanqueos.csv` nunca se considera fuente principal;
 8. un archivo ilegible no cancela el inventario completo: queda señalado para
    corregirse;
-9. una pareja ambigua o ausente se marca y no llega al recorte automático;
+9. una pareja ambigua o ausente se marca y no llega al recorte sincronizado;
+   solo la ausencia, con autorización explícita, permite el modo aproximado
+   descrito al inicio del documento;
 10. el usuario tiene la decisión final: puede elegir otra tabla principal para
     volver a comprobarla u omitir el video después de revisar la alerta;
 11. corregir el nombre organiza el archivo, pero nunca sustituye la comprobación
@@ -592,7 +627,7 @@ VideoSegment = {
    separada para CS. En DIS la regla de desplazamiento aplica a seguros y
    riesgo con comida, incluido el primer evento.
 
-Por eso los clips no se recortan "solo desde las luces" ni "solo desde el
+En el flujo sincronizado, los clips no se recortan "solo desde las luces" ni "solo desde el
 MAT": el MAT/CSV define qué debe existir y el video aporta el desfase y los
 límites visibles que rodean al evento.
 

@@ -86,7 +86,7 @@ public sealed class BatchSessionPairingAnalyzerTests : IDisposable
             new CollectingProgress<BatchSessionPairingProgress>(updates));
 
         Assert.Contains(updates, item => item.Stage == "Analizando luces del video" && item.CurrentInputPercent == 0 && item.Percent == 5);
-        Assert.Contains(updates, item => item.Stage == "Analizando luces del video" && item.CurrentInputPercent == 50 && item.Percent == 50);
+        Assert.Contains(updates, item => item.Stage.Contains("50/100 frames") && item.CurrentInputPercent == 50 && item.Percent == 50);
         Assert.Equal(100, updates[^1].Percent);
     }
 

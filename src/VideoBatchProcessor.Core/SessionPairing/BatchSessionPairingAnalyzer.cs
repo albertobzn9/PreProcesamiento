@@ -105,7 +105,7 @@ public sealed class BatchSessionPairingAnalyzer
                         completedInputs,
                         totalInputs,
                         selected.VideoPath,
-                        "Analizando luces del video",
+                        $"Analyzing lights: {update.FramesProcessed:N0}/{update.TotalFrames:N0} frames",
                         update.Percent,
                         VideoProgress(videoIndex, selectedVideos.Length, update.Percent))));
                 videoEvidence.Add(_videoReader.Read(

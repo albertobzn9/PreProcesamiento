@@ -119,6 +119,9 @@ public sealed class BatchOrchestrator
             : DiscoverCandidates(request.InputDirectory);
         var pairingCandidates = candidates.Where(candidate => candidate.IsSupportedSource).ToArray();
         var behavioralSources = DiscoverBehavioralSources(request, pairingCandidates);
+        var missingSources = FindMissingBehavioralSources(request).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var videoOnlyAllowed = (request.VideoOnlySourcePaths ?? [])
+            .Select(Path.GetFullPath).Where(missingSources.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var pairingProgress = new InlineProgress<BatchSessionPairingProgress>(update =>
             progress?.Report(new BatchProcessingProgress(
                 0,
@@ -127,7 +130,8 @@ public sealed class BatchOrchestrator
                 $"Emparejando sesiones: {update.Stage}",
                 (int)Math.Round(update.Percent * 0.75d))));
         var pairing = _pairingAnalyzer.Analyze(
-            pairingCandidates.Select(candidate => candidate.VideoPath),
+            pairingCandidates.Select(candidate => candidate.VideoPath)
+                .Where(path => behavioralSources.Count > 0 || videoOnlyAllowed.Contains(Path.GetFullPath(path))),
             behavioralSources,
             request.Transform,
             request.LightConfig,
@@ -156,6 +160,15 @@ public sealed class BatchOrchestrator
             {
                 report = BatchSessionReport.Skipped(candidate.VideoPath, candidate.SkipReason!);
             }
+            else if (videoOnlyAllowed.Contains(Path.GetFullPath(candidate.VideoPath)) &&
+                     pairingByVideo.TryGetValue(Path.GetFullPath(candidate.VideoPath), out var visualResolution) &&
+                     visualResolution.Status == SessionPairingStatus.NoMatch &&
+                     evidenceByVideo.TryGetValue(Path.GetFullPath(candidate.VideoPath), out var visualEvidence))
+            {
+                report = await ProcessCandidateAsync(candidate, request,
+                    new PairedSessionEvidence(visualEvidence, null, null),
+                    (message, sessionPercent) => ReportProgress(message, index, sessionPercent), cancellationToken);
+            }
             else if (!pairingByVideo.TryGetValue(Path.GetFullPath(candidate.VideoPath), out var resolution) ||
                      resolution.Status != SessionPairingStatus.Confirmed ||
                      resolution.SelectedCandidate is null ||
@@ -165,7 +178,10 @@ public sealed class BatchOrchestrator
             {
                 report = BatchSessionReport.Blocked(
                     candidate.VideoPath,
-                    resolution?.Message ?? FindInputIssue(pairing, candidate.VideoPath) ?? "No se pudo preparar la evidencia de esta sesión.");
+                    resolution?.Message ?? FindInputIssue(pairing, candidate.VideoPath) ??
+                    (missingSources.Contains(Path.GetFullPath(candidate.VideoPath))
+                        ? "Missing MAT/CSV. Choose a table or explicitly authorize video-only estimates."
+                        : "No se pudo preparar la evidencia de esta sesión."));
             }
             else if (!TryCreatePairedCandidate(candidate, resolution.BehavioralSourcePath, out var pairedCandidate, out var pairingError))
             {
@@ -291,10 +307,11 @@ public sealed class BatchOrchestrator
         try
         {
             reportProgress("Preparando metadata y evidencia", 5);
-            var behavioralSourcePath = pairedEvidence.Behavioral.SourcePath;
+            var behavioralSourcePath = pairedEvidence.Behavioral?.SourcePath;
+            var videoOnly = pairedEvidence.Behavioral is null;
             var metadata = _metadataResolver.Resolve(
                 candidate.ParsedName!,
-                WithBehavioralOverride(request.Manifest, candidate.VideoPath, behavioralSourcePath),
+                behavioralSourcePath is null ? request.Manifest : WithBehavioralOverride(request.Manifest, candidate.VideoPath, behavioralSourcePath),
                 candidate.VideoPath);
             if (!metadata.IsComplete)
             {
@@ -308,8 +325,8 @@ public sealed class BatchOrchestrator
             var intervals = pairedEvidence.Video.VisualIntervals;
             var fullRange = pairedEvidence.Video.ScanRange;
             var synchronization = pairedEvidence.Synchronization;
-            reportProgress("Pareja video-conducta confirmada", 82);
-            if (synchronization.Status == BehavioralVideoSynchronizationStatus.Blocked)
+            reportProgress(videoOnly ? "Video-only estimate (no MAT/CSV)" : "Pareja video-conducta confirmada", 82);
+            if (synchronization?.Status == BehavioralVideoSynchronizationStatus.Blocked)
             {
                 return BatchSessionReport.Blocked(
                     candidate.VideoPath,
@@ -320,18 +337,22 @@ public sealed class BatchOrchestrator
 
             reportProgress("Planeando recortes", 88);
             var resultClassificationRule = SegmentPlanner.GetResultClassificationRule(candidate.ParsedName!.FaseEstandar);
-            var plan = _segmentPlanner.Plan(new SegmentPlanningInput(
+            var plan = videoOnly
+                ? new VisualOnlySegmentPlanner().Plan(scan.Metadata, fullRange, intervals)
+                : _segmentPlanner.Plan(new SegmentPlanningInput(
                 scan.Metadata,
                 fullRange,
                 intervals,
-                pairedEvidence.Behavioral.Events,
-                synchronization,
+                pairedEvidence.Behavioral!.Events,
+                synchronization!,
                 resultClassificationRule));
             if (plan.Segments.Count == 0)
             {
                 return BatchSessionReport.Blocked(
                     candidate.VideoPath,
-                    "No se pudo planear ningún segmento de esta sesión.",
+                    videoOnly
+                        ? "No stable light intervals were detected. Check the ROIs and ON/OFF calibration; no clips were created."
+                        : "No se pudo planear ningún segmento de esta sesión.",
                     behavioralSourcePath,
                     synchronization,
                     plan.Warnings);
@@ -348,6 +369,12 @@ public sealed class BatchOrchestrator
             }
 
             Directory.CreateDirectory(sessionOutputDirectory);
+            var modePath = Path.Combine(sessionOutputDirectory, "processing_mode.txt");
+            if (resumeExistingOutput && (!File.Exists(modePath) ||
+                File.ReadAllText(modePath).StartsWith("VIDEO ONLY", StringComparison.Ordinal) != videoOnly))
+                return BatchSessionReport.Blocked(candidate.VideoPath,
+                    "Existing output has a different or unknown processing mode. Archive it before processing again.");
+            File.WriteAllText(modePath, videoOnly ? VisualOnlySegmentPlanner.Notice : $"SYNCHRONIZED - Behavioral source: {behavioralSourcePath}");
             reportProgress("Guardando diagnóstico", 91);
             var diagnosticPath = Path.Combine(sessionOutputDirectory, "diagnostico_luces.xlsx");
             if (!resumeExistingOutput || !File.Exists(diagnosticPath))
@@ -359,10 +386,11 @@ public sealed class BatchOrchestrator
                     scan.Timeline,
                     intervals,
                     request.LightConfig,
-                    pairedEvidence.Behavioral.Events,
+                    pairedEvidence.Behavioral?.Events ?? [],
                     behavioralSourcePath,
-                    null,
-                    resultClassificationRule), diagnosticPath);
+                    videoOnly ? VisualOnlySegmentPlanner.Notice : null,
+                    resultClassificationRule,
+                    VideoOnly: videoOnly), diagnosticPath);
             }
 
             var exports = new List<BatchClipReport>();
@@ -402,6 +430,7 @@ public sealed class BatchOrchestrator
 
                 if (!exported.Succeeded)
                 {
+                    TryWriteStatus("Fallido", exported.ErrorMessage ?? "No se pudo exportar un clip.");
                     return BatchSessionReport.Failed(
                         candidate.VideoPath,
                         exported.ErrorMessage ?? "No se pudo exportar un clip.",
@@ -417,11 +446,11 @@ public sealed class BatchOrchestrator
             BatchClipManifestWriter.Write(manifestPath, exports);
             BatchProgressStatusWriter.Write(statusPath, "Completado", exports.Count, segmentsToExport.Count);
 
-            var hasWarnings = synchronization.Status == BehavioralVideoSynchronizationStatus.Warning || plan.Warnings.Count > 0;
+            var hasWarnings = videoOnly || synchronization?.Status == BehavioralVideoSynchronizationStatus.Warning || plan.Warnings.Count > 0;
             return new BatchSessionReport(
                 candidate.VideoPath,
                 hasWarnings ? BatchSessionStatus.ExportedWithWarnings : BatchSessionStatus.Exported,
-                null,
+                videoOnly ? VisualOnlySegmentPlanner.Notice : null,
                 behavioralSourcePath,
                 synchronization,
                 plan.Warnings,
@@ -467,9 +496,30 @@ public sealed class BatchOrchestrator
             .Where(directory => !string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .SelectMany(directory => Directory.EnumerateFiles(directory!, "*", SearchOption.TopDirectoryOnly))
+            .Concat(request.Manifest.Overrides.Values
+                .Select(item => item.BehavioralSourcePath ?? item.MatPath)
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!))
             .Where(BatchSessionPairingAnalyzer.IsMainBehavioralSource)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    public IReadOnlyList<string> FindMissingBehavioralSources(BatchProcessingRequest request)
+    {
+        var candidates = request.SourceVideoPaths is { Count: > 0 }
+            ? DiscoverCandidates(request.SourceVideoPaths) : DiscoverCandidates(request.InputDirectory);
+        return candidates.Where(candidate => candidate.IsSupportedSource && candidate.ParsedName?.IsSourceSession == true)
+            .Where(candidate =>
+            {
+                var metadata = _metadataResolver.Resolve(candidate.ParsedName!, request.Manifest, candidate.VideoPath);
+                // A present but invalid table is a data error, not consent to bypass synchronization.
+                var stem = Path.Combine(Path.GetDirectoryName(candidate.VideoPath)!, Path.GetFileNameWithoutExtension(candidate.VideoPath));
+                return metadata.SourceBehavioralPath is null && !File.Exists(stem + ".mat") && !File.Exists(stem + ".csv") &&
+                       !(request.Manifest.Overrides.TryGetValue(Path.GetFileNameWithoutExtension(candidate.VideoPath), out var manual) &&
+                         (manual.BehavioralSourcePath is not null || manual.MatPath is not null)) &&
+                       request.BehavioralSourcePaths is not { Count: > 0 };
+            })
+            .Select(candidate => Path.GetFullPath(candidate.VideoPath)).ToArray();
     }
 
     private bool TryCreatePairedCandidate(
@@ -633,7 +683,8 @@ public sealed record BatchProcessingRequest(
     BatchExportMode ExportMode = BatchExportMode.ValidationSample,
     IReadOnlyList<string>? SourceVideoPaths = null,
     ExistingOutputPolicy ExistingOutputPolicy = ExistingOutputPolicy.Block,
-    IReadOnlyList<string>? BehavioralSourcePaths = null);
+    IReadOnlyList<string>? BehavioralSourcePaths = null,
+    IReadOnlyList<string>? VideoOnlySourcePaths = null);
 
 public enum BatchExportMode
 {
@@ -723,8 +774,8 @@ public sealed record BatchReport(
 
 internal sealed record PairedSessionEvidence(
     VideoPairingEvidence Video,
-    BehavioralPairingEvidence Behavioral,
-    BehavioralVideoSynchronizationResult Synchronization);
+    BehavioralPairingEvidence? Behavioral,
+    BehavioralVideoSynchronizationResult? Synchronization);
 
 public sealed record BatchProcessingProgress(
     int CompletedSessions,
@@ -762,7 +813,7 @@ public static class BatchClipManifestWriter
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? throw new ArgumentException("La ruta de manifest no tiene carpeta.", nameof(outputPath)));
         using var writer = new StreamWriter(outputPath, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-        writer.WriteLine("archivo_clip,tipo,ensayo,resultado,frame_inicio_evento,frame_final_evento,inicio_evento,final_evento,frame_inicio_clip,frame_final_clip,inicio_clip,final_clip,duracion_clip_s");
+        writer.WriteLine("archivo_clip,tipo,ensayo,resultado,frame_inicio_evento,frame_final_evento,inicio_evento,final_evento,frame_inicio_clip,frame_final_clip,inicio_clip,final_clip,duracion_clip_s,origen,evento_visual");
 
         foreach (var clip in clips.Where(item => item.Export.Succeeded))
         {
@@ -782,7 +833,9 @@ public static class BatchClipManifestWriter
                 (clip.Export.EndFrameIndex ?? segment.EndFrameIndex).ToString(CultureInfo.InvariantCulture),
                 Csv(FormatVideoTime(clipStart)),
                 Csv(FormatVideoTime(clipEnd)),
-                (clipEnd - clipStart).ToString("0.000", CultureInfo.InvariantCulture)));
+                (clipEnd - clipStart).ToString("0.000", CultureInfo.InvariantCulture),
+                Csv(segment.IsVideoOnly ? "video_only_approximate" : "video_mat_csv"),
+                Csv(segment.VisualEventNumber?.ToString(CultureInfo.InvariantCulture) ?? "na")));
         }
     }
 

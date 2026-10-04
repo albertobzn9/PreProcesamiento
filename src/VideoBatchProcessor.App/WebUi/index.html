@@ -212,6 +212,13 @@
     <footer class="footer"><div class="footer-status" role="status" aria-live="polite"><span id="batch-status" class="footer-copy">Ready</span><div id="batch-progress" class="batch-progress hidden"><div class="batch-progress-meta"><span id="batch-progress-label">Processing</span><span id="batch-progress-percent">0%</span></div><div class="batch-progress-track"><div id="batch-progress-fill" class="batch-progress-fill"></div></div></div></div><button id="process-batch" class="process" data-action="process">▷&nbsp; Process sessions</button></footer>
   </div>
   <div class="notice" id="notice" role="status"></div>
+  <div id="missing-source-modal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="missing-source-title">
+    <section class="crop-dialog existing-output-dialog">
+      <header class="crop-dialog-head"><div><h2 id="missing-source-title">Missing MAT/CSV</h2><p>No matching table was found by filename for these videos.</p></div></header>
+      <div class="existing-output-body"><p>Choose a table, or continue with approximate light-based clips. Available tables will still be checked for a match. Without a confirmed table, event counts and boundaries are estimates; crossing, no crossing and timeout cannot be determined.</p><ul id="missing-source-list" class="pairing-alert-list"></ul><p>The Excel and clip index will label video-only results as approximate and not synchronized.</p></div>
+      <footer class="crop-dialog-footer"><span class="setup-help">Your choice applies only to this run.</span><div><button class="modal-button" data-action="cancel-video-only">Cancel</button><button class="modal-button primary" data-action="confirm-video-only">Continue without table</button></div></footer>
+    </section>
+  </div>
   <div id="rename-modal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rename-modal-title">
     <section class="crop-dialog rename-dialog">
       <header class="crop-dialog-head"><div><h2 id="rename-modal-title">Rename source video</h2><p id="rename-current-name"></p></div></header>
@@ -272,6 +279,9 @@
       roiCard.insertAdjacentHTML('afterend', '<section class="settings-card"><h3>◌&nbsp; LIGHT CALIBRATION</h3><p id="calibration-help" class="setup-help">After marking the ROIs, choose an OFF frame and an ON frame.</p><button id="open-calibration" class="crop-button primary camera-control" data-action="open-calibration" disabled>Calibrate lights</button><p id="calibration-summary" class="crop-summary">Calibration: not configured.</p></section>');
     }
     installCalibrationCard();
+    document.getElementById('preview-state').closest('.settings-card').insertAdjacentHTML('afterend', '<section class="settings-card"><h3>BEHAVIORAL DATA</h3><p id="behavioral-source-label" class="crop-summary" role="status">Select a video.</p><p class="setup-help">MAT/CSV is detected automatically beside the video. A loaded table is checked against the video during processing.</p><button id="attach-source-button" class="crop-button" data-action="attach-source" disabled>Choose MAT/CSV</button></section>');
+    let pendingBatchRequest = null;
+    let missingSourceSessions = [];
     function installTimelineCard() {
       const calibrationCard = document.getElementById('open-calibration')?.closest('.settings-card');
       if (!calibrationCard || document.getElementById('analyze-light-timeline')) return;
@@ -284,6 +294,11 @@
       catch { showNotice('Could not read the response from the app.'); }
     }
     window.receiveFromHost = receiveFromHost;
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('missing-source-modal').classList.contains('hidden')) {
+        closeMissingSourceDialog(); pendingBatchRequest = null;
+      }
+    });
     function handleHostMessage(message) {
       if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; state.selectedSessionId = null; resetPreview(); renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const alternateFormats = message.alternateFormatCount || 0; const suffix = [alternateFormats ? `${alternateFormats} alternative format(s) skipped; MP4 preferred` : '', outputs ? `${outputs} output clip(s) excluded` : '', incompatible ? `${incompatible} unrecognized filename(s)` : '', skipped ? `${skipped} F1/CM session(s) skipped` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} session(s) loaded${suffix ? `; ${suffix}.` : '.'}`); }
       if (message.type === 'sessionNameCorrected') { const index = state.sessions.findIndex(session => session.sessionId === message.session.sessionId); if (index >= 0) state.sessions[index] = message.session; closeRenameDialog(); renderSessions(); showNotice(message.message); }
@@ -300,15 +315,23 @@
       if (message.type === 'lightTimelineRejected') { state.timelineRunning = false; state.timelineProgress = null; updateCameraControls(); showNotice(message.message); }
       if (message.type === 'lightTimelineExported' || message.type === 'lightTimelineExportRejected') showNotice(message.message);
       if (message.type === 'existingOutputDecisionRequired') openExistingOutputDialog(message.outputs || []);
-      if (message.type === 'batchProcessingStarted') { closeExistingOutputDialog(); closePairingAlertDialog(); state.batchRunning = true; updateBatchUi(message.message, 0); }
-      if (message.type === 'batchProcessingProgress') updateBatchUi(`${message.message}: ${message.completedSessions}/${message.totalSessions}${message.currentVideo ? ` · ${message.currentVideo}` : ''}`, Number(message.percent));
-      if (message.type === 'batchProcessingCompleted') { state.batchRunning = false; const detail = `${message.exportedSessions} session(s) exported, ${message.skippedSessions || 0} skipped, ${message.blockedSessions} flagged, ${message.failedSessions} failed, ${message.exportedClips} clip(s).`; updateBatchUi(detail, 100); showNotice(`${detail} Output: ${message.outputDirectory}.${message.pairingReport ? ` Inventory: ${message.pairingReport}` : ""}`); if ((message.flaggedSessions || []).length) openPairingAlertDialog(message.flaggedSessions); }
-      if (message.type === 'batchProcessingRejected') { state.batchRunning = false; updateBatchUi('Batch not started.'); showNotice(message.message); }
+      if (message.type === 'missingBehavioralSourceDecisionRequired') openMissingSourceDialog(message.sessions || []);
+      if (message.type === 'behavioralSourceRefreshed') { const index = state.sessions.findIndex(item => item.sessionId === message.session.sessionId); if (index >= 0) state.sessions[index] = message.session; renderSessions(); }
+      if (message.type === 'behavioralSourceAttached') { const index = state.sessions.findIndex(item => item.sessionId === message.session.sessionId); if (index >= 0) state.sessions[index] = message.session; closeMissingSourceDialog(); pendingBatchRequest = null; renderSessions(); showNotice('Table attached. Click Process sessions to validate the match and export.'); }
+      if (message.type === 'batchProcessingStarted') { closeMissingSourceDialog(); pendingBatchRequest = null; closeExistingOutputDialog(); closePairingAlertDialog(); state.batchRunning = true; updateBatchUi(message.message, 0); }
+      if (message.type === 'batchProcessingProgress' && state.batchRunning) updateBatchUi(`${message.message}: ${message.completedSessions}/${message.totalSessions}${message.currentVideo ? ` · ${message.currentVideo}` : ''}`, Number(message.percent));
+      if (message.type === 'batchProcessingCompleted') { state.batchRunning = false; const detail = `${message.exportedSessions} session(s) exported, ${message.skippedSessions || 0} skipped, ${message.blockedSessions} flagged, ${message.failedSessions} failed, ${message.exportedClips} clip(s).${message.videoOnlySessions ? ` ${message.videoOnlySessions} video-only session(s): approximate, NOT synchronized.` : ''}`; const failures = (message.sessions || []).filter(item => item.status === 'Failed' || item.status === 'Blocked').map(item => `${item.video}: ${item.message || item.status}`).join(' · '); updateBatchUi(failures ? `${detail} ${failures}` : detail, failures ? null : 100); showNotice(`${detail} Output: ${message.outputDirectory}.${message.pairingReport ? ` Inventory: ${message.pairingReport}` : ""}`); if ((message.flaggedSessions || []).length) openPairingAlertDialog(message.flaggedSessions); }
+      if (message.type === 'batchProcessingRejected') { state.batchRunning = false; pendingBatchRequest = null; updateBatchUi(`Batch not started: ${message.message}`); showNotice(message.message); }
       if (message.type === 'pairingSelectionRejected') { document.getElementById('pairing-alert-status').textContent = message.message; showNotice(message.message); }
       if (message.type === 'previewFailed' || message.type === 'cameraPreviewFailed') showNotice(message.message);
       if (message.type === 'status') showNotice(message.message);
     }
     function renderSessions() {
+      const selected = state.sessions.find(item => item.sessionId === state.selectedSessionId);
+      const sourceLabel = document.getElementById('behavioral-source-label');
+      sourceLabel.classList.toggle('complete', Boolean(selected?.hasBehavioralSource));
+      sourceLabel.textContent = !selected ? 'Select a video.' : selected.hasBehavioralSource ? `✓ Loaded: ${selected.behavioralSource}` : selected.behavioralSourceError ? `Cannot read table: ${selected.behavioralSourceError}` : 'No MAT/CSV found. You will be asked before processing without a table.';
+      document.getElementById('attach-source-button').disabled = !selected || state.batchRunning;
       document.getElementById('file-count').textContent = `Loaded videos (${state.sessions.length})`;
       const incompatible = incompatibleSessions();
       const removeIncompatibleButton = document.getElementById('remove-incompatible');
@@ -591,6 +614,21 @@
     function exportLightTimelineDiagnostic() { if (!state.selectedSessionId || !state.lightTimeline || state.timelineRunning) return; sendToHost({ type: 'exportLightTimelineDiagnostic', sessionId: state.selectedSessionId }); }
     function openExistingOutputDialog(outputs) { const list = document.getElementById('existing-output-list'); list.innerHTML = outputs.map(output => `<li>${escapeHtml(output.video)} <span>(${escapeHtml(output.outputFolder)})</span></li>`).join(''); document.getElementById('existing-output-modal').classList.remove('hidden'); }
     function closeExistingOutputDialog() { document.getElementById('existing-output-modal').classList.add('hidden'); }
+    function openMissingSourceDialog(sessions) {
+      missingSourceSessions = sessions;
+      closeExistingOutputDialog();
+      document.getElementById('missing-source-list').innerHTML = sessions.map(item => `<li class="pairing-alert-item"><strong>${escapeHtml(item.video)}</strong><button class="modal-button" data-action="attach-source" data-source-session-id="${escapeHtml(item.sessionId)}">Choose MAT/CSV</button></li>`).join('');
+      document.getElementById('missing-source-modal').classList.remove('hidden');
+      document.querySelector('[data-action="cancel-video-only"]').focus();
+    }
+    function closeMissingSourceDialog() { document.getElementById('missing-source-modal').classList.add('hidden'); missingSourceSessions = []; }
+    function confirmVideoOnly() {
+      if (!pendingBatchRequest || state.batchRunning) return;
+      const request = { ...pendingBatchRequest, videoOnlySessionIds: missingSourceSessions.map(item => item.sessionId) };
+      closeMissingSourceDialog();
+      pendingBatchRequest = null;
+      sendToHost(request);
+    }
     function startBatchProcessing(existingOutputPolicy = null) {
       if (state.batchRunning) return;
       if (!state.selectedSessionId || !state.preview) { showNotice('Select the reference session with confirmed camera and light settings.'); return; }
@@ -600,7 +638,8 @@
       const treatment = document.getElementById('treatment').value.trim();
       if (!initials || !treatment) { showNotice('For legacy names, enter initials and treatment code before processing.'); return; }
       const exportMode = document.getElementById('batch-export-mode').value;
-      sendToHost({ type: 'processBatch', sessionId: state.selectedSessionId, sessionIds: state.sessions.map(session => session.sessionId), initials, sex, treatment, exportMode, existingOutputPolicy });
+      pendingBatchRequest = { type: 'processBatch', sessionId: state.selectedSessionId, sessionIds: state.sessions.map(session => session.sessionId), initials, sex, treatment, exportMode, existingOutputPolicy };
+      sendToHost(pendingBatchRequest);
     }
     function updateBatchUi(message, percent = null) { const hasProgress = Number.isFinite(percent); const status = document.getElementById('batch-status'); status.hidden = hasProgress; if (!hasProgress) status.textContent = message; const button = document.getElementById('process-batch'); button.disabled = state.batchRunning; button.textContent = state.batchRunning ? 'Processing sessions…' : '▷ Process sessions'; const progress = document.getElementById('batch-progress'); progress.classList.toggle('hidden', !hasProgress); if (hasProgress) { const bounded = clamp(Math.round(percent), 0, 100); document.getElementById('batch-progress-label').textContent = message; document.getElementById('batch-progress-percent').textContent = `${bounded}%`; document.getElementById('batch-progress-fill').style.width = `${bounded}%`; } }
     function formatDuration(seconds) { const total = Math.max(0, Math.round(Number(seconds) || 0)); const minutes = Math.floor(total / 60); const remaining = total % 60; return `${minutes}:${String(remaining).padStart(2, '0')}`; }
@@ -609,6 +648,9 @@
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (action === 'select-files') sendToHost({ type: 'selectFiles' });
       if (action === 'select-folder') sendToHost({ type: 'selectFolder' });
+      if (action === 'attach-source' && !state.batchRunning) sendToHost({ type: 'attachBehavioralSource', sessionId: event.target.closest('[data-source-session-id]')?.dataset.sourceSessionId || state.selectedSessionId });
+      if (action === 'cancel-video-only') { closeMissingSourceDialog(); pendingBatchRequest = null; }
+      if (action === 'confirm-video-only') confirmVideoOnly();
       if (action === 'rename-session') openRenameDialog(event.target.closest('[data-rename-session-id]')?.dataset.renameSessionId);
       if (action === 'cancel-rename') closeRenameDialog();
       if (action === 'apply-rename') applyRename();

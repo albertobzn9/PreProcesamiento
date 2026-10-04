@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private readonly NomenclatureParser _nomenclatureParser = new();
     private readonly SessionSourceRenamer _sessionSourceRenamer = new();
     private readonly Dictionary<string, SessionSetupEntry> _loadedSessions = [];
+    private readonly Dictionary<string, string> _manualBehavioralSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, VideoPreview> _loadedPreviews = [];
     private readonly Dictionary<string, VideoTransformConfig> _cameraConfigs = [];
     private readonly Dictionary<string, LightDetectionConfig> _lightConfigs = [];
@@ -78,6 +79,9 @@ public sealed partial class MainWindow : Window
                 case "selectBehavioralSource":
                     await SelectBehavioralSourceAsync(document.RootElement);
                     break;
+                case "attachBehavioralSource":
+                    await AttachBehavioralSourceAsync(document.RootElement);
+                    break;
                 case "updateCameraSetup":
                     await UpdateCameraSetupAsync(document.RootElement);
                     break;
@@ -97,7 +101,14 @@ public sealed partial class MainWindow : Window
                     await ExportLightTimelineDiagnosticAsync(document.RootElement);
                     break;
                 case "processBatch":
-                    await ProcessBatchAsync(document.RootElement);
+                    try
+                    {
+                        await ProcessBatchAsync(document.RootElement);
+                    }
+                    catch (Exception exception)
+                    {
+                        await SendToWebAsync(new { type = "batchProcessingRejected", message = exception.Message });
+                    }
                     break;
             }
         }
@@ -164,12 +175,13 @@ public sealed partial class MainWindow : Window
 
     private async Task SendSessionsAsync(IEnumerable<string> videoPaths)
     {
-        var entries = _sessionSetup.AnalyzeFiles(videoPaths);
+        var entries = await Task.Run(() => _sessionSetup.AnalyzeFiles(videoPaths));
         var skipped = entries
             .Where(entry => entry.ParsedName.IsExcludedFromBatchInput)
             .ToArray();
         var alternateFormatCount = entries.Sum(entry => entry.AlternateVideoPaths?.Count ?? 0);
         _loadedSessions.Clear();
+        _manualBehavioralSources.Clear();
         _loadedPreviews.Clear();
         _cameraConfigs.Clear();
         _lightConfigs.Clear();
@@ -280,6 +292,11 @@ public sealed partial class MainWindow : Window
             await SendToWebAsync(new { type = "status", message = "Solo los videos fuente compatibles se pueden previsualizar." });
             return;
         }
+
+        entry = await Task.Run(() => _sessionSetup.RefreshBehavioralSource(entry,
+            _manualBehavioralSources.GetValueOrDefault(entry.Metadata.SourceVideoPath)));
+        _loadedSessions[sessionIdProperty.GetString()!] = entry;
+        await SendToWebAsync(new { type = "behavioralSourceRefreshed", session = ToWebSession(sessionIdProperty.GetString()!, entry) });
 
         var result = await Task.Run(() =>
         {
@@ -766,6 +783,10 @@ public sealed partial class MainWindow : Window
             Iniciales = initials,
             Sexo = sex,
             Tratamiento = treatment,
+            Overrides = selectedSessions
+                .Where(item => _manualBehavioralSources.ContainsKey(item.Metadata.SourceVideoPath))
+                .ToDictionary(item => Path.GetFileNameWithoutExtension(item.Metadata.SourceVideoPath),
+                    item => new FileOverride { BehavioralSourcePath = _manualBehavioralSources[item.Metadata.SourceVideoPath] }),
         };
         var request = new BatchProcessingRequest(
             inputDirectory,
@@ -777,6 +798,26 @@ public sealed partial class MainWindow : Window
             exportMode,
             SourceVideoPaths: sourceVideoPaths,
             ExistingOutputPolicy: existingOutputPolicy);
+        var missingSources = new BatchOrchestrator().FindMissingBehavioralSources(request);
+        var acceptedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (message.TryGetProperty("videoOnlySessionIds", out var acceptedIds) && acceptedIds.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var id in acceptedIds.EnumerateArray())
+                if (id.ValueKind == JsonValueKind.String && _loadedSessions.TryGetValue(id.GetString()!, out var entry))
+                    acceptedPaths.Add(Path.GetFullPath(entry.Metadata.SourceVideoPath));
+        }
+        if (missingSources.Any(path => !acceptedPaths.Contains(path)))
+        {
+            await SendToWebAsync(new
+            {
+                type = "missingBehavioralSourceDecisionRequired",
+                sessions = _loadedSessions.Where(item => missingSources.Contains(
+                    Path.GetFullPath(item.Value.Metadata.SourceVideoPath), StringComparer.OrdinalIgnoreCase))
+                    .Select(item => new { sessionId = item.Key, video = Path.GetFileName(item.Value.Metadata.SourceVideoPath) }),
+            });
+            return;
+        }
+        request = request with { VideoOnlySourcePaths = missingSources.Where(acceptedPaths.Contains).ToArray() };
         _pendingPairingContext = new PendingPairingContext(
             transform,
             lightConfig,
@@ -786,6 +827,33 @@ public sealed partial class MainWindow : Window
             sourceVideoPaths);
 
         await ExecuteBatchAsync(request, selectedSessions.Count, Path.GetFileName(referenceSession.Metadata.SourceVideoPath));
+    }
+
+    private async Task AttachBehavioralSourceAsync(JsonElement message)
+    {
+        if (!message.TryGetProperty("sessionId", out var id) || id.ValueKind != JsonValueKind.String ||
+            !_loadedSessions.TryGetValue(id.GetString()!, out var entry)) return;
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Choose MAT/CSV for {Path.GetFileName(entry.Metadata.SourceVideoPath)}",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Behavioral data") { Patterns = ["*.mat", "*.csv"] }],
+        });
+        var path = files.FirstOrDefault()?.Path.LocalPath;
+        if (path is null) return;
+        try
+        {
+            var updated = await Task.Run(() => _sessionSetup.Complete(entry, new UserFieldValues { BehavioralSourcePath = path }));
+            if (!updated.BehavioralSourceLoaded)
+                throw new InvalidOperationException(updated.BehavioralSourceReadError ?? updated.Metadata.BehavioralSourceError ?? "The table could not be read.");
+            _manualBehavioralSources[entry.Metadata.SourceVideoPath] = path;
+            _loadedSessions[id.GetString()!] = updated;
+            await SendToWebAsync(new { type = "behavioralSourceAttached", session = ToWebSession(id.GetString()!, updated) });
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new { type = "status", message = $"Cannot use this table: {exception.Message}" });
+        }
     }
 
     private async Task SelectBehavioralSourceAsync(JsonElement message)
@@ -912,6 +980,7 @@ public sealed partial class MainWindow : Window
                 failedSessions = report.FailedSessionCount,
                 skippedSessions = report.SkippedSessionCount,
                 exportedClips = report.ExportedClipCount,
+                videoOnlySessions = report.Sessions.Count(item => item.Clips.Any(clip => clip.Export.Succeeded && clip.Segment.IsVideoOnly)),
                 outputDirectory = "junto a cada video fuente",
                 pairingReport = report.PairingReportPath,
                 flaggedSessions,
@@ -1634,7 +1703,9 @@ public sealed partial class MainWindow : Window
             metadata.Rata == 0 ? null : metadata.Rata.ToString(),
             metadata.IsComplete ? null : string.Join(", ", metadata.MissingFields),
             DescribeInputMessage(entry.ParsedName),
-            DescribeBehavioralSource(metadata));
+            DescribeBehavioralSource(metadata),
+            entry.BehavioralSourceLoaded,
+            entry.BehavioralSourceReadError);
     }
 
     private static string? DescribeInputMessage(ParsedFileName parsedName) => parsedName.Scheme switch
@@ -1664,7 +1735,9 @@ public sealed partial class MainWindow : Window
         string? Rat,
         string? MissingFields,
         string? InputMessage,
-        string BehavioralSource);
+        string BehavioralSource,
+        bool HasBehavioralSource,
+        string? BehavioralSourceError);
 
     private sealed record PendingPairingContext(
         VideoTransformConfig Transform,

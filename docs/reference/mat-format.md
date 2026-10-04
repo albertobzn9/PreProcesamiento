@@ -27,6 +27,22 @@ Las sesiones históricas de **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) 
 
 ---
 
+## Tabla Manual En Excel (Pendiente)
+
+La futura importación manual usará una tabla de **N filas × 8 columnas**, igual
+al MAT histórico. Una fila por evento, incluidos no cruces y timeouts, sin
+resumir ni reordenar. Los encabezados, en este orden, serán:
+
+```text
+Ensayo | Lado | Estim | Latencia | TiempoAbs | PalancasIzq | PalancasDer | Desplaz
+```
+
+Los tiempos se ingresarán en segundos y se validarán con las mismas reglas
+del lector MAT. No se agregarán columnas de nombres de clips ni frames a esta
+tabla de entrada: pertenecen al reporte de salida. No se inventarán valores
+conductuales a partir del video. Esta importación todavía no está implementada;
+no cambia el soporte existente de MAT N×9 y CSV V1.
+
 ## Las Columnas
 
 Los índices de esta tabla empiezan en `0`, como los leería el parser en C#. Por eso la novena columna física de MATLAB aparece como índice `8`.

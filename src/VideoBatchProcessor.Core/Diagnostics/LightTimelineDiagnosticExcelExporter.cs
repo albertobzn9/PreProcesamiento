@@ -27,7 +27,9 @@ public sealed class LightTimelineDiagnosticExcelExporter
             report.ScanRange,
             report.Video.Fps,
             report.BehavioralSourcePath);
-        var planning = new SegmentPlanner().Plan(new SegmentPlanningInput(
+        var planning = report.VideoOnly
+            ? new VisualOnlySegmentPlanner().Plan(report.Video, report.ScanRange, report.VisualIntervals)
+            : new SegmentPlanner().Plan(new SegmentPlanningInput(
             report.Video,
             report.ScanRange,
             report.VisualIntervals,
@@ -79,7 +81,7 @@ public sealed class LightTimelineDiagnosticExcelExporter
             ("Fuente conductual", report.BehavioralSourcePath ?? "No disponible"),
             ("Filas conductuales leidas", report.BehavioralEvents.Count),
             ("Aviso de lectura", report.BehavioralReadError ?? "Sin errores"),
-            ("Estado de sincronizacion", DescribeSynchronizationStatus(synchronization.Status)),
+            ("Estado de sincronizacion", report.VideoOnly ? "NO SINCRONIZADO - SOLO VIDEO (aproximado)" : DescribeSynchronizationStatus(synchronization.Status)),
             ("Hallazgos", synchronization.Findings.Count == 0
                 ? "Sin hallazgos"
                 : string.Join(" | ", synchronization.Findings.Select(item => item.Message))),
@@ -93,7 +95,7 @@ public sealed class LightTimelineDiagnosticExcelExporter
             ("Avisos del planner", planning.Warnings.Count == 0
                 ? "Sin avisos"
                 : string.Join(" | ", planning.Warnings.Select(item => item.Message))),
-            ("Nota", "La hoja Comparacion usa lado y patrón temporal. El resultado bloquea o avisa, pero la decisión experimental sigue siendo del investigador."),
+            ("Nota", report.VideoOnly ? VisualOnlySegmentPlanner.Notice : "La hoja Comparacion usa lado y patrón temporal. El resultado bloquea o avisa, pero la decisión experimental sigue siendo del investigador."),
         };
 
         sheet.Cell(1, 1).Value = "Diagnostico de timeline de luces";
@@ -250,7 +252,9 @@ public sealed class LightTimelineDiagnosticExcelExporter
             "Inicio MAT mapeado (s)",
             "Palanqueo MAT mapeado (s)",
             "Residuo inicio (s)",
-            "Cola luz tras palanqueo (s)");
+            "Cola luz tras palanqueo (s)",
+            "Origen",
+            "Evento visual (no fila MAT)");
 
         var row = 2;
         foreach (var segment in planning.Segments)
@@ -266,7 +270,7 @@ public sealed class LightTimelineDiagnosticExcelExporter
             sheet.Cell(row, 9).Value = segment.DurationSeconds;
             sheet.Cell(row, 10).Value = FormatTime(segment.DurationSeconds);
             sheet.Cell(row, 11).Value = segment.TrialType is null ? string.Empty : DescribeTrialType(segment.TrialType.Value);
-            sheet.Cell(row, 12).Value = DescribePlannedResult(segment.Result);
+            sheet.Cell(row, 12).Value = segment.IsVideoOnly ? "Desconocido (sin MAT/CSV)" : DescribePlannedResult(segment.Result);
             sheet.Cell(row, 13).Value = DescribeSideComparison(segment);
             if (segment.BehavioralEventNumber is not null) sheet.Cell(row, 14).Value = segment.BehavioralEventNumber.Value;
             if (segment.CurrentSide is not null) sheet.Cell(row, 15).Value = DescribeSide(segment.CurrentSide.Value);
@@ -278,13 +282,15 @@ public sealed class LightTimelineDiagnosticExcelExporter
             if (segment.MappedBehavioralPressSeconds is not null) sheet.Cell(row, 21).Value = segment.MappedBehavioralPressSeconds.Value;
             if (segment.VisualStartResidualSeconds is not null) sheet.Cell(row, 22).Value = segment.VisualStartResidualSeconds.Value;
             if (segment.PostPressLightTailSeconds is not null) sheet.Cell(row, 23).Value = segment.PostPressLightTailSeconds.Value;
+            sheet.Cell(row, 24).Value = segment.IsVideoOnly ? "Solo video - aproximado" : "Video + MAT/CSV";
+            if (segment.VisualEventNumber is not null) sheet.Cell(row, 25).Value = segment.VisualEventNumber.Value;
             row++;
         }
 
         if (planning.Segments.Count == 0)
             sheet.Cell(2, 1).Value = "No se planearon segmentos; revisar sincronización y avisos.";
 
-        FormatTable(sheet, Math.Max(1, row - 1), 23);
+        FormatTable(sheet, Math.Max(1, row - 1), 25);
     }
 
     private static void WriteBehavioralEvents(

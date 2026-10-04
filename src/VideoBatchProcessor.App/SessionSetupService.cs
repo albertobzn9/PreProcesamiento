@@ -1,13 +1,16 @@
 using VideoBatchProcessor.Core.Nomenclature;
 using VideoBatchProcessor.Core.SessionResolver;
 using VideoBatchProcessor.Core.SessionFiles;
+using VideoBatchProcessor.Core.SessionPairing;
 
 namespace VideoBatchProcessor.App;
 
 public sealed record SessionSetupEntry(
     ParsedFileName ParsedName,
     SessionMetadata Metadata,
-    IReadOnlyList<string>? AlternateVideoPaths = null);
+    IReadOnlyList<string>? AlternateVideoPaths = null,
+    bool BehavioralSourceLoaded = false,
+    string? BehavioralSourceReadError = null);
 
 public sealed class SessionSetupService
 {
@@ -23,7 +26,43 @@ public sealed class SessionSetupService
     }
 
     public SessionSetupEntry Complete(SessionSetupEntry entry, UserFieldValues values) =>
-        entry with { Metadata = _resolver.Complete(entry.Metadata, values) };
+        ValidateBehavioralSource(entry with { Metadata = _resolver.Complete(entry.Metadata, values) });
+
+    public SessionSetupEntry RefreshBehavioralSource(SessionSetupEntry entry, string? explicitPath = null)
+    {
+        var manifest = new BatchManifest
+        {
+            Overrides = new Dictionary<string, FileOverride>
+            {
+                [Path.GetFileNameWithoutExtension(entry.Metadata.SourceVideoPath)] = new()
+                {
+                    Iniciales = entry.Metadata.Iniciales,
+                    Sexo = entry.Metadata.Sexo,
+                    Tratamiento = entry.Metadata.Tratamiento,
+                    BehavioralSourcePath = explicitPath,
+                },
+            },
+        };
+        return ValidateBehavioralSource(entry with
+        {
+            Metadata = _resolver.Resolve(entry.ParsedName, manifest, entry.Metadata.SourceVideoPath),
+        });
+    }
+
+    private static SessionSetupEntry ValidateBehavioralSource(SessionSetupEntry entry)
+    {
+        if (entry.Metadata.SourceBehavioralPath is not { } path)
+            return entry with { BehavioralSourceLoaded = false, BehavioralSourceReadError = null };
+        try
+        {
+            new BehavioralPairingEvidenceReader().Read(path);
+            return entry with { BehavioralSourceLoaded = true, BehavioralSourceReadError = null };
+        }
+        catch (Exception exception)
+        {
+            return entry with { BehavioralSourceLoaded = false, BehavioralSourceReadError = exception.Message };
+        }
+    }
 
     public static bool IsSupportedVideo(string path) =>
         SupportedExtensions.Contains(Path.GetExtension(path));
@@ -32,7 +71,7 @@ public sealed class SessionSetupService
     {
         _parser.TryParse(videoPath, out var parsedName);
         var metadata = _resolver.Resolve(parsedName, BatchManifest.Empty, videoPath);
-        return new SessionSetupEntry(parsedName, metadata, alternateVideoPaths);
+        return ValidateBehavioralSource(new SessionSetupEntry(parsedName, metadata, alternateVideoPaths));
     }
 
     private static readonly HashSet<string> SupportedExtensions =

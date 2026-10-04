@@ -2,7 +2,21 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 02-10-2026
+**Fecha de revisión:** 04-10-2026
+
+**En desarrollo, rama `codex/optional-behavioral-source`:** aviso de MAT/CSV
+ausente, selección manual de una tabla existente y opción explícita de seguir
+solo con luces. La salida aproximada conserva `na` para resultado desconocido
+y no inventa sincronización ni filas conductuales. Pruebas automáticas de
+segmentación, Excel y consentimiento de interfaz. Una prueba integral sin MAT
+analizó un video sintético y exportó cinco MP4 con FFmpeg, comprobando que se
+abren y que su número de frames coincide. La tabla se detecta al cargar o
+seleccionar el video y muestra palomita solo si se pudo leer (no confirma aún
+sincronización). El avance muestra frames y los errores no desaparecen.
+El usuario reportó un bloqueo sin MAT; no se reprodujo con el video de prueba
+y falta corroborar su archivo específico. No está en la app instalada ni
+en una nueva release. Pendientes separados: ancho de Video Setup e importación
+manual Excel N×8 (ver [formato](../reference/mat-format.md#tabla-manual-en-excel-pendiente)).
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.

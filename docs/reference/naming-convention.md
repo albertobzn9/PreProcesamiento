@@ -101,6 +101,14 @@ de la fase; la nomenclatura solo los conserva de manera legible.
 
 ### Regla Confirmada Para CP Y DIS
 
+Las reglas siguientes corresponden a sesiones con MAT/CSV validado. En el
+modo opcional **solo video**, `eNN` numera grupos visuales, no filas conductuales,
+y el resultado es siempre `na` (desconocido). `s` indica comida sin LED
+superpuesto; `p`, comida con LED superpuesto; una señal LED aislada queda como
+`na`, sin afirmar un evento de solo ruido. Habituación e ITIs son provisionales.
+El Excel, el índice CSV y `processing_mode.txt` distinguen estas estimaciones
+de recortes sincronizados. No se deben mezclar sus resultados científicos.
+
 En Cruces Peligrosos (`cp` / `f4`) y Discriminación (`dis` / `f5`), cada fila
 conductual corresponde a `eNN`. En CP el tipo es `p`; en DIS es `s` para
 seguro o `p` para riesgo con comida, según la tabla conductual. Ambos tipos

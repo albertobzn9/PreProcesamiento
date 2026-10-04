@@ -401,6 +401,7 @@ public enum SegmentPlanningWarningKind
     FinalHabituationNotCovered,
     LightDuringFinalHabituation,
     EventIntervalsOverlap,
+    VideoOnlyEstimate,
 }
 
 public sealed record SegmentPlanningWarning(
@@ -428,7 +429,9 @@ public sealed record PlannedVideoSegment(
     double? MappedBehavioralStartSeconds,
     double? MappedBehavioralPressSeconds,
     double? VisualStartResidualSeconds,
-    double? PostPressLightTailSeconds)
+    double? PostPressLightTailSeconds,
+    int? VisualEventNumber = null,
+    bool IsVideoOnly = false)
 {
     public double DurationSeconds => EndTimeSeconds - StartTimeSeconds;
 }

@@ -8,6 +8,26 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ## [Unreleased]
 
+### Fixed
+
+- Tabla conductual: detección automática al cargar/seleccionar video, palomita
+  de lectura válida y limpieza de selecciones manuales del lote anterior.
+- Progreso por frames aunque no cambie el porcentaje; errores visibles al
+  terminar y avisos claros si no se detectaron señales. Prueba integral sin MAT
+  con escaneo y exportación real de cinco recortes mediante FFmpeg.
+
+### Added
+
+- Aviso de MAT/CSV ausente y selección manual de una tabla. Continuar sin ella
+  requiere autorización explícita por ejecución; no elude tablas dañadas ni
+  emparejamientos ambiguos.
+- Recortes opcionales solo por luces, marcados como aproximados y no
+  sincronizados en Excel e índices. Resultado conductual desconocido (`na`),
+  numeración visual independiente de filas MAT y protección contra reanudar
+  salidas de otro modo. El flujo con tabla conserva sus reglas.
+- Especificación de futura tabla manual Excel N×8. La importación y el ajuste
+  de ancho de Video Setup siguen pendientes.
+
 ## [0.2.0] - 2026-10-02
 
 ### Fixed

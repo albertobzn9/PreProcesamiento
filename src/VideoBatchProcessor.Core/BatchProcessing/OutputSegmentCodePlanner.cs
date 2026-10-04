@@ -8,6 +8,7 @@ namespace VideoBatchProcessor.Core.BatchProcessing;
 /// Todos los eventos conservan el número cronológico de su fuente como
 /// <c>eNN</c>; el resultado (<c>cr</c>, <c>nc</c> o <c>to</c>) vive en su
 /// propio campo. Los ITIs se nombran <c>itiNN</c> según el evento anterior.
+/// En modo solo video se usa el ordinal visual, sin inventar una fila MAT.
 /// </summary>
 public static class OutputSegmentCodePlanner
 {
@@ -35,6 +36,6 @@ public static class OutputSegmentCodePlanner
     }
 
     private static string FormatEventNumber(PlannedVideoSegment segment) =>
-        (segment.BehavioralEventNumber ?? segment.Sequence)
+        (segment.BehavioralEventNumber ?? segment.VisualEventNumber ?? segment.Sequence)
             .ToString("D2", CultureInfo.InvariantCulture);
 }
