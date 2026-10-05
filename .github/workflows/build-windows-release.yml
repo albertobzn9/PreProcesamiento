@@ -6,7 +6,7 @@ on:
       version:
         description: Release version without the v prefix
         required: true
-        default: 0.2.0
+        default: 0.3.0
 
 permissions:
   contents: read
@@ -22,10 +22,6 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-
-      - name: Run automated tests
-        shell: pwsh
-        run: dotnet test tests/VideoBatchProcessor.Tests/VideoBatchProcessor.Tests.csproj --configuration Release
 
       - name: Download verified FFmpeg 9.0.2
         shell: pwsh
@@ -55,6 +51,13 @@ jobs:
           FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/n9.0.2
           License: GPLv3; see https://www.gnu.org/licenses/gpl-3.0.html
           "@ | Set-Content (Join-Path $destination "FFMPEG-SOURCE.txt")
+
+      - name: Run automated tests including real FFmpeg export
+        shell: pwsh
+        run: |
+          $env:VBP_TEST_FFMPEG = Join-Path $PWD "vendor/ffmpeg/win-x64/ffmpeg.exe"
+          dotnet test tests/VideoBatchProcessor.Tests/VideoBatchProcessor.Tests.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { throw "Automated tests failed." }
 
       - name: Build self-contained Windows package
         shell: pwsh

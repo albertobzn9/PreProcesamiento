@@ -15,6 +15,25 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
+test(`${engine}: approved product logo replaces UNAM and loads locally`, async () => {
+  const page = await browser.newPage({ viewport: { width: 1408, height: 736 } });
+  try {
+    await page.goto(url);
+    const logo = page.locator('.top-actions img');
+    assert.equal(await logo.getAttribute('src'), 'product-logo.png');
+    assert.equal(await logo.getAttribute('alt'), 'Video Batch Processor');
+    await logo.evaluate(image => image.decode());
+    assert.ok(await logo.evaluate(image => image.naturalWidth > 0));
+    assert.equal(await page.locator('img[alt="UNAM"]').count(), 0);
+    for (const width of [1408, 768, 375]) {
+      await page.setViewportSize({ width, height: 736 });
+      const bounds = await logo.boundingBox();
+      assert.ok(bounds.width > 0 && bounds.height > 0);
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+    }
+  } finally { await page.close(); }
+});
+
 async function loadCalibration(page, width, height, cropped = false) {
   await page.goto(url);
   await page.evaluate(({ width, height, cropped }) => {

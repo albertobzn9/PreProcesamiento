@@ -18,7 +18,7 @@ La aplicación tiene nombre y versión, elige el runtime nativo de OpenCV según
 el paquete y busca primero FFmpeg dentro de su propia carpeta `tools/`. En
 desarrollo conserva como respaldo el FFmpeg instalado en el sistema.
 
-La versión interna `0.2.0` se distribuye para Mac Apple Silicon y Windows x64.
+La versión interna `0.3.0` se distribuye para Mac Apple Silicon y Windows x64.
 Mac se construye y prueba localmente; Windows se construye dentro de una máquina
 virtual efímera de GitHub Actions. Mac Intel se omite en esta versión por
 decisión del proyecto. Ambas entregas incluyen FFmpeg/FFprobe portables, aviso
@@ -34,7 +34,7 @@ Colocar primero FFmpeg y FFprobe en `vendor/ffmpeg/osx-arm64/` o
 ./scripts/package-macos.sh osx-arm64
 ```
 
-El resultado queda en `artifacts/release/0.2.0/osx-arm64/` como `.app`, `.zip` y
+El resultado queda en `artifacts/release/0.3.0/osx-arm64/` como `.app`, `.zip` y
 archivo `.sha256`.
 Sin una identidad de Apple, el script aplica una firma local apropiada solo
 para pruebas. La entrega fuera del equipo de desarrollo requiere Developer ID,
@@ -46,7 +46,7 @@ El workflow manual `Build Windows release` usa una máquina virtual Windows x64,
 verifica la descarga fijada de FFmpeg, ejecuta las pruebas y llama:
 
 ```powershell
-./scripts/package-windows.ps1 -Version 0.2.0
+./scripts/package-windows.ps1 -Version 0.3.0
 ```
 
 El resultado contiene `VideoBatchProcessor.exe`, todas sus dependencias, las
@@ -68,9 +68,26 @@ En una computadora que no tenga el repositorio ni .NET instalado:
 5. Confirmar el XLSX y los clips exportados.
 6. Cerrar y abrir nuevamente para comprobar el perfil guardado.
 
-Para `0.2.0`, esta validación debe realizarse en Apple Silicon y Windows x64.
+Para `0.3.0`, esta validación debe realizarse en Apple Silicon y Windows x64.
 El workflow de Windows comprueba compilación, pruebas, estructura y arranque;
 la prueba manual completa en una PC del laboratorio sigue siendo obligatoria.
+
+## Logo E Iconos
+
+El logo aprobado vive en `src/VideoBatchProcessor.App/WebUi/product-logo.png`.
+La variante con fondo claro para GitHub y los iconos nativos está en
+`Assets/Branding/product-icon.png`, dentro del mismo proyecto. Se generaron
+con la herramienta de imágenes integrada: un fotograma dividido en tres clips
+con un símbolo de reproducción; la segunda variante añade fondo blanco para
+mantener contraste. El archivo de referencia de Stitch no se modifica.
+
+Para regenerar `.icns` e `.ico` desde la imagen aprobada, en macOS:
+
+```sh
+node scripts/build-product-icons.mjs
+```
+
+El script solo convierte formatos y tamaños; no cambia el diseño.
 
 ## Decisión Sobre FFmpeg
 

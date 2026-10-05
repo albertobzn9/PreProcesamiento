@@ -8,6 +8,16 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-05
+
+### Changed
+
+- Logo propio de Video Batch Processor en lugar del escudo UNAM en la interfaz;
+  iconos de aplicación para macOS/Windows y portada del repositorio actualizados.
+- Descargas e instrucciones de Windows x64 y Mac Apple Silicon en el README.
+- La validación Windows también ejecuta exportaciones reales con FFmpeg para
+  sesiones con tabla pegada y sin tabla, además de comprobar el arranque.
+
 ### Fixed
 
 - Tabla conductual: detección automática al cargar/seleccionar video, palomita

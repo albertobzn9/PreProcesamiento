@@ -10,7 +10,7 @@
     <Product>Video Batch Processor</Product>
     <Description>Preprocesamiento reproducible de video para experimentos CMC.</Description>
     <Authors>Instituto de Fisiologia Celular, UNAM</Authors>
-    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionPrefix>0.3.0</VersionPrefix>
     <ApplicationIcon Condition="'$(RuntimeIdentifier)' == 'win-x64' Or $([MSBuild]::IsOSPlatform('Windows'))">Assets/Packaging/VideoBatchProcessor.ico</ApplicationIcon>
     <ApplicationManifest Condition="'$(RuntimeIdentifier)' == 'win-x64' Or $([MSBuild]::IsOSPlatform('Windows'))">Assets/Packaging/app.manifest</ApplicationManifest>
   </PropertyGroup>

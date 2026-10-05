@@ -2,9 +2,9 @@
 
 [← Volver al índice de documentación](../README.md)
 
-**Fecha de revisión:** 04-10-2026
+**Fecha de revisión:** 05-10-2026
 
-**Integración en `main` (sin nueva release):** aviso de MAT/CSV
+**Versión `0.3.0`:** logo propio, aviso de MAT/CSV
 ausente, selección manual de una tabla existente y opción explícita de seguir
 solo con luces. La salida aproximada conserva `na` para resultado desconocido
 y no inventa sincronización ni filas conductuales. Pruebas automáticas de
@@ -21,7 +21,8 @@ previsualizar y asignarlas a un video sin importar archivos Excel. Pruebas de
 parser, flujo de sincronización/exportación e interfaz. Una tabla pegada se
 emparejó con tres eventos sintéticos y produjo siete recortes reales verificados;
 la prueba real del usuario con `exp_0526_dis_d10r2` también se completó.
-No está en la app instalada ni en una nueva release.
+Se incluye en los paquetes `0.3.0` para Windows x64 y Mac Apple Silicon;
+la app instalada no se reemplaza automáticamente al publicar.
 Ver [formato y trazabilidad](../reference/mat-format.md#tabla-pegada-desde-excel).
 
 ### Validación De Tabla Pegada (04-10-2026)
@@ -51,8 +52,8 @@ investigador. DIS con comida está implementado y la corrida real
 `exp_0526_dis_d10r2` terminó con 60/60 eventos empatados y 121/121 recortes.
 Se verificaron duraciones y frames de 85 recortes durante la exportación;
 la revisión visual de todos los límites sigue siendo responsabilidad del usuario.
-DIS con MAT/CSV está incluido en la versión publicada `0.2.0`; el pegado de
-tablas y las demás mejoras de esta integración todavía no tienen paquete nuevo.
+DIS con MAT/CSV está incluido desde `0.2.0`; el pegado de tablas, el panel
+ajustable y la opción sin tabla se incluyen en `0.3.0`.
 
 La detección adicional de comida derecha en 17:55.533–17:55.900 no tenía fila
 MAT. Se conserva como aviso y dentro del clip `e34`, sin crear un ensayo extra.
@@ -114,8 +115,8 @@ en la interfaz.
 El backend tiene **256 pruebas** aprobadas. Incluyen la regla compartida
 CP/DIS, umbral exacto de 1 s, timeout y una sesión DIS sintética que verifica
 sincronización, límites de comida/LED, orden y cobertura continua, además de
-tabla pegada y exportación real con FFmpeg. La interfaz tiene 19 pruebas,
-ejecutadas en WebKit y Chrome (38 ejecuciones).
+tabla pegada y exportación real con FFmpeg. La interfaz tiene 20 pruebas,
+ejecutadas en WebKit y Chrome (40 ejecuciones), incluida la carga del logo.
 
 ## Interfaz Actual
 
@@ -224,17 +225,22 @@ raw, sin generar trabajo manual.
 
 1. Corregir la discrepancia de dos frames entre el índice y el clip de
    habituación final detectada en d10r2; no regenerar datos del usuario sin aviso.
-2. Validar con dos videos CP reales que el inventario empareje correctamente el
+2. Inventariar MAT/CSV en toda la carpeta seleccionada, incluso en subcarpetas
+   sin videos. Actualmente se buscan junto a los videos y el aviso de tabla
+   ausente puede aparecer antes del emparejamiento por contenido si el nombre
+   no coincide. Hasta corregirlo, colocar cada tabla junto a su video con el
+   mismo nombre base, o seleccionarla manualmente.
+3. Validar con dos videos CP reales que el inventario empareje correctamente el
    video mal nombrado `r1d5` con su tabla y exporte cinco clips sin habituación.
-3. Revisar el falso positivo breve de habituación y, solo con más sesiones,
+4. Revisar el falso positivo breve de habituación y, solo con más sesiones,
    decidir si corresponde una regla de calidad adicional.
-4. Conectar la importación de `Perfil de camara` a la UI y validar dimensiones,
+5. Conectar la importación de `Perfil de camara` a la UI y validar dimensiones,
    transformación y condiciones equivalentes antes de reutilizarlo en un lote.
 
 ### Backend posterior
 
 1. Asignación explícita de un perfil de cámara reutilizable a varias sesiones.
-2. Validar manualmente el paquete Windows `0.2.0` en una PC del laboratorio.
+2. Validar manualmente el paquete Windows `0.3.0` en una PC del laboratorio.
    Mac Apple Silicon y la máquina virtual Windows ya generan paquetes autónomos
    con FFmpeg/ffprobe trazables; Mac Intel se omite en esta versión. La firma
    pública/notarización queda para una entrega fuera del laboratorio.
@@ -273,8 +279,8 @@ raw, sin generar trabajo manual.
 ## Estado Git
 
 - `main` reúne los tres pasos de `codex/optional-behavioral-source`.
-- La release publicada sigue siendo `v0.2.0`; integrar código no reemplaza
-  automáticamente la app instalada ni genera paquetes nuevos.
+- La entrega `v0.3.0` conserva `v0.2.0` como versión anterior recuperable.
+  Publicar los paquetes no reemplaza automáticamente la app instalada.
 - Esta interfaz ya pasó su prueba manual inicial. Repetirla al conectar un
   módulo nuevo, no por cambios puramente documentales.
 

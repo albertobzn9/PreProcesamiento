@@ -1,14 +1,37 @@
+<p align="center">
+  <img src="src/VideoBatchProcessor.App/Assets/Branding/product-icon.png" alt="Video Batch Processor" width="160" height="160">
+</p>
+
 # Video Batch Processor
 
 Aplicación de escritorio para preprocesamiento masivo de videos de la tarea de Conflicto Mediado por Cruces (CMC).
 
 El objetivo del proyecto es convertir sesiones largas de video en clips cortos, consistentes y bien nombrados antes de usarlos en DeepLabCut, BORIS u otros análisis posteriores. La app busca normalizar crop, orientación, detección de luces, segmentación por eventos/ITIs/habituación y exportación por lote.
 
+## Descargar La App
+
+Paquetes públicos en [Releases](https://github.com/albertobzn9/PreProcesamiento/releases/tag/v0.3.0),
+sin necesidad de clonar el repositorio ni instalar .NET:
+
+- [Windows x64: descargar ZIP](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.0/VideoBatchProcessor-0.3.0-win-x64.zip).
+  Extraer **todo** el ZIP en una carpeta y abrir `VideoBatchProcessor.exe`.
+  No mover el ejecutable separado de sus archivos. Si falta WebView2, instalar
+  el [runtime Evergreen de Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
+- [Mac Apple Silicon: descargar ZIP](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.0/VideoBatchProcessor-0.3.0-osx-arm64.zip).
+  Extraer y mover la `.app` a Aplicaciones. No es un paquete para Mac Intel.
+
+La versión `0.3.0` es una **versión de prueba para el laboratorio**: incluye
+FFmpeg/FFprobe, pero no firma pública de Windows ni notarización de Apple.
+Los sistemas pueden mostrar advertencias de seguridad. La validación completa
+en una PC Windows del laboratorio sigue pendiente.
+
 ## Estado
 
 La interfaz ya procesa y exporta sesiones CS y CP con validación real.
 DIS con comida también completó una sesión real: 60 eventos empatados y
-121 recortes en `exp_0526_dis_d10r2`. La app publicada todavía corresponde a CS/CP.
+121 recortes en `exp_0526_dis_d10r2`. La versión `0.3.0` agrega tabla pegada
+desde Excel (ocho columnas), aviso si falta MAT/CSV, procesamiento aproximado
+sin tabla con consentimiento y panel Video Setup ajustable.
 
 - Producto activo: `VideoBatchProcessor.App`; `LightEventDetector` permanece
   como prototipo histórico.
@@ -18,7 +41,7 @@ DIS con comida también completó una sesión real: 60 eventos empatados y
 - Interfaz: HTML/CSS local dentro de Avalonia con carga recursiva, preview,
   giro, espejo, crop, ROIs circulares, calibración, rango de análisis y
   exportación XLSX de diagnóstico.
-- Validación: 224 pruebas pasan. En una sesión real de Cruces Seguros (CS), el
+- Validación: 256 pruebas de backend pasan. En una sesión real de Cruces Seguros (CS), el
   diagnóstico completo empató los 67 eventos MAT con video y planeó 1
   habituación inicial, 67 eventos, 66 ITIs y 1 habituación final. Cuatro
   señales visuales extra quedaron como avisos para revisión, no como eventos.
@@ -29,6 +52,11 @@ DIS con comida también completó una sesión real: 60 eventos empatados y
 - Pendiente: perfiles reutilizables por
   grupo, más validaciones DIS, eventos de solo sonido y compatibilidad con
   el CSV actual de 10 columnas de CajaValentia.
+- Limitaciones conocidas: por ahora colocar cada MAT junto a su video y con
+  el mismo nombre base, o seleccionarlo manualmente. La búsqueda automática
+  de tablas en subcarpetas separadas está pendiente. En d10r2 el reporte de
+  habituación final declara dos frames más que el clip real; la discrepancia
+  también existe en la ejecución anterior con MAT.
 
 ## Stack
 
@@ -36,7 +64,7 @@ DIS con comida también completó una sesión real: 60 eventos empatados y
 - Avalonia UI
 - HTML/CSS local dentro del WebView oficial de Avalonia para la interfaz final
 - OpenCvSharp para lectura de video y análisis de frames
-- FFmpeg como dependencia prevista para exportación de clips
+- FFmpeg incluido en los paquetes para exportación de clips
 
 ## Estructura
 

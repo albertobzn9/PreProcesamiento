@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.2.0",
+    [string]$Version = "0.3.0",
     [string]$FfmpegDirectory = ""
 )
 
@@ -42,6 +42,9 @@ Get-ChildItem $FfmpegDirectory -Filter "*.txt" -File -ErrorAction SilentlyContin
 foreach ($RequiredPath in @(
     (Join-Path $PublishDirectory "VideoBatchProcessor.exe"),
     (Join-Path $PublishDirectory "WebUi/index.html"),
+    (Join-Path $PublishDirectory "WebUi/product-logo.png"),
+    (Join-Path $PublishDirectory "WebUi/pasted-table.js"),
+    (Join-Path $PublishDirectory "WebUi/video-setup-panel.js"),
     (Join-Path $ToolsDirectory "ffmpeg.exe"),
     (Join-Path $ToolsDirectory "ffprobe.exe")
 )) {
