@@ -74,12 +74,14 @@ la prueba manual completa en una PC del laboratorio sigue siendo obligatoria.
 
 ## Logo E Iconos
 
-El logo aprobado vive en `src/VideoBatchProcessor.App/WebUi/product-logo.png`.
+El logo aprobado vive en `src/VideoBatchProcessor.App/Assets/Branding/product-logo.png`.
 La variante con fondo claro para GitHub y los iconos nativos está en
 `Assets/Branding/product-icon.png`, dentro del mismo proyecto. Se generaron
 con la herramienta de imágenes integrada: un fotograma dividido en tres clips
 con un símbolo de reproducción; la segunda variante añade fondo blanco para
-mantener contraste. El archivo de referencia de Stitch no se modifica.
+mantener contraste. Se usan para el icono de la app en Aplicaciones/Dock,
+el ejecutable Windows y la portada de GitHub. Dentro de la ventana se conservan
+los escudos UNAM e IFC. El archivo de referencia de Stitch no se modifica.
 
 Para regenerar `.icns` e `.ico` desde la imagen aprobada, en macOS:
 

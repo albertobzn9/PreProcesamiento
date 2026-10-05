@@ -24,7 +24,7 @@ else
   )
 fi
 
-REQUIRED+=("$BASE/WebUi/product-logo.png" "$BASE/WebUi/pasted-table.js" "$BASE/WebUi/video-setup-panel.js")
+REQUIRED+=("$BASE/WebUi/unam-logo-blue.png" "$BASE/WebUi/ifc-logo.png" "$BASE/WebUi/pasted-table.js" "$BASE/WebUi/video-setup-panel.js")
 
 for path in "${REQUIRED[@]}"; do
   if [[ ! -e "$path" ]]; then

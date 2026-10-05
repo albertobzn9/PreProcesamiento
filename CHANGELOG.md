@@ -12,8 +12,9 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ### Changed
 
-- Logo propio de Video Batch Processor en lugar del escudo UNAM en la interfaz;
-  iconos de aplicación para macOS/Windows y portada del repositorio actualizados.
+- Logo propio en el icono de la aplicación (Aplicaciones/Dock en macOS y
+  ejecutable Windows) y la portada del repositorio. Los escudos UNAM e IFC
+  dentro de la interfaz se conservan sin cambios.
 - Descargas e instrucciones de Windows x64 y Mac Apple Silicon en el README.
 - La validación Windows también ejecuta exportaciones reales con FFmpeg para
   sesiones con tabla pegada y sin tabla, además de comprobar el arranque.

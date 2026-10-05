@@ -4,7 +4,8 @@
 
 **Fecha de revisión:** 05-10-2026
 
-**Versión `0.3.0`:** logo propio, aviso de MAT/CSV
+**Versión `0.3.0`:** icono propio de la app (sin cambiar los escudos de la
+interfaz), aviso de MAT/CSV
 ausente, selección manual de una tabla existente y opción explícita de seguir
 solo con luces. La salida aproximada conserva `na` para resultado desconocido
 y no inventa sincronización ni filas conductuales. Pruebas automáticas de
