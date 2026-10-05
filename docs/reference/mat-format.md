@@ -27,21 +27,44 @@ Las sesiones históricas de **CS** (Cruces Seguros), **CP** (Cruces Peligrosos) 
 
 ---
 
-## Tabla Manual En Excel (Pendiente)
+## Tabla Pegada Desde Excel
 
-La futura importación manual usará una tabla de **N filas × 8 columnas**, igual
+`Paste table` recibe una tabla copiada de **N filas × 8 columnas**, igual
 al MAT histórico. Una fila por evento, incluidos no cruces y timeouts, sin
-resumir ni reordenar. Los encabezados, en este orden, serán:
+resumir ni reordenar. No abre archivos Excel. El orden es:
 
 ```text
 Ensayo | Lado | Estim | Latencia | TiempoAbs | PalancasIzq | PalancasDer | Desplaz
 ```
 
-Los tiempos se ingresarán en segundos y se validarán con las mismas reglas
-del lector MAT. No se agregarán columnas de nombres de clips ni frames a esta
-tabla de entrada: pertenecen al reporte de salida. No se inventarán valores
-conductuales a partir del video. Esta importación todavía no está implementada;
-no cambia el soporte existente de MAT N×9 y CSV V1.
+Se acepta sin encabezados o con esos ocho nombres (sin importar mayúsculas,
+espacios o guiones bajos). Elegir punto o coma decimal; no usar separadores de
+miles. Los tiempos son segundos. `Validate and preview` valida todas las filas
+y muestra hasta 100; `Use table` asigna la tabla completa al video seleccionado.
+Editar el texto o el separador obliga a validarla de nuevo.
+
+Antes de copiar, mostrar todos los decimales disponibles en Excel: el texto
+pegado puede contener solo la precisión visible. El programa conserva lo que
+recibe, pero no puede recuperar decimales que no se copiaron. En d10r2, la tabla
+pegada tenía un decimal y coincidía con el MAT redondeado; no cambió los
+resultados de esa sesión, pero no conserva toda la precisión del original.
+
+Se rechazan celdas vacías, columnas extra, valores fuera de rango, números de
+ensayo duplicados o descendentes y tiempo absoluto que retrocede. El error
+indica fila y columna. No rellena, ordena ni inventa datos. La normalización usa
+`LegacyMatEventMapper`: como en MAT N×8, `Estim` determina seguro/riesgo; no
+puede representar `SoundOnly`. MAT N×9 y CSV V1 conservan su soporte existente.
+
+Al confirmar se guarda, sin sobrescribir copias previas, el texto original en
+`clipboard.txt` y una copia numérica de ocho columnas `.pasted.tsv` en la carpeta
+local de datos de la app (`VideoBatchProcessor/pasted-tables`). Los originales
+MAT y Excel no se modifican. La palomita confirma lectura, no sincronización:
+se comprueba la correspondencia video-tabla. Para ese video se usa la tabla
+pegada elegida, sin confundirla con un segundo candidato si existe su MAT
+original; una tabla pegada incompatible sigue bloqueando la exportación.
+La asignación manual dura mientras esa sesión siga cargada; al
+cargar un nuevo lote hay que pegar de nuevo o elegir su MAT/CSV. La copia local
+se conserva como evidencia y su ruta aparece en el diagnóstico.
 
 ## Las Columnas
 

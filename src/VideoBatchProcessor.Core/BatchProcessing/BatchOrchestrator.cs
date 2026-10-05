@@ -122,6 +122,14 @@ public sealed class BatchOrchestrator
         var missingSources = FindMissingBehavioralSources(request).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var videoOnlyAllowed = (request.VideoOnlySourcePaths ?? [])
             .Select(Path.GetFullPath).Where(missingSources.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // A deliberately pasted table is the selected source, not an extra automatic candidate.
+        var pastedSources = pairingCandidates.Select(candidate => new
+            {
+                Video = Path.GetFullPath(candidate.VideoPath),
+                Source = request.Manifest.Overrides.GetValueOrDefault(Path.GetFileNameWithoutExtension(candidate.VideoPath))?.BehavioralSourcePath,
+            })
+            .Where(item => item.Source?.EndsWith(".pasted.tsv", StringComparison.OrdinalIgnoreCase) == true)
+            .ToDictionary(item => item.Video, item => item.Source!, StringComparer.OrdinalIgnoreCase);
         var pairingProgress = new InlineProgress<BatchSessionPairingProgress>(update =>
             progress?.Report(new BatchProcessingProgress(
                 0,
@@ -136,7 +144,8 @@ public sealed class BatchOrchestrator
             request.Transform,
             request.LightConfig,
             pairingProgress,
-            cancellationToken);
+            cancellationToken,
+            explicitSources: pastedSources);
         var pairingReportPath = Path.Combine(request.OutputDirectory, "emparejamiento_sesiones.csv");
         SessionPairingReportCsvWriter.Write(pairingReportPath, pairing);
         var pairingByVideo = pairing.Report.Resolutions.ToDictionary(

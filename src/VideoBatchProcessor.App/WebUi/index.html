@@ -308,6 +308,7 @@
       }
     });
     function handleHostMessage(message) {
+      if (window.pastedTableUi?.receive(message)) return;
       if (message.type === 'sessionsLoaded') { state.sessions = message.sessions || []; state.selectedSessionId = null; resetPreview(); renderSessions(); const outputs = state.sessions.filter(session => session.namingScheme === 'VideoBatchOutput').length; const incompatible = incompatibleSessions().length; const skipped = message.skippedCount || 0; const alternateFormats = message.alternateFormatCount || 0; const suffix = [alternateFormats ? `${alternateFormats} alternative format(s) skipped; MP4 preferred` : '', outputs ? `${outputs} output clip(s) excluded` : '', incompatible ? `${incompatible} unrecognized filename(s)` : '', skipped ? `${skipped} F1/CM session(s) skipped` : ''].filter(Boolean).join('; '); showNotice(`${state.sessions.length} session(s) loaded${suffix ? `; ${suffix}.` : '.'}`); }
       if (message.type === 'sessionNameCorrected') { const index = state.sessions.findIndex(session => session.sessionId === message.session.sessionId); if (index >= 0) state.sessions[index] = message.session; closeRenameDialog(); renderSessions(); showNotice(message.message); }
       if (message.type === 'sessionNameRejected') { document.getElementById('rename-modal-status').textContent = message.message; }
@@ -340,6 +341,7 @@
       sourceLabel.classList.toggle('complete', Boolean(selected?.hasBehavioralSource));
       sourceLabel.textContent = !selected ? 'Select a video.' : selected.hasBehavioralSource ? `✓ Loaded: ${selected.behavioralSource}` : selected.behavioralSourceError ? `Cannot read table: ${selected.behavioralSourceError}` : 'No MAT/CSV found. You will be asked before processing without a table.';
       document.getElementById('attach-source-button').disabled = !selected || state.batchRunning;
+      if (window.pastedTableUi) window.pastedTableUi.updateButton();
       document.getElementById('file-count').textContent = `Loaded videos (${state.sessions.length})`;
       const incompatible = incompatibleSessions();
       const removeIncompatibleButton = document.getElementById('remove-incompatible');
@@ -625,7 +627,7 @@
     function openMissingSourceDialog(sessions) {
       missingSourceSessions = sessions;
       closeExistingOutputDialog();
-      document.getElementById('missing-source-list').innerHTML = sessions.map(item => `<li class="pairing-alert-item"><strong>${escapeHtml(item.video)}</strong><button class="modal-button" data-action="attach-source" data-source-session-id="${escapeHtml(item.sessionId)}">Choose MAT/CSV</button></li>`).join('');
+      document.getElementById('missing-source-list').innerHTML = sessions.map(item => `<li class="pairing-alert-item"><strong>${escapeHtml(item.video)}</strong><button class="modal-button" data-action="attach-source" data-source-session-id="${escapeHtml(item.sessionId)}">Choose MAT/CSV</button> <button class="modal-button" data-action="paste-table" data-source-session-id="${escapeHtml(item.sessionId)}">Paste table</button></li>`).join('');
       document.getElementById('missing-source-modal').classList.remove('hidden');
       document.querySelector('[data-action="cancel-video-only"]').focus();
     }
@@ -727,5 +729,6 @@
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !document.getElementById('pairing-alert-modal').classList.contains('hidden')) closePairingAlertDialog(); if (event.key === 'Escape' && !document.getElementById('rename-modal').classList.contains('hidden')) closeRenameDialog(); if (event.key === 'Escape' && !document.getElementById('crop-modal').classList.contains('hidden')) closeCropDialog(); if (event.key === 'Escape' && !document.getElementById('roi-modal').classList.contains('hidden')) closeRoiDialog(); if (event.key === 'Escape' && !document.getElementById('calibration-modal').classList.contains('hidden')) closeCalibrationDialog(); if (event.key === 'Enter' && !document.getElementById('rename-modal').classList.contains('hidden')) { event.preventDefault(); applyRename(); } if (event.code === 'Space' && !event.repeat && !document.getElementById('roi-modal').classList.contains('hidden')) { event.preventDefault(); state.roiPanMode = !state.roiPanMode; updateRoiNavigationUi(); document.getElementById('roi-modal-status').textContent = state.roiPanMode ? 'Pan mode: drag to move the image.' : 'Mark mode: drag to create or adjust circles.'; } });
     function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
   </script>
+  <script src="pasted-table.js"></script>
 </body>
 </html>

@@ -82,6 +82,10 @@ public sealed partial class MainWindow : Window
                 case "attachBehavioralSource":
                     await AttachBehavioralSourceAsync(document.RootElement);
                     break;
+                case "previewPastedTable":
+                case "savePastedTable":
+                    await HandlePastedTableAsync(document.RootElement, type == "savePastedTable");
+                    break;
                 case "updateCameraSetup":
                     await UpdateCameraSetupAsync(document.RootElement);
                     break;
@@ -829,6 +833,40 @@ public sealed partial class MainWindow : Window
         await ExecuteBatchAsync(request, selectedSessions.Count, Path.GetFileName(referenceSession.Metadata.SourceVideoPath));
     }
 
+    private async Task HandlePastedTableAsync(JsonElement message, bool save)
+    {
+        var requestId = message.TryGetProperty("requestId", out var request) && request.TryGetInt32(out var number) ? number : 0;
+        var sessionId = message.TryGetProperty("sessionId", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null;
+        try
+        {
+            if (sessionId is null || !_loadedSessions.TryGetValue(sessionId, out var entry))
+                throw new InvalidOperationException("Select a source video first.");
+            if (!entry.ParsedName.IsSourceSession) throw new InvalidOperationException("The selected file is not a source session.");
+            var text = message.GetProperty("text").GetString() ?? "";
+            var decimalComma = message.TryGetProperty("decimalComma", out var comma) && comma.ValueKind == JsonValueKind.True;
+            var events = await Task.Run(() => PastedBehavioralTable.Parse(text, decimalComma));
+            if (!save)
+            {
+                await SendToWebAsync(new { type = "pastedTablePreview", sessionId, requestId,
+                    columns = PastedBehavioralTable.Columns, rowCount = events.Count,
+                    rows = events.Take(100).Select(item => item.RawValues) });
+                return;
+            }
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoBatchProcessor", "pasted-tables");
+            var path = await Task.Run(() => PastedBehavioralTable.Save(root, entry.Metadata.SourceVideoPath, text, decimalComma));
+            var updated = await Task.Run(() => _sessionSetup.Complete(entry, new UserFieldValues { BehavioralSourcePath = path }));
+            if (!updated.BehavioralSourceLoaded) throw new InvalidOperationException(updated.BehavioralSourceReadError ?? "Cannot read the pasted table.");
+            if (!_loadedSessions.ContainsKey(sessionId)) throw new InvalidOperationException("The selected session is no longer loaded.");
+            _manualBehavioralSources[entry.Metadata.SourceVideoPath] = path;
+            _loadedSessions[sessionId] = updated;
+            await SendToWebAsync(new { type = "pastedTableSaved", sessionId, requestId, session = ToWebSession(sessionId, updated) });
+        }
+        catch (Exception exception)
+        {
+            await SendToWebAsync(new { type = "pastedTableRejected", sessionId, requestId, message = exception.Message });
+        }
+    }
+
     private async Task AttachBehavioralSourceAsync(JsonElement message)
     {
         if (!message.TryGetProperty("sessionId", out var id) || id.ValueKind != JsonValueKind.String ||
@@ -1100,6 +1138,7 @@ public sealed partial class MainWindow : Window
             {
                 BehavioralSourceKind.LegacyMat => (IBehavioralSessionReader)new LegacyMatBehavioralSessionReader(new MatV5MatrixReader()),
                 BehavioralSourceKind.CsvV1 => new CsvV1BehavioralSessionReader(),
+                BehavioralSourceKind.PastedTable => new PastedTableSessionReader(),
                 _ => throw new BehavioralDataFormatException("La fuente conductual no tiene un lector disponible."),
             };
             return (reader.Read(source).Events, source.SourcePath, null);
@@ -1721,6 +1760,7 @@ public sealed partial class MainWindow : Window
     {
         "CsvV1" when metadata.SourceBehavioralPath is { } path => $"CSV V1: {Path.GetFileName(path)}",
         "LegacyMat" when metadata.SourceBehavioralPath is { } path => $"MAT: {Path.GetFileName(path)}",
+        "PastedTable" => "Pasted table",
         _ => "Sin fuente conductual",
     };
 

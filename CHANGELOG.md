@@ -28,7 +28,15 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 - Ancho ajustable de Video Setup mediante su división izquierda, con límites,
   persistencia local, teclado y doble clic para restablecer. No cambia los datos
   de cámara ni procesamiento; en ventanas pequeñas se conserva la vista apilada.
-- Especificación de futura tabla manual Excel N×8. La importación sigue pendiente.
+- `Paste table`: pegado de ocho columnas y N filas desde Excel, encabezados
+  opcionales, selección de punto/coma decimal, validación con errores por celda
+  y vista previa antes de usar los datos. No importa archivos Excel.
+- Fuente `PastedTable` integrada al sincronizador existente. Conserva texto
+  original y copia TSV local por confirmación, sin alterar MAT/CSV/Excel originales.
+- Validación real del pegado en DIS d10r2: 60/60 eventos empatados y 121 clips,
+  conservando nombres y resultados del procesamiento con MAT. El estado del
+  proyecto documenta las diferencias de configuración, precisión decimal y una
+  discrepancia previa de dos frames en el reporte de habituación final.
 
 ## [0.2.0] - 2026-10-02
 

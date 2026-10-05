@@ -8,6 +8,7 @@ public enum BehavioralSourceKind
     None,
     LegacyMat,
     CsvV1,
+    PastedTable,
 }
 
 public enum BehavioralSourceOrigin

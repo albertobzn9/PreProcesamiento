@@ -4,7 +4,7 @@
 
 **Fecha de revisión:** 04-10-2026
 
-**En desarrollo, rama `codex/optional-behavioral-source`:** aviso de MAT/CSV
+**Integración en `main` (sin nueva release):** aviso de MAT/CSV
 ausente, selección manual de una tabla existente y opción explícita de seguir
 solo con luces. La salida aproximada conserva `na` para resultado desconocido
 y no inventa sincronización ni filas conductuales. Pruebas automáticas de
@@ -15,10 +15,33 @@ seleccionar el video y muestra palomita solo si se pudo leer (no confirma aún
 sincronización). El avance muestra frames y los errores no desaparecen.
 El usuario confirmó que el paso 1 funciona después de los ajustes; quedó
 guardado en el commit `0acaeae`. El paso 2 agrega ancho ajustable de Video Setup,
-con límites, memoria local y doble clic para restablecer. Sus pruebas de interfaz
-pasaron; falta la revisión del usuario. No está en la app instalada ni en una
-nueva release. Sigue pendiente importar una tabla manual Excel N×8 (ver
-[formato](../reference/mat-format.md#tabla-manual-en-excel-pendiente)).
+con límites, memoria local y doble clic para restablecer; quedó guardado en
+`8b97620`. El paso 3 permite pegar ocho columnas y N filas desde Excel, validar,
+previsualizar y asignarlas a un video sin importar archivos Excel. Pruebas de
+parser, flujo de sincronización/exportación e interfaz. Una tabla pegada se
+emparejó con tres eventos sintéticos y produjo siete recortes reales verificados;
+la prueba real del usuario con `exp_0526_dis_d10r2` también se completó.
+No está en la app instalada ni en una nueva release.
+Ver [formato y trazabilidad](../reference/mat-format.md#tabla-pegada-desde-excel).
+
+### Validación De Tabla Pegada (04-10-2026)
+
+Comparación recursiva de la salida anterior con MAT y la nueva con tabla pegada:
+ambas contienen 121 clips (60 eventos, 59 ITIs y dos habituaciones), los mismos
+nombres y resultados (26 cruces, 30 no cruces y cuatro timeouts), y 60/60 eventos
+empatados. En 117 clips los límites son idénticos; `e04`, `e13`, `iti04` e `iti12`
+varían un frame. El encuadre, los ROIs y los umbrales también cambiaron entre
+ejecuciones; por tanto, no es una comparación con configuración idéntica.
+
+La tabla pegada coincide con el MAT al redondearlo a un decimal, pero pierde
+precisión temporal. Conviene mostrar todos los decimales disponibles en Excel
+antes de copiar. La señal visual adicional alrededor de 17:55 sigue como aviso,
+sin crear otro ensayo.
+
+**Pendiente conocido:** en ambas ejecuciones la habituación final contiene
+5762 frames, frente a 5764 declarados en el índice. Se confirmó contando los
+frames decodificados. Es una discrepancia previa de dos frames (unos 0.067 s),
+no una regresión del pegado; falta investigar y corregir su causa.
 
 **Estado general:** El proyecto ya tiene una base conceptual sólida, módulos
 backend útiles y probados, y una primera integración de interfaz que funciona.
@@ -28,7 +51,8 @@ investigador. DIS con comida está implementado y la corrida real
 `exp_0526_dis_d10r2` terminó con 60/60 eventos empatados y 121/121 recortes.
 Se verificaron duraciones y frames de 85 recortes durante la exportación;
 la revisión visual de todos los límites sigue siendo responsabilidad del usuario.
-Esta ampliación aún no está en la app publicada.
+DIS con MAT/CSV está incluido en la versión publicada `0.2.0`; el pegado de
+tablas y las demás mejoras de esta integración todavía no tienen paquete nuevo.
 
 La detección adicional de comida derecha en 17:55.533–17:55.900 no tenía fila
 MAT. Se conserva como aviso y dentro del clip `e34`, sin crear un ensayo extra.
@@ -87,9 +111,11 @@ en la interfaz.
 | Marcado de ROIs | Integrado y validado manualmente en macOS | Un modal marca círculos para `FoodLeft`, `FoodRight` y `NoiseLed`, con zoom de trackpad/rueda y desplazamiento por modo Mano, una pulsación de Espacio o botón central. Al crear un círculo pasa automáticamente a la siguiente luz pendiente; C# los valida con `FrameAnalyzer` en coordenadas reales del video preparado y los conserva en el perfil local del video. |
 | LightCalibration inicial | Integrado y validado manualmente en macOS | Una barra navega por frame sobre el video preparado. Para `CS` guarda un frame OFF y otro con comida ON, sin exigir LED; para `CP`/`DIS` usa comida + `NoiseLed` ON. Mide el frame completo con `BrightnessAdapter`, propone umbrales, cierra al guardar y muestra confirmaciones visuales. Al reabrir conserva los frames elegidos y, si cambian las ROIs, vuelve a medir esos mismos frames antes de actualizar los umbrales. La otra luz de comida usa por ahora una referencia compartida provisional. |
 
-La ampliación DIS tiene **224 pruebas** aprobadas. Incluyen la regla compartida
+El backend tiene **256 pruebas** aprobadas. Incluyen la regla compartida
 CP/DIS, umbral exacto de 1 s, timeout y una sesión DIS sintética que verifica
-sincronización, límites de comida/LED, orden y cobertura continua.
+sincronización, límites de comida/LED, orden y cobertura continua, además de
+tabla pegada y exportación real con FFmpeg. La interfaz tiene 19 pruebas,
+ejecutadas en WebKit y Chrome (38 ejecuciones).
 
 ## Interfaz Actual
 
@@ -196,11 +222,13 @@ raw, sin generar trabajo manual.
 
 ### Backend inmediato
 
-1. Validar con dos videos CP reales que el inventario empareje correctamente el
+1. Corregir la discrepancia de dos frames entre el índice y el clip de
+   habituación final detectada en d10r2; no regenerar datos del usuario sin aviso.
+2. Validar con dos videos CP reales que el inventario empareje correctamente el
    video mal nombrado `r1d5` con su tabla y exporte cinco clips sin habituación.
-2. Revisar el falso positivo breve de habituación y, solo con más sesiones,
+3. Revisar el falso positivo breve de habituación y, solo con más sesiones,
    decidir si corresponde una regla de calidad adicional.
-3. Conectar la importación de `Perfil de camara` a la UI y validar dimensiones,
+4. Conectar la importación de `Perfil de camara` a la UI y validar dimensiones,
    transformación y condiciones equivalentes antes de reutilizarlo en un lote.
 
 ### Backend posterior
@@ -244,8 +272,9 @@ raw, sin generar trabajo manual.
 
 ## Estado Git
 
-- La rama activa de trabajo es `codex/next-improvements`; el punto estable antes
-  del emparejamiento automático es el commit `4e66510`.
+- `main` reúne los tres pasos de `codex/optional-behavioral-source`.
+- La release publicada sigue siendo `v0.2.0`; integrar código no reemplaza
+  automáticamente la app instalada ni genera paquetes nuevos.
 - Esta interfaz ya pasó su prueba manual inicial. Repetirla al conectar un
   módulo nuevo, no por cambios puramente documentales.
 

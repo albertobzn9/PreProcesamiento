@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using VideoBatchProcessor.Core.BehavioralData;
 using VideoBatchProcessor.Core.BatchProcessing;
 using VideoBatchProcessor.Core.ClipExport;
 using VideoBatchProcessor.Core.FrameAnalyzer;
@@ -13,6 +14,28 @@ namespace VideoBatchProcessor.Tests;
 public sealed class VideoOnlyBatchTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"vbp-visual-{Guid.NewGuid():N}");
+
+    [Fact]
+    public async Task Run_PastedTableUsesNormalSynchronizationAndExport()
+    {
+        var request = Request();
+        var video = request.SourceVideoPaths![0];
+        var path = PastedBehavioralTable.Save(Path.Combine(_directory, "tables"), video,
+            "1\t1\t0\t2\t3\t1\t0\t2\n2\t0\t0\t2\t6\t1\t1\t2\n3\t1\t0\t2\t9\t2\t1\t2", false);
+        request = request with { Manifest = request.Manifest with { Overrides = new Dictionary<string, FileOverride>
+        {
+            [Path.GetFileNameWithoutExtension(video)] = new() { BehavioralSourcePath = path },
+        } } };
+        var reader = new FakeVideoReader { ThreeEvents = true };
+        var orchestrator = Orchestrator(reader, new FakeRunner());
+        Assert.Empty(orchestrator.FindMissingBehavioralSources(request));
+        var session = Assert.Single((await orchestrator.RunAsync(request)).Sessions);
+        Assert.True(session.Status is BatchSessionStatus.Exported or BatchSessionStatus.ExportedWithWarnings, session.Message);
+        Assert.Equal(path, session.MatPath);
+        Assert.Equal(3, session.Synchronization!.Comparison.MatchedCount);
+        Assert.All(session.Clips, clip => Assert.False(clip.Segment.IsVideoOnly));
+        Assert.Equal(7, session.Clips.Count);
+    }
 
     [Fact]
     public async Task Run_WithoutConsentDoesNotScanOrExport()
@@ -126,13 +149,17 @@ public sealed class VideoOnlyBatchTests : IDisposable
 
     private sealed class FakeVideoReader : IVideoPairingEvidenceReader
     {
+        public bool ThreeEvents { get; init; }
         public int ReadCount { get; private set; }
         public VideoPairingEvidence Read(string path, VideoTransformConfig transform, LightDetectionConfig config,
             IProgress<LightTimelineScanProgress>? progress = null, CancellationToken cancellationToken = default)
         {
             ReadCount++;
             var metadata = new VideoMetadata { FilePath = path, Fps = 30, TotalFrames = 300, Width = 100, Height = 100, Duration = TimeSpan.FromSeconds(10) };
-            return new(path, [new(1, LightId.FoodLeft, 30, 1, 90, 3)], new(0, 299), 30,
+            LightEventInterval[] intervals = ThreeEvents
+                ? [new(1, LightId.FoodLeft, 30, 1, 90, 3), new(2, LightId.FoodRight, 120, 4, 180, 6), new(3, LightId.FoodLeft, 210, 7, 270, 9)]
+                : [new(1, LightId.FoodLeft, 30, 1, 90, 3)];
+            return new(path, intervals, new(0, 299), 30,
                 new(metadata, new(300, [])));
         }
     }

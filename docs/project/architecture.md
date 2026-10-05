@@ -33,9 +33,15 @@ sin quitar espacio mínimo a la lista. El ancho se recuerda localmente; un doble
 clic restaura el predeterminado. La división admite teclado y se oculta cuando
 los paneles se apilan en ventanas pequeñas. No modifica cámara, ROIs ni análisis.
 
-**Siguiente paso separado:** importar una tabla manual Excel N×8 con el orden definido en
-[Formato MAT](../reference/mat-format.md#tabla-manual-en-excel-pendiente).
-La importación queda pendiente.
+**Tabla pegada:** `Paste table` permite copiar ocho columnas y N filas desde
+Excel, sin importar el libro. `PastedBehavioralTable` valida los datos y reutiliza
+`LegacyMatEventMapper`; `PastedTableSessionReader` integra la copia local TSV al
+mismo flujo de emparejamiento y sincronización. La UI ofrece vista previa y
+confirmación, y marca la fuente como `Pasted table`, nunca como un MAT original.
+La selección explícita de la tabla pegada limita los candidatos de ese video,
+pero no reduce los criterios de coincidencia temporal del sincronizador.
+Formato, límites y trazabilidad en
+[Formato MAT](../reference/mat-format.md#tabla-pegada-desde-excel).
 
 ## Stack tecnológico
 

@@ -24,6 +24,9 @@ También comprueba la palomita de tabla leída y la persistencia de los errores.
 `video-setup-panel.test.cjs` cubre arrastre, límites, teclado, restauración,
 persistencia y ventanas pequeñas; verifica que cámara y calibración no cambien.
 
+`pasted-table.test.cjs` cubre validación previa a guardar, edición que invalida
+la vista previa, respuestas tardías, mensajes de error y cancelación del pegado.
+
 La prueba integral de backend con video sintético y exportación real se activa
 indicando la ruta de FFmpeg (no usa videos ni tablas del investigador):
 

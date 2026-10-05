@@ -56,7 +56,8 @@ public sealed class BatchSessionPairingAnalyzer
         VideoTransformConfig transform,
         LightDetectionConfig lightConfig,
         IProgress<BatchSessionPairingProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? explicitSources = null)
     {
         ArgumentNullException.ThrowIfNull(videoPaths);
         ArgumentNullException.ThrowIfNull(behavioralSourcePaths);
@@ -123,7 +124,7 @@ public sealed class BatchSessionPairingAnalyzer
             completedInputs++;
         }
 
-        var report = _resolver.Resolve(videoEvidence, behavioralEvidence);
+        var report = _resolver.Resolve(videoEvidence, behavioralEvidence, explicitSources);
         progress?.Report(new BatchSessionPairingProgress(totalInputs, totalInputs, null, "Emparejamiento terminado", 100, 100));
         return new BatchSessionPairingAnalysis(report, selectedVideos, videoEvidence, behavioralEvidence, issues);
 
@@ -149,6 +150,7 @@ public sealed class BatchSessionPairingAnalyzer
 
     internal static bool IsMainBehavioralSource(string path)
     {
+        if (path.EndsWith(".pasted.tsv", StringComparison.OrdinalIgnoreCase)) return true;
         var extension = Path.GetExtension(path);
         if (string.Equals(extension, ".mat", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -229,6 +231,7 @@ public sealed class BehavioralPairingEvidenceReader : IBehavioralPairingEvidence
         var kind = Path.GetExtension(fullPath).ToLowerInvariant() switch
         {
             ".mat" => BehavioralSourceKind.LegacyMat,
+            ".tsv" when fullPath.EndsWith(".pasted.tsv", StringComparison.OrdinalIgnoreCase) => BehavioralSourceKind.PastedTable,
             ".csv" when BatchSessionPairingAnalyzer.IsMainBehavioralSource(fullPath) => BehavioralSourceKind.CsvV1,
             ".csv" => throw new BehavioralDataFormatException("El CSV de palanqueos no puede usarse como tabla principal."),
             _ => throw new BehavioralDataFormatException("La fuente conductual debe ser un archivo .mat o CSV V1."),
@@ -239,9 +242,12 @@ public sealed class BehavioralPairingEvidenceReader : IBehavioralPairingEvidence
             SourceKind = kind,
             Origin = BehavioralSourceOrigin.ExplicitOverride,
         };
-        var data = kind == BehavioralSourceKind.LegacyMat
-            ? _matReader.Read(resolution)
-            : _csvReader.Read(resolution);
+        var data = kind switch
+        {
+            BehavioralSourceKind.LegacyMat => _matReader.Read(resolution),
+            BehavioralSourceKind.PastedTable => new PastedTableSessionReader().Read(resolution),
+            _ => _csvReader.Read(resolution),
+        };
         if (data.Events.Count == 0)
             throw new BehavioralDataFormatException("La fuente conductual no contiene eventos utilizables.");
 

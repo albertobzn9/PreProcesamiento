@@ -29,16 +29,21 @@ public sealed class SessionPairingResolver
 
     public SessionPairingReport Resolve(
         IReadOnlyList<VideoPairingEvidence> videos,
-        IReadOnlyList<BehavioralPairingEvidence> behavioralSources)
+        IReadOnlyList<BehavioralPairingEvidence> behavioralSources,
+        IReadOnlyDictionary<string, string>? explicitSources = null)
     {
         ArgumentNullException.ThrowIfNull(videos);
         ArgumentNullException.ThrowIfNull(behavioralSources);
         ValidateUniquePaths(videos.Select(item => item.VideoPath), nameof(videos));
         ValidateUniquePaths(behavioralSources.Select(item => item.SourcePath), nameof(behavioralSources));
 
+        var selectedSources = (explicitSources ?? new Dictionary<string, string>()).ToDictionary(
+            item => Path.GetFullPath(item.Key), item => Path.GetFullPath(item.Value), StringComparer.OrdinalIgnoreCase);
+
         var candidates = (
             from video in videos
             from source in behavioralSources
+            where !selectedSources.TryGetValue(Path.GetFullPath(video.VideoPath), out var selectedPath) || PathsEqual(selectedPath, source.SourcePath)
             select Evaluate(video, source))
             .ToArray();
         var viable = candidates.Where(item => item.IsViable).ToArray();

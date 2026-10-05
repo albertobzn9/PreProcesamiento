@@ -76,6 +76,8 @@ public sealed class BehavioralSourceResolver
         }
 
         var extension = Path.GetExtension(explicitSourcePath);
+        if (explicitSourcePath.EndsWith(".pasted.tsv", StringComparison.OrdinalIgnoreCase))
+            return Resolved(explicitSourcePath, BehavioralSourceKind.PastedTable, BehavioralSourceOrigin.ExplicitOverride, []);
         if (extension.Equals(".mat", StringComparison.OrdinalIgnoreCase))
             return Resolved(explicitSourcePath, BehavioralSourceKind.LegacyMat, BehavioralSourceOrigin.ExplicitOverride, []);
 
