@@ -18,7 +18,7 @@ La aplicación tiene nombre y versión, elige el runtime nativo de OpenCV según
 el paquete y busca primero FFmpeg dentro de su propia carpeta `tools/`. En
 desarrollo conserva como respaldo el FFmpeg instalado en el sistema.
 
-La versión interna `0.3.0` se distribuye para Mac Apple Silicon y Windows x64.
+La versión interna `0.3.1` se distribuye para Mac Apple Silicon y Windows x64.
 Mac se construye y prueba localmente; Windows se construye dentro de una máquina
 virtual efímera de GitHub Actions. Mac Intel se omite en esta versión por
 decisión del proyecto. Ambas entregas incluyen FFmpeg/FFprobe portables, aviso
@@ -34,8 +34,9 @@ Colocar primero FFmpeg y FFprobe en `vendor/ffmpeg/osx-arm64/` o
 ./scripts/package-macos.sh osx-arm64
 ```
 
-El resultado queda en `artifacts/release/0.3.0/osx-arm64/` como `.app`, `.zip` y
-archivo `.sha256`.
+El resultado queda en `artifacts/release/0.3.1/osx-arm64/` como `.app`,
+`VideoBatchProcessor-<version>-osx-arm64.dmg` y archivo `.sha256`. El DMG muestra
+la aplicación y el acceso a Aplicaciones para que el usuario la arrastre una vez.
 Sin una identidad de Apple, el script aplica una firma local apropiada solo
 para pruebas. La entrega fuera del equipo de desarrollo requiere Developer ID,
 Hardened Runtime y notarización.
@@ -46,13 +47,14 @@ El workflow manual `Build Windows release` usa una máquina virtual Windows x64,
 verifica la descarga fijada de FFmpeg, ejecuta las pruebas y llama:
 
 ```powershell
-./scripts/package-windows.ps1 -Version 0.3.0
+./scripts/package-windows.ps1 -Version 0.3.1
 ```
 
-El resultado contiene `VideoBatchProcessor.exe`, todas sus dependencias, las
-herramientas multimedia y su archivo `.sha256` dentro del artefacto del workflow.
-Esta forma es adecuada para validación interna. Después de probarla manualmente
-en una computadora del laboratorio se puede crear un instalador MSIX firmado.
+El resultado es `VideoBatchProcessor-<version>-win-x64-setup.exe`, un solo
+instalador creado con Inno Setup que incluye `VideoBatchProcessor.exe`, sus
+dependencias y herramientas multimedia. Instala bajo el perfil del usuario,
+crea un acceso en Inicio, ofrece acceso de escritorio opcional y deja un
+desinstalador. Esta forma es adecuada para validación interna.
 La interfaz usa Microsoft WebView2: Windows 11 normalmente ya lo incluye;
 Windows 10 puede requerir instalar el runtime Evergreen de Microsoft. La máquina
 virtual lo instala antes de comprobar el arranque del paquete.
@@ -68,7 +70,7 @@ En una computadora que no tenga el repositorio ni .NET instalado:
 5. Confirmar el XLSX y los clips exportados.
 6. Cerrar y abrir nuevamente para comprobar el perfil guardado.
 
-Para `0.3.0`, esta validación debe realizarse en Apple Silicon y Windows x64.
+Para `0.3.1`, esta validación debe realizarse en Apple Silicon y Windows x64.
 El workflow de Windows comprueba compilación, pruebas, estructura y arranque;
 la prueba manual completa en una PC del laboratorio sigue siendo obligatoria.
 

@@ -1,6 +1,7 @@
 param(
-    [string]$Version = "0.3.0",
-    [string]$FfmpegDirectory = ""
+    [string]$Version = "0.3.1",
+    [string]$FfmpegDirectory = "",
+    [string]$InnoSetupCompiler = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +20,8 @@ if (-not (Test-Path $Ffmpeg) -or -not (Test-Path $Ffprobe)) {
 
 $OutputRoot = Join-Path $Root "artifacts/release/$Version/$Rid"
 $PublishDirectory = Join-Path $OutputRoot "VideoBatchProcessor"
-$ZipPath = Join-Path $OutputRoot "VideoBatchProcessor-$Version-$Rid.zip"
+$InstallerPath = Join-Path $OutputRoot "VideoBatchProcessor-$Version-$Rid-setup.exe"
+$InstallerScript = Join-Path $Root "packaging/windows/VideoBatchProcessor.iss"
 Remove-Item $OutputRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $PublishDirectory -ItemType Directory -Force | Out-Null
 
@@ -52,7 +54,19 @@ foreach ($RequiredPath in @(
     if (-not (Test-Path $RequiredPath)) { throw "El paquete quedó incompleto: falta $RequiredPath" }
 }
 
-Compress-Archive -Path "$PublishDirectory/*" -DestinationPath $ZipPath -Force
-$Digest = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -Path "$ZipPath.sha256" -Value "$Digest  $(Split-Path $ZipPath -Leaf)" -NoNewline
-Write-Host "Paquete creado: $ZipPath"
+if ([string]::IsNullOrWhiteSpace($InnoSetupCompiler)) {
+    $InnoSetupCompiler = (Get-Command "ISCC.exe" -ErrorAction SilentlyContinue).Source
+}
+if ([string]::IsNullOrWhiteSpace($InnoSetupCompiler) -or -not (Test-Path $InnoSetupCompiler)) {
+    throw "No se encontró ISCC.exe de Inno Setup. Instala Inno Setup 6 o indica -InnoSetupCompiler."
+}
+
+& $InnoSetupCompiler "/DMyAppVersion=$Version" "/DSourceDir=$PublishDirectory" `
+    "/DOutputDir=$OutputRoot" "/DIconFile=$(Join-Path $Root 'src/VideoBatchProcessor.App/Assets/Packaging/VideoBatchProcessor.ico')" `
+    $InstallerScript
+if ($LASTEXITCODE -ne 0) { throw "Falló la creación del instalador Windows." }
+if (-not (Test-Path $InstallerPath)) { throw "No se creó el instalador: $InstallerPath" }
+
+$Digest = (Get-FileHash $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$InstallerPath.sha256" -Value "$Digest  $(Split-Path $InstallerPath -Leaf)" -NoNewline
+Write-Host "Instalador creado: $InstallerPath"

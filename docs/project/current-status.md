@@ -4,8 +4,8 @@
 
 **Fecha de revisión:** 05-10-2026
 
-**Versión `0.3.0`:** icono propio de la app (sin cambiar los escudos de la
-interfaz), aviso de MAT/CSV
+**Versión `0.3.1`:** instaladores directos para Windows y Mac Apple Silicon,
+icono propio de la app (sin cambiar los escudos de la interfaz), aviso de MAT/CSV
 ausente, selección manual de una tabla existente y opción explícita de seguir
 solo con luces. La salida aproximada conserva `na` para resultado desconocido
 y no inventa sincronización ni filas conductuales. Pruebas automáticas de
@@ -22,7 +22,7 @@ previsualizar y asignarlas a un video sin importar archivos Excel. Pruebas de
 parser, flujo de sincronización/exportación e interfaz. Una tabla pegada se
 emparejó con tres eventos sintéticos y produjo siete recortes reales verificados;
 la prueba real del usuario con `exp_0526_dis_d10r2` también se completó.
-Se incluye en los paquetes `0.3.0` para Windows x64 y Mac Apple Silicon;
+Se incluye en los paquetes `0.3.1` para Windows x64 y Mac Apple Silicon;
 la app instalada no se reemplaza automáticamente al publicar.
 Ver [formato y trazabilidad](../reference/mat-format.md#tabla-pegada-desde-excel).
 
@@ -54,7 +54,7 @@ investigador. DIS con comida está implementado y la corrida real
 Se verificaron duraciones y frames de 85 recortes durante la exportación;
 la revisión visual de todos los límites sigue siendo responsabilidad del usuario.
 DIS con MAT/CSV está incluido desde `0.2.0`; el pegado de tablas, el panel
-ajustable y la opción sin tabla se incluyen en `0.3.0`.
+ajustable y la opción sin tabla se incluyen en `0.3.1`.
 
 La detección adicional de comida derecha en 17:55.533–17:55.900 no tenía fila
 MAT. Se conserva como aviso y dentro del clip `e34`, sin crear un ensayo extra.
@@ -241,7 +241,7 @@ raw, sin generar trabajo manual.
 ### Backend posterior
 
 1. Asignación explícita de un perfil de cámara reutilizable a varias sesiones.
-2. Validar manualmente el paquete Windows `0.3.0` en una PC del laboratorio.
+2. Validar manualmente el instalador Windows `0.3.1` en una PC del laboratorio.
    Mac Apple Silicon y la máquina virtual Windows ya generan paquetes autónomos
    con FFmpeg/ffprobe trazables; Mac Intel se omite en esta versión. La firma
    pública/notarización queda para una entrega fuera del laboratorio.
@@ -280,8 +280,9 @@ raw, sin generar trabajo manual.
 ## Estado Git
 
 - `main` reúne los tres pasos de `codex/optional-behavioral-source`.
-- La entrega `v0.3.0` conserva `v0.2.0` como versión anterior recuperable.
-  Publicar los paquetes no reemplaza automáticamente la app instalada.
+- La entrega `v0.3.1` conserva `v0.3.0` como versión anterior recuperable.
+  Windows se instala con un único `.exe`; Mac se distribuye en `.dmg`.
+  Publicar los instaladores no reemplaza automáticamente la app instalada.
 - Esta interfaz ya pasó su prueba manual inicial. Repetirla al conectar un
   módulo nuevo, no por cambios puramente documentales.
 

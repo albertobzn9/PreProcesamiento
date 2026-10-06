@@ -8,6 +8,17 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-06
+
+### Changed
+
+- Distribución simplificada para usuarios del laboratorio: Windows entrega un
+  único instalador `.exe` con instalación, acceso Inicio y desinstalador; macOS
+  entrega un `.dmg` con la app y acceso a Aplicaciones. Reemplazan los ZIP como
+  descarga principal, sin separar dependencias internas.
+- La validación Windows instala, abre y desinstala el producto terminado en la
+  máquina virtual, además de comprobar pruebas y exportación real.
+
 ## [0.3.0] - 2026-10-05
 
 ### Changed

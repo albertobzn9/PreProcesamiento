@@ -4,13 +4,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/src/VideoBatchProcessor.App/VideoBatchProcessor.App.csproj"
 RID="${1:-osx-arm64}"
-VERSION="${VBP_VERSION:-0.3.0}"
-BUILD_NUMBER="${VBP_BUILD_NUMBER:-3}"
+VERSION="${VBP_VERSION:-0.3.1}"
+BUILD_NUMBER="${VBP_BUILD_NUMBER:-4}"
 FFMPEG_DIR="${VBP_FFMPEG_DIR:-$ROOT/vendor/ffmpeg/$RID}"
 OUTPUT_ROOT="$ROOT/artifacts/release/$VERSION/$RID"
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 APP_DIR="$OUTPUT_ROOT/Video Batch Processor.app"
-ZIP_PATH="$OUTPUT_ROOT/VideoBatchProcessor-$VERSION-$RID.zip"
+DMG_PATH="$OUTPUT_ROOT/VideoBatchProcessor-$VERSION-$RID.dmg"
 
 if [[ "$RID" != "osx-arm64" && "$RID" != "osx-x64" ]]; then
   echo "Uso: $0 [osx-arm64|osx-x64]" >&2
@@ -27,6 +27,9 @@ done
 
 rm -rf "$OUTPUT_ROOT"
 mkdir -p "$PUBLISH_DIR"
+STAGING_DIR="$(mktemp -d "$OUTPUT_ROOT/.dmg-staging.XXXXXX")"
+cleanup() { rm -rf "$STAGING_DIR"; }
+trap cleanup EXIT
 
 dotnet publish "$PROJECT" \
   --configuration Release \
@@ -65,11 +68,14 @@ else
 fi
 
 codesign --verify --deep --strict "$APP_DIR"
-ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
+ditto "$APP_DIR" "$STAGING_DIR/Video Batch Processor.app"
+ln -s /Applications "$STAGING_DIR/Applications"
+hdiutil create -volname "Video Batch Processor" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
+hdiutil verify "$DMG_PATH"
 (
   cd "$OUTPUT_ROOT"
-  shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH").sha256"
+  shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$DMG_PATH").sha256"
 )
 
 "$ROOT/scripts/verify-package.sh" "$APP_DIR" "$RID"
-echo "Paquete creado: $ZIP_PATH"
+echo "Instalador creado: $DMG_PATH"

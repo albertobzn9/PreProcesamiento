@@ -10,17 +10,17 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 
 ## Descargar La App
 
-Paquetes públicos en [Releases](https://github.com/albertobzn9/PreProcesamiento/releases/tag/v0.3.0),
+Instaladores públicos en [Releases](https://github.com/albertobzn9/PreProcesamiento/releases/tag/v0.3.1),
 sin necesidad de clonar el repositorio ni instalar .NET:
 
-- [Windows x64: descargar ZIP](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.0/VideoBatchProcessor-0.3.0-win-x64.zip).
-  Extraer **todo** el ZIP en una carpeta y abrir `VideoBatchProcessor.exe`.
-  No mover el ejecutable separado de sus archivos. Si falta WebView2, instalar
+- [Windows x64: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-win-x64-setup.exe).
+  Abrir el archivo, seguir el asistente y después iniciar la app desde el menú
+  Inicio. Si falta WebView2, instalar
   el [runtime Evergreen de Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
-- [Mac Apple Silicon: descargar ZIP](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.0/VideoBatchProcessor-0.3.0-osx-arm64.zip).
-  Extraer y mover la `.app` a Aplicaciones. No es un paquete para Mac Intel.
+- [Mac Apple Silicon: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-osx-arm64.dmg).
+  Abrir el archivo y arrastrar la app a Aplicaciones. No es un paquete para Mac Intel.
 
-La versión `0.3.0` es una **versión de prueba para el laboratorio**: incluye
+La versión `0.3.1` es una **versión de prueba para el laboratorio**: incluye
 FFmpeg/FFprobe, pero no firma pública de Windows ni notarización de Apple.
 Los sistemas pueden mostrar advertencias de seguridad. La validación completa
 en una PC Windows del laboratorio sigue pendiente.
@@ -29,7 +29,7 @@ en una PC Windows del laboratorio sigue pendiente.
 
 La interfaz ya procesa y exporta sesiones CS y CP con validación real.
 DIS con comida también completó una sesión real: 60 eventos empatados y
-121 recortes en `exp_0526_dis_d10r2`. La versión `0.3.0` agrega tabla pegada
+121 recortes en `exp_0526_dis_d10r2`. La versión `0.3.1` conserva tabla pegada
 desde Excel (ocho columnas), aviso si falta MAT/CSV, procesamiento aproximado
 sin tabla con consentimiento y panel Video Setup ajustable.
 
