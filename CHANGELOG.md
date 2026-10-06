@@ -13,9 +13,10 @@ Para el estado operativo actual, ver [Current Project Status](docs/project/curre
 ### Changed
 
 - Distribución simplificada para usuarios del laboratorio: Windows entrega un
-  único instalador `.exe` con instalación, acceso Inicio y desinstalador; macOS
-  entrega un `.dmg` con la app y acceso a Aplicaciones. Reemplazan los ZIP como
-  descarga principal, sin separar dependencias internas.
+  instalador `.exe` con instalación, acceso Inicio y desinstalador; macOS
+  entrega un `.dmg` con la app y acceso a Aplicaciones. Ambos se acompañan de
+  un ZIP portátil con la misma aplicación completa para quien prefiera abrirla
+  sin instalar.
 - La validación Windows instala, abre y desinstala el producto terminado en la
   máquina virtual, además de comprobar pruebas y exportación real.
 

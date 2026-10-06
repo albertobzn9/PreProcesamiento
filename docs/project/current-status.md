@@ -4,7 +4,7 @@
 
 **Fecha de revisión:** 05-10-2026
 
-**Versión `0.3.1`:** instaladores directos para Windows y Mac Apple Silicon,
+**Versión `0.3.1`:** instaladores directos y ZIP portátiles para Windows y Mac Apple Silicon,
 icono propio de la app (sin cambiar los escudos de la interfaz), aviso de MAT/CSV
 ausente, selección manual de una tabla existente y opción explícita de seguir
 solo con luces. La salida aproximada conserva `na` para resultado desconocido
@@ -281,7 +281,8 @@ raw, sin generar trabajo manual.
 
 - `main` reúne los tres pasos de `codex/optional-behavioral-source`.
 - La entrega `v0.3.1` conserva `v0.3.0` como versión anterior recuperable.
-  Windows se instala con un único `.exe`; Mac se distribuye en `.dmg`.
+  Windows se instala con un `.exe` y Mac se distribuye en `.dmg`; ambos tienen
+  también un ZIP portátil equivalente.
   Publicar los instaladores no reemplaza automáticamente la app instalada.
 - Esta interfaz ya pasó su prueba manual inicial. Repetirla al conectar un
   módulo nuevo, no por cambios puramente documentales.

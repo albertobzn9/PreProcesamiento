@@ -35,8 +35,9 @@ Colocar primero FFmpeg y FFprobe en `vendor/ffmpeg/osx-arm64/` o
 ```
 
 El resultado queda en `artifacts/release/0.3.1/osx-arm64/` como `.app`,
-`VideoBatchProcessor-<version>-osx-arm64.dmg` y archivo `.sha256`. El DMG muestra
-la aplicación y el acceso a Aplicaciones para que el usuario la arrastre una vez.
+`VideoBatchProcessor-<version>-osx-arm64.dmg`, un ZIP portátil y sus archivos
+`.sha256`. El DMG muestra la aplicación y el acceso a Aplicaciones para que el
+usuario la arrastre una vez. El ZIP conserva la misma app para abrirla sin instalar.
 Sin una identidad de Apple, el script aplica una firma local apropiada solo
 para pruebas. La entrega fuera del equipo de desarrollo requiere Developer ID,
 Hardened Runtime y notarización.
@@ -50,11 +51,12 @@ verifica la descarga fijada de FFmpeg, ejecuta las pruebas y llama:
 ./scripts/package-windows.ps1 -Version 0.3.1
 ```
 
-El resultado es `VideoBatchProcessor-<version>-win-x64-setup.exe`, un solo
-instalador creado con Inno Setup que incluye `VideoBatchProcessor.exe`, sus
-dependencias y herramientas multimedia. Instala bajo el perfil del usuario,
-crea un acceso en Inicio, ofrece acceso de escritorio opcional y deja un
-desinstalador. Esta forma es adecuada para validación interna.
+El resultado incluye `VideoBatchProcessor-<version>-win-x64-setup.exe` y un ZIP
+portátil con la misma carpeta publicada. El instalador creado con Inno Setup
+incluye `VideoBatchProcessor.exe`, sus dependencias y herramientas multimedia;
+instala bajo el perfil del usuario, crea un acceso en Inicio, ofrece acceso de
+escritorio opcional y deja un desinstalador. El ZIP se extrae completo y se abre
+sin instalación. Ambas formas son adecuadas para validación interna.
 La interfaz usa Microsoft WebView2: Windows 11 normalmente ya lo incluye;
 Windows 10 puede requerir instalar el runtime Evergreen de Microsoft. La máquina
 virtual lo instala antes de comprobar el arranque del paquete.

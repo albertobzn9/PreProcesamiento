@@ -13,12 +13,16 @@ El objetivo del proyecto es convertir sesiones largas de video en clips cortos, 
 Instaladores públicos en [Releases](https://github.com/albertobzn9/PreProcesamiento/releases/tag/v0.3.1),
 sin necesidad de clonar el repositorio ni instalar .NET:
 
-- [Windows x64: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-win-x64-setup.exe).
+- [Windows x64: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-win-x64-setup.exe)
+  (recomendado) o [ZIP portátil](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-win-x64.zip).
   Abrir el archivo, seguir el asistente y después iniciar la app desde el menú
-  Inicio. Si falta WebView2, instalar
+  Inicio. Con el ZIP, extraer **todo** el contenido y abrir
+  `VideoBatchProcessor.exe` sin moverlo fuera de su carpeta. Si falta WebView2, instalar
   el [runtime Evergreen de Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
-- [Mac Apple Silicon: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-osx-arm64.dmg).
-  Abrir el archivo y arrastrar la app a Aplicaciones. No es un paquete para Mac Intel.
+- [Mac Apple Silicon: descargar instalador](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-osx-arm64.dmg)
+  (recomendado) o [ZIP portátil](https://github.com/albertobzn9/PreProcesamiento/releases/download/v0.3.1/VideoBatchProcessor-0.3.1-osx-arm64.zip).
+  Abrir el DMG y arrastrar la app a Aplicaciones; con el ZIP, extraer la app y
+  abrirla desde cualquier ubicación. No es un paquete para Mac Intel.
 
 La versión `0.3.1` es una **versión de prueba para el laboratorio**: incluye
 FFmpeg/FFprobe, pero no firma pública de Windows ni notarización de Apple.

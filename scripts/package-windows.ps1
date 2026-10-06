@@ -21,6 +21,7 @@ if (-not (Test-Path $Ffmpeg) -or -not (Test-Path $Ffprobe)) {
 $OutputRoot = Join-Path $Root "artifacts/release/$Version/$Rid"
 $PublishDirectory = Join-Path $OutputRoot "VideoBatchProcessor"
 $InstallerPath = Join-Path $OutputRoot "VideoBatchProcessor-$Version-$Rid-setup.exe"
+$PortableZipPath = Join-Path $OutputRoot "VideoBatchProcessor-$Version-$Rid.zip"
 $InstallerScript = Join-Path $Root "packaging/windows/VideoBatchProcessor.iss"
 Remove-Item $OutputRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $PublishDirectory -ItemType Directory -Force | Out-Null
@@ -54,6 +55,10 @@ foreach ($RequiredPath in @(
     if (-not (Test-Path $RequiredPath)) { throw "El paquete quedó incompleto: falta $RequiredPath" }
 }
 
+# The portable archive contains the same complete publish directory used by the installer.
+Compress-Archive -Path (Join-Path $PublishDirectory "*") -DestinationPath $PortableZipPath -Force
+if (-not (Test-Path $PortableZipPath)) { throw "No se creó el ZIP portátil: $PortableZipPath" }
+
 if ([string]::IsNullOrWhiteSpace($InnoSetupCompiler)) {
     $InnoSetupCompiler = (Get-Command "ISCC.exe" -ErrorAction SilentlyContinue).Source
 }
@@ -69,4 +74,7 @@ if (-not (Test-Path $InstallerPath)) { throw "No se creó el instalador: $Instal
 
 $Digest = (Get-FileHash $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -Path "$InstallerPath.sha256" -Value "$Digest  $(Split-Path $InstallerPath -Leaf)" -NoNewline
+$PortableDigest = (Get-FileHash $PortableZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$PortableZipPath.sha256" -Value "$PortableDigest  $(Split-Path $PortableZipPath -Leaf)" -NoNewline
 Write-Host "Instalador creado: $InstallerPath"
+Write-Host "ZIP portátil creado: $PortableZipPath"

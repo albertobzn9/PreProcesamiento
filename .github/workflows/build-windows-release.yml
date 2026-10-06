@@ -86,6 +86,11 @@ jobs:
       - name: Smoke test packaged application
         shell: pwsh
         run: |
+          $portableArchive = Join-Path $PWD "artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64.zip"
+          $portableDirectory = Join-Path $env:RUNNER_TEMP "VideoBatchProcessor-portable"
+          Expand-Archive -Path $portableArchive -DestinationPath $portableDirectory
+          $portableApp = Join-Path $portableDirectory "VideoBatchProcessor.exe"
+          if (-not (Test-Path $portableApp)) { throw "Portable ZIP did not contain the application." }
           $installer = Join-Path $PWD "artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64-setup.exe"
           $installDirectory = Join-Path $env:RUNNER_TEMP "VideoBatchProcessor-installed"
           $install = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$installDirectory`"" -PassThru -Wait
@@ -118,4 +123,6 @@ jobs:
           path: |
             artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64-setup.exe
             artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64-setup.exe.sha256
+            artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64.zip
+            artifacts/release/${{ inputs.version }}/win-x64/VideoBatchProcessor-${{ inputs.version }}-win-x64.zip.sha256
           if-no-files-found: error

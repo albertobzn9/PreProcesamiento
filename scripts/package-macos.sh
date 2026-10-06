@@ -11,6 +11,7 @@ OUTPUT_ROOT="$ROOT/artifacts/release/$VERSION/$RID"
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 APP_DIR="$OUTPUT_ROOT/Video Batch Processor.app"
 DMG_PATH="$OUTPUT_ROOT/VideoBatchProcessor-$VERSION-$RID.dmg"
+ZIP_PATH="$OUTPUT_ROOT/VideoBatchProcessor-$VERSION-$RID.zip"
 
 if [[ "$RID" != "osx-arm64" && "$RID" != "osx-x64" ]]; then
   echo "Uso: $0 [osx-arm64|osx-x64]" >&2
@@ -68,6 +69,7 @@ else
 fi
 
 codesign --verify --deep --strict "$APP_DIR"
+ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
 ditto "$APP_DIR" "$STAGING_DIR/Video Batch Processor.app"
 ln -s /Applications "$STAGING_DIR/Applications"
 hdiutil create -volname "Video Batch Processor" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
@@ -75,7 +77,9 @@ hdiutil verify "$DMG_PATH"
 (
   cd "$OUTPUT_ROOT"
   shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$DMG_PATH").sha256"
+  shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH").sha256"
 )
 
 "$ROOT/scripts/verify-package.sh" "$APP_DIR" "$RID"
 echo "Instalador creado: $DMG_PATH"
+echo "ZIP portátil creado: $ZIP_PATH"
