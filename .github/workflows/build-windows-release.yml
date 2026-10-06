@@ -114,7 +114,8 @@ jobs:
           $uninstaller = Join-Path $installDirectory "unins000.exe"
           if (-not (Test-Path $uninstaller)) { throw "Installer did not create an uninstaller." }
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru -Wait
-          if ($uninstall.ExitCode -ne 0 -or (Test-Path $installDirectory)) { throw "Uninstaller did not finish cleanly." }
+          if ($uninstall.ExitCode -ne 0 -or (Test-Path $app)) { throw "Uninstaller did not remove the application cleanly." }
+          Remove-Item $installDirectory -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v6
